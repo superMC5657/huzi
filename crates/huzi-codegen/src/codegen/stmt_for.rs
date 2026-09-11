@@ -78,6 +78,14 @@ impl<'ctx> CodeGen<'ctx> {
         array: &Expr,
         span: Span,
     ) -> Result<()> {
+        // `for x in v`:vec 走动态长度路径。
+        if let Expr::Ident(name) = array {
+            if let Some(slot) = self.scope_lookup(name) {
+                if Self::is_vec_slot(&slot) {
+                    return self.compile_for_vec(stmt, name, span);
+                }
+            }
+        }
         let arr_value = self.compile_expr(array)?;
         let arr_ptr = if arr_value.is_pointer_value() {
             arr_value.into_pointer_value()

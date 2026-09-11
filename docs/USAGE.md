@@ -271,6 +271,32 @@ fn main() -> i32 {
 }
 ```
 
+### Vec 动态数组使用
+
+```python
+fn main() -> i32 {
+    # 构造:元素类型由首元素推导,至少 1 个元素
+    let mut v = vec(1, 2, 3)
+
+    # 下标读写(越界报运行时错误)
+    print(v[0])
+    v[1] = 20
+
+    # 追加:满时容量自动翻倍(需 let mut)
+    push(v, 4)
+    print("len =", len(v))
+
+    # for-in 遍历
+    for x in v {
+        print(x)
+    }
+    return 0
+}
+```
+
+约束:`vec()` 至少 1 个元素(空 vec 暂不支持);vec 整体不可 `print`(请打印 `len(v)` 或元素);
+`for x in v` 进入前一次性读取长度(循环内 push 新增的元素不保证被遍历)。
+
 ### 阶乘计算
 
 ```python
@@ -367,6 +393,7 @@ fn main() -> i32 {
 | `str` | 字符串 | `let x: str = "hello"` |
 | `char` | 字符 | `let x: char = 'a'` |
 | `[T; N]` | 数组 | `let arr: [i32; 5] = [1, 2, 3, 4, 5]` |
+| `vec(T)` | 动态数组(类型由首元素推导) | `let mut v = vec(1, 2, 3)` + `push(v, 4)` |
 
 ## 运算符
 
@@ -506,6 +533,7 @@ fn main() -> i32 {
 
 - 整数除零 / 取模零:`Runtime error: division by zero`(浮点除法遵循 IEEE 语义,不检查)
 - 数组下标越界:`Runtime error: array index out of bounds (length N)`(负下标同样报错)
+- vec 下标越界:`Runtime error: vec index out of bounds`(负下标同样报错)
 - 字符串下标 `s[i]` 越界**不做检查**(返回越界字节),请先用 `len(s)` 校验
 
 ### 数学

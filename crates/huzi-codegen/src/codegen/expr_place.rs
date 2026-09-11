@@ -30,6 +30,18 @@ impl<'ctx> CodeGen<'ctx> {
             }
             Expr::ArrayIndex(idx_expr) => {
                 self.ensure_mutable(&expr.target)?;
+                // vec 下标写走动态长度路径。
+                if let Expr::Ident(name) = &*idx_expr.array {
+                    if let Some(slot) = self.scope_lookup(name) {
+                        if Self::is_vec_slot(&slot) {
+                            let (elem_ptr, elem_type) =
+                                self.vec_index_ptr(name, &idx_expr.index)?;
+                            let value = self.coerce_value(elem_type, value)?;
+                            self.builder.build_store(elem_ptr, value).unwrap();
+                            return Ok(value);
+                        }
+                    }
+                }
                 let array_ptr = self.compile_expr(&idx_expr.array)?;
                 let array_ptr = if array_ptr.is_pointer_value() {
                     array_ptr.into_pointer_value()
@@ -82,6 +94,13 @@ impl<'ctx> CodeGen<'ctx> {
                 self.gep_field(base_ptr, base_ty, &fa.field)
             }
             Expr::ArrayIndex(idx_expr) => {
+                if let Expr::Ident(name) = &*idx_expr.array {
+                    if let Some(slot) = self.scope_lookup(name) {
+                        if Self::is_vec_slot(&slot) {
+                            return self.vec_index_ptr(name, &idx_expr.index);
+                        }
+                    }
+                }
                 let array_ptr = self.compile_expr(&idx_expr.array)?;
                 let array_ptr = if array_ptr.is_pointer_value() {
                     array_ptr.into_pointer_value()

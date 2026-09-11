@@ -169,6 +169,8 @@ impl<'ctx> CodeGen<'ctx> {
             "sleep_ms" => return self.compile_sleep_ms(&expr.arguments),
             "read_file" => return self.compile_read_file(&expr.arguments),
             "write_file" => return self.compile_write_file(&expr.arguments),
+            "vec" => return self.compile_vec_ctor(&expr.arguments),
+            "push" => return self.compile_vec_push(&expr.arguments),
             _ => {}
         }
 

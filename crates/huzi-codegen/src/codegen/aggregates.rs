@@ -203,6 +203,14 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         expr: &huzi_ast::ArrayIndexExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        // vec 下标读走动态长度路径。
+        if let huzi_ast::Expr::Ident(name) = &*expr.array {
+            if let Some(slot) = self.scope_lookup(name) {
+                if Self::is_vec_slot(&slot) {
+                    return self.compile_vec_index_load(name, &expr.index);
+                }
+            }
+        }
         let array_ptr = self.compile_expr(&expr.array)?;
         let array_ptr_val = if array_ptr.is_pointer_value() {
             array_ptr.into_pointer_value()

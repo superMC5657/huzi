@@ -75,6 +75,7 @@ mod stmt_for;
 mod tests;
 mod tuples;
 mod types;
+mod vec;
 
 
 /// A variable slot: `ptr` always holds a pointer whose loaded value has type

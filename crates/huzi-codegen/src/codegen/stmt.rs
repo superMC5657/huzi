@@ -38,6 +38,9 @@ impl<'ctx> CodeGen<'ctx> {
         match &stmt.value {
             Some(Expr::ArrayLiteral(elements)) => self.compile_let_array(stmt, elements, span),
             Some(Expr::TupleLiteral(elements)) => self.compile_let_tuple(stmt, elements, span),
+            Some(Expr::Call(call)) if Self::is_vec_ctor(call) => {
+                self.compile_let_vec(stmt, &call.arguments, span)
+            }
             Some(value_expr) => self.compile_let_with_value(stmt, value_expr, span),
             None => self.compile_let_uninitialized(stmt, span),
         }

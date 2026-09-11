@@ -43,6 +43,16 @@ impl<'ctx> CodeGen<'ctx> {
         let mut args: Vec<inkwell::values::BasicMetadataValueEnum> = Vec::new();
 
         for arg in arguments.iter() {
+            // vec 整体不可打印(会误入元组格式化);请打印 len(v) 或 v[i]。
+            if let Expr::Ident(name) = arg {
+                if let Some(slot) = self.scope_lookup(name) {
+                    if Self::is_vec_slot(&slot) {
+                        return Err(HuziError::new_global(
+                            "print() does not support vec directly; print len(v) or elements instead",
+                        ));
+                    }
+                }
+            }
             let value = self.compile_expr(arg)?;
             self.format_print_value(value, &mut format_string, &mut args)?;
         }

@@ -1,0 +1,33 @@
+# Vec 动态数组示例
+# vec(e...) 构造(元素类型由首元素推导,至少 1 个);
+# push 追加(满时自动翻倍扩容,需 let mut);v[i] 读写;len(v);for x in v 遍历。
+
+fn main() -> i32 {
+    let mut v = vec(1, 2, 3)
+    print("v[0] =", v[0])
+    print("len =", len(v))
+
+    # 下标赋值
+    v[1] = 20
+    print("v[1] =", v[1])
+
+    # 追加(第 1 次 push 触发 3->6 扩容)
+    push(v, 4)
+    push(v, 5)
+    print("len =", len(v))
+
+    # for-in 求和:1 + 20 + 3 + 4 + 5 = 33
+    let mut total = 0
+    for x in v {
+        total = total + x
+    }
+    print("total =", total)
+
+    # 字符串 vec
+    let mut s = vec("foo", "bar")
+    push(s, "baz")
+    print("len =", len(s))
+    print(s[2])
+    print(concat(s[0], s[1]))
+    0
+}

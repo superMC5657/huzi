@@ -286,6 +286,46 @@ fn system_builtins_verify() {
     }
 }
 
+/// vec 构造/push/下标/for-in 生成合法 IR,扩容走 realloc。
+#[test]
+fn vec_push_grows_and_verifies() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let call = |name: &str, args: Vec<Expr>| Expr::Call(CallExpr {
+        callee: Box::new(Expr::Ident(name.to_string())),
+        arguments: args,
+    });
+    let vec_ident = || Expr::Ident("v".to_string());
+    let program = main_program(vec![
+        sp(Stmt::Let(LetStmt {
+            name: "v".to_string(),
+            mutable: true,
+            type_annotation: None,
+            value: Some(call("vec", vec![Expr::Literal(Literal::Int(1))])),
+        })),
+        sp(Stmt::Expr(ExprStmt {
+            expr: call("push", vec![vec_ident(), Expr::Literal(Literal::Int(2))]),
+        })),
+        sp(Stmt::For(ForStmt {
+            var_name: "x".to_string(),
+            source: ForSource::Array(vec_ident()),
+            body: Block { statements: vec![] },
+        })),
+        sp(Stmt::Return(ReturnStmt {
+            value: Some(Expr::ArrayIndex(ArrayIndexExpr {
+                array: Box::new(vec_ident()),
+                index: Box::new(Expr::Literal(Literal::Int(1))),
+            })),
+        })),
+    ]);
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    for symbol in ["declare ptr @realloc", "vec_realloc", "vec_grow", "vec_for_loop"] {
+        assert!(ir.contains(symbol), "IR should contain {symbol}");
+    }
+}
+
 /// 文件 I/O 内置函数生成合法 IR,声明 stdio 符号。
 #[test]
 fn file_io_builtins_verify() {

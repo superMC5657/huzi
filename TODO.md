@@ -165,6 +165,17 @@ huzc/
 
 ---
 
+## 2026-09-12 更新:Vec 动态数组(P2 复合类型补充)
+
+- **语法**:`let mut v = vec(1, 2, 3)`(元素类型由首元素推导,至少 1 个元素,不接受类型标注)
+- **操作**:`push(v, x)`(满时容量翻倍,需 `let mut`,返回 0)/`v[i]`/`v[i] = x`(动态越界检查)/`len(v)`/`for x in v`(进入前一次性读长度)
+- **实现**:纯 codegen 层(`codegen/vec.rs`),表示为栈上匿名结构体 `{ data: ptr, len: i32, cap: i32 }`,槽判定为"结构体 ty + elem 标记";未碰 lexer/parser/AST;prelude 新增 `realloc` 声明
+- **约束**:`vec()` 不接受空参数;vec 整体不可 print/to_string;`print(v)` 报友好错误
+- **验证**:单元测试 +1(`vec_push_grows_and_verifies`),示例 examples/29_vec.hz,负例 vec_oob;test.sh 35 passed
+- **文档**:docs/USAGE.md 新增「Vec 动态数组使用」章节、类型表行、运行时错误行
+
+---
+
 ## 2026-09-01 更新:移除快照回归机制描述
 
 - `test.sh` 的回归验证始终为:**编译并运行 examples/ 全部示例,校验退出码**(当前 28 个)。

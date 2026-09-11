@@ -44,6 +44,16 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("malloc", malloc_fn, None);
 
+        // realloc for vec growth (ptr, new byte size) -> ptr
+        let realloc_fn = self.context.ptr_type(inkwell::AddressSpace::default()).fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.i32_type().into(),
+            ],
+            false,
+        );
+        self.module.add_function("realloc", realloc_fn, None);
+
         // sprintf for to_string
         let sprintf_fn = self.context.i32_type().fn_type(
             &[

@@ -13,6 +13,9 @@ impl<'ctx> CodeGen<'ctx> {
         // strings use strlen.
         if let Expr::Ident(name) = &arguments[0] {
             if let Some(slot) = self.scope_lookup(name) {
+                if Self::is_vec_slot(&slot) {
+                    return self.vec_len_value(name);
+                }
                 if let Some(len) = slot.array_len {
                     return Ok(self.context.i32_type().const_int(len as u64, false).into());
                 }
