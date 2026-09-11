@@ -57,6 +57,9 @@ fn module_fn_statements(program: &Program) -> Vec<(FnStmt, Span)> {
 mod aggregates;
 mod args;
 mod builtins;
+mod builtins_math;
+mod builtins_print;
+mod builtins_string;
 mod builtins_io;
 mod builtins_sys;
 mod debuginfo;

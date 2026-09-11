@@ -6,7 +6,7 @@
 
 use huzi_ast::Expr;
 use huzi_error::{HuziError, Result};
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, PointerValue};
 
 use super::CodeGen;
 
@@ -244,5 +244,231 @@ impl<'ctx> CodeGen<'ctx> {
     fn cstr_const(&mut self, s: &str) -> inkwell::values::PointerValue<'ctx> {
         let global = unsafe { self.builder.build_global_string(s, "huzi_cstr").unwrap() };
         global.as_pointer_value()
+    }
+
+    pub(super) fn compile_read_line(&mut self) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let getchar_fn = self.module.get_function("getchar").unwrap();
+
+        // Allocate buffer (256 bytes)
+        let buffer = self.alloc_str_buffer(256)?;
+
+        let i32_type = self.context.i32_type();
+        let idx_ptr = self.build_alloca(i32_type.into(), "read_idx")?;
+        self.builder
+            .build_store(idx_ptr, i32_type.const_int(0, false))
+            .unwrap();
+
+        let function = self.current_function()?;
+        let loop_block = self.context.append_basic_block(function, "read_loop");
+        let store_block = self.context.append_basic_block(function, "read_store");
+        let done_block = self.context.append_basic_block(function, "read_done");
+
+        self.builder
+            .build_unconditional_branch(loop_block)
+            .unwrap();
+
+        // Read one char per iteration until '''PLACEHOLDER''', EOF, or buffer full.
+        self.builder.position_at_end(loop_block);
+        let c = self
+            .builder
+            .build_call(getchar_fn, &[], "ch")
+            .unwrap()
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_int_value();
+
+        // Record EOF for is_eof(): getchar returns -1 at end of input.
+        let eof_hit = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                c,
+                i32_type.const_int(-1i64 as u64, true),
+                "eof_hit",
+            )
+            .unwrap();
+        self.mark_eof_flag(eof_hit);
+
+        let idx = self
+            .builder
+            .build_load(i32_type, idx_ptr, "idx")
+            .unwrap()
+            .into_int_value();
+
+        let cont = self.read_line_continue(c, idx, i32_type)?;
+
+        self.builder
+            .build_conditional_branch(cont, store_block, done_block)
+            .unwrap();
+
+        self.read_line_store(buffer, idx_ptr, idx, c, i32_type, store_block, loop_block)?;
+
+        // Null-terminate and continue in the done block.
+        self.builder.position_at_end(done_block);
+        let term_ptr = unsafe {
+            self.builder
+                .build_gep(self.context.i8_type(), buffer, &[idx], "term_ptr")
+                .unwrap()
+        };
+        self.builder
+            .build_store(term_ptr, self.context.i8_type().const_int(0, false))
+            .unwrap();
+
+        Ok(buffer.into())
+    }
+
+    /// Whether the read loop should keep going: space left in the buffer,
+    /// current char is not a newline, and not EOF.
+    fn read_line_continue(
+        &mut self,
+        c: inkwell::values::IntValue<'ctx>,
+        idx: inkwell::values::IntValue<'ctx>,
+        i32_type: inkwell::types::IntType<'ctx>,
+    ) -> Result<inkwell::values::IntValue<'ctx>> {
+        let has_space = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::SLT, idx, i32_type.const_int(255, false), "has_space")
+            .unwrap();
+                let not_nl = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::NE, c, i32_type.const_int('\n' as u64, false), "not_nl")
+            .unwrap();
+        let not_eof = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::NE, c, i32_type.const_int(-1i64 as u64, true), "not_eof")
+            .unwrap();
+        let cont = self.builder.build_and(has_space, not_nl, "cont").unwrap();
+        let cont = self.builder.build_and(cont, not_eof, "cont2").unwrap();
+        Ok(cont)
+    }
+
+    /// Emit the store block: truncate the char to i8, write it at the current
+    /// index, bump the index, and jump back to the loop header.
+    fn read_line_store(
+        &mut self,
+        buffer: PointerValue<'ctx>,
+        idx_ptr: PointerValue<'ctx>,
+        idx: inkwell::values::IntValue<'ctx>,
+        c: inkwell::values::IntValue<'ctx>,
+        i32_type: inkwell::types::IntType<'ctx>,
+        store_block: inkwell::basic_block::BasicBlock<'ctx>,
+        loop_block: inkwell::basic_block::BasicBlock<'ctx>,
+    ) -> Result<()> {
+        self.builder.position_at_end(store_block);
+        let c8 = self
+            .builder
+            .build_int_truncate(c, self.context.i8_type(), "ch_i8")
+            .unwrap();
+        let ch_ptr = unsafe {
+            self.builder
+                .build_gep(self.context.i8_type(), buffer, &[idx], "ch_ptr")
+                .unwrap()
+        };
+        self.builder.build_store(ch_ptr, c8).unwrap();
+        let idx_next = self
+            .builder
+            .build_int_add(idx, i32_type.const_int(1, false), "idx_next")
+            .unwrap();
+        self.builder.build_store(idx_ptr, idx_next).unwrap();
+        self.builder
+            .build_unconditional_branch(loop_block)
+            .unwrap();
+        Ok(())
+    }
+
+    pub(super) fn compile_read_int(&mut self) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let scanf_fn = self.module.get_function("scanf").unwrap();
+
+        // Format string for %d
+        let format_str = unsafe {
+            self.builder
+                .build_global_string("%d", "scanf_format_int")
+                .unwrap()
+        };
+
+        // Allocate space for int
+        let int_ptr = self.build_alloca(self.context.i32_type().into(), "int_input")?;
+
+        let scanf_ret = self
+            .builder
+            .build_call(
+                scanf_fn,
+                &[
+                    format_str.as_pointer_value().into(),
+                    int_ptr.into(),
+                ],
+                "scanf_int",
+            )
+            .unwrap()
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_int_value();
+
+        // Record EOF for is_eof(): scanf returns -1 when input ends.
+        let eof_hit = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                scanf_ret,
+                self.context.i32_type().const_int(-1i64 as u64, true),
+                "eof_hit",
+            )
+            .unwrap();
+        self.mark_eof_flag(eof_hit);
+
+        let value = self
+            .builder
+            .build_load(self.context.i32_type(), int_ptr, "int_value")
+            .unwrap();
+
+        Ok(value)
+    }
+
+    pub(super) fn compile_read_float(&mut self) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let scanf_fn = self.module.get_function("scanf").unwrap();
+
+        // Format string for %lf
+        let format_str = unsafe {
+            self.builder
+                .build_global_string("%lf", "scanf_format_float")
+                .unwrap()
+        };
+
+        // Allocate space for double
+        let float_ptr = self.build_alloca(self.context.f64_type().into(), "float_input")?;
+
+        let scanf_ret = self
+            .builder
+            .build_call(
+                scanf_fn,
+                &[
+                    format_str.as_pointer_value().into(),
+                    float_ptr.into(),
+                ],
+                "scanf_float",
+            )
+            .unwrap()
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_int_value();
+
+        // Record EOF for is_eof(): scanf returns -1 when input ends.
+        let eof_hit = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                scanf_ret,
+                self.context.i32_type().const_int(-1i64 as u64, true),
+                "eof_hit",
+            )
+            .unwrap();
+        self.mark_eof_flag(eof_hit);
+
+        let value = self
+            .builder
+            .build_load(self.context.f64_type(), float_ptr, "float_value")
+            .unwrap();
+
+        Ok(value)
     }
 }
