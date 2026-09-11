@@ -14,3 +14,5 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Huzi Team"]
 license = "MIT"
+description = "Huzi programming language compiler with an LLVM backend"
+repository = "https://github.com/superMC5657/huzc"

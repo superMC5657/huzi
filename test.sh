@@ -7,6 +7,17 @@ cd "$(dirname "$0")" || exit 1
 
 mkdir -p out
 
+# 平台自适应:Windows 可执行文件带 .exe 后缀,类 Unix 无后缀;
+# macOS 缺 GNU timeout,退化为直接运行。
+EXE_SUFFIX=""
+case "$(uname -s 2>/dev/null)" in
+  MINGW*|MSYS*|CYGWIN*|Windows*) EXE_SUFFIX=".exe" ;;
+esac
+HUZC="./target/debug/huzc$EXE_SUFFIX"
+run_limited() {
+  if command -v timeout > /dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
+}
+
 cargo build 2>&1 | grep -E "^error" && { echo "BUILD FAILED"; exit 1; }
 
 pass=0
@@ -22,7 +33,7 @@ for f in examples/*.hz; do
     echo "SKIP(interactive): $name"
     continue
   fi
-  if ! ./target/debug/huzc.exe -i "$f" -o "out/$name" > /tmp/huzc_build.log 2>&1; then
+  if ! "$HUZC" -i "$f" -o "out/$name" > /tmp/huzc_build.log 2>&1; then
     echo "FAIL(compile): $name"
     grep -E "error" /tmp/huzc_build.log | head -1
     fail=$((fail+1))
@@ -30,7 +41,7 @@ for f in examples/*.hz; do
   fi
   stdin_file="/dev/null"
   [ "$name" = "24_pipe_read" ] && stdin_file="out/pipe_input.txt"
-  if ! timeout 10 "./out/$name.exe" < "$stdin_file" > /tmp/huzc_run.log 2>&1; then
+  if ! run_limited "./out/$name$EXE_SUFFIX" < "$stdin_file" > /tmp/huzc_run.log 2>&1; then
     code=$?
     echo "FAIL(run/$code): $name"
     fail=$((fail+1))
@@ -48,7 +59,7 @@ done
 
 for f in test/neg/*.compile_fail.hz; do
   name=$(basename "$f" .hz)
-  if ./target/debug/huzc.exe -i "$f" -o "out/neg_$name" > /tmp/huzc_neg.log 2>&1; then
+  if "$HUZC" -i "$f" -o "out/neg_$name" > /tmp/huzc_neg.log 2>&1; then
     echo "FAIL(neg-compile-should-fail): $name"
     fail=$((fail+1))
   else
@@ -59,12 +70,12 @@ done
 
 for f in test/neg/*.runtime_fail.hz; do
   name=$(basename "$f" .hz)
-  if ! ./target/debug/huzc.exe -i "$f" -o "out/neg_$name" > /tmp/huzc_neg.log 2>&1; then
+  if ! "$HUZC" -i "$f" -o "out/neg_$name" > /tmp/huzc_neg.log 2>&1; then
     echo "FAIL(neg-runtime-compile): $name"
     fail=$((fail+1))
     continue
   fi
-  if timeout 10 "./out/neg_$name.exe" < /dev/null > /tmp/huzc_neg_run.log 2>&1; then
+  if run_limited "./out/neg_$name$EXE_SUFFIX" < /dev/null > /tmp/huzc_neg_run.log 2>&1; then
     echo "FAIL(neg-runtime-should-fail): $name"
     fail=$((fail+1))
   else
