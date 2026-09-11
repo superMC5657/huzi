@@ -64,8 +64,13 @@ mod builtins_io;
 mod builtins_sys;
 mod debuginfo;
 mod expr;
+mod expr_binary;
+mod expr_place;
+mod match_expr;
 mod runtime;
 mod stmt;
+mod stmt_branch;
+mod stmt_for;
 #[cfg(test)]
 mod tests;
 mod tuples;
