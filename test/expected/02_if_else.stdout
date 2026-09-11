@@ -1,0 +1,19 @@
+=== 基本 if-else ===
+You are an adult.
+
+=== if-elif-else ===
+Score: 85, Grade code: 80
+Score: 92, Grade code: 90
+Score: 55, Grade code: 0
+
+=== 嵌套条件 ===
+It's warm.
+Perfect weather!
+
+=== 比较函数 ===
+max(10, 20) = 20
+max(50, 30) = 50
+
+=== 绝对值函数 ===
+abs_value(-3.14) = 3.140000
+abs_value(3.14) = 3.140000

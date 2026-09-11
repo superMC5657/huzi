@@ -1,0 +1,21 @@
+=== 字符串字面量 ===
+Hello, Huzi!
+
+=== 字符串长度 ===
+Text: Programming
+Length: 11
+Empty string length: 0
+
+=== 字符串拼接 ===
+Hello, World!
+Welcome to Huzi Language!
+
+=== 数值转字符串 ===
+Number: 42 -> String: 42
+Pi: 3.141590 -> String: 3.141590
+
+=== 复杂字符串操作 ===
+foo + bar + baz = foobarbaz
+
+=== 字符串和变量组合 ===
+Sum of 10 and 20 is 30

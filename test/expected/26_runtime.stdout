@@ -1,0 +1,5 @@
+rand #1:75
+rand #2:0
+unix epoch started:true
+clock moves forward:true
+done
