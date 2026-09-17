@@ -643,6 +643,49 @@ fn main() -> i32 {
 | `struct` | 结构体 | `struct Point { x: i32, y: i32 }` |
 | `enum` | 枚举 | `enum Color { Red, Green }` / `enum Shape { Circle(f64) }` |
 | `Box<T>` | 堆指针结构体 | `let mut h: Box<Node> = box(Node { val: 1, next: null })` |
+| `Type<T>` | 用户泛型类型 | `struct Stack<T> { v: vec<T>, top: T }` |
+
+## 泛型 (Generics)
+
+Huzi 支持泛型函数与泛型结构体，编译期基于单态化 (Monomorphization) 实现零运行时抽象开销。
+
+### 泛型函数
+```huzi
+fn id<T>(x: T) -> T {
+    return x
+}
+
+fn first<A, B>(a: A, b: B) -> A {
+    return a
+}
+
+fn main() -> i32 {
+    let n = id<i32>(42)
+    let s = id<str>("hello")
+    let f = first<i32, str>(1, "one")
+    0
+}
+```
+
+### 泛型结构体
+```huzi
+struct Stack<T> {
+    v: vec<T>,
+    top: T,
+}
+
+struct Pair<K, V> {
+    key: K,
+    val: V,
+}
+
+fn main() -> i32 {
+    let p = Pair<i32, str> { key: 1, val: "one" }
+    let s = Stack<i32> { v: vec<i32>(), top: 10 }
+    print(p.key, s.top)
+    0
+}
+```
 
 ## 运算符
 

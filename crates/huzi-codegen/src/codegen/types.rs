@@ -1,7 +1,6 @@
 use super::{CodeGen, EnumInfo, EnumVariantInfo, StructFieldInfo};
 use inkwell::AddressSpace;
 use inkwell::values::PointerValue;
-use std::collections::HashMap;
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 
@@ -50,66 +49,6 @@ impl<'ctx> CodeGen<'ctx> {
                 fields.iter().map(|info| info.ty).collect();
             st.set_body(&field_types, false);
             *slot = fields;
-        }
-
-        Ok(())
-    }
-
-    /// Reject by-value reference cycles (A -> B -> A) among struct and enum
-    /// definitions, which have no finite layout. Array fields decay to
-    /// pointers so they cannot form one.
-    pub(super) fn check_type_cycles(&self, structs: &[StructDef], enums: &[EnumDef]) -> Result<()> {
-        let mut names: Vec<&str> = structs.iter().map(|d| d.name.as_str()).collect();
-        names.extend(enums.iter().map(|d| d.name.as_str()));
-
-        let mut refs: HashMap<&str, Vec<&str>> = HashMap::new();
-        for def in structs {
-            let field_types: Vec<&str> = def
-                .fields
-                .iter()
-                .filter_map(|f| match &f.field_type {
-                    Type::Named(n) if names.contains(&n.as_str()) => Some(n.as_str()),
-                    _ => None,
-                })
-                .collect();
-            refs.insert(def.name.as_str(), field_types);
-        }
-        for def in enums {
-            let payload_types: Vec<&str> = def
-                .variants
-                .iter()
-                .flat_map(|v| v.payloads.iter())
-                .filter_map(|t| match t {
-                    Type::Named(n) if names.contains(&n.as_str()) => Some(n.as_str()),
-                    _ => None,
-                })
-                .collect();
-            refs.insert(def.name.as_str(), payload_types);
-        }
-
-        fn has_cycle(node: &str, refs: &HashMap<&str, Vec<&str>>, path: &mut Vec<String>) -> bool {
-            if path.iter().any(|n| n == node) {
-                return true;
-            }
-            if let Some(children) = refs.get(node) {
-                path.push(node.to_string());
-                for child in children {
-                    if has_cycle(child, refs, path) {
-                        return true;
-                    }
-                }
-                path.pop();
-            }
-            false
-        }
-
-        for def in structs.iter().map(|d| &d.name).chain(enums.iter().map(|d| &d.name)) {
-            if has_cycle(def, &refs, &mut Vec::new()) {
-                return Err(HuziError::new_global(format!(
-                    "Type '{}' is part of a by-value reference cycle",
-                    def
-                )));
-            }
         }
 
         Ok(())
@@ -247,6 +186,11 @@ impl<'ctx> CodeGen<'ctx> {
                     if let Type::Array(elem, _) = &info.ast_ty {
                         return self.type_to_llvm(elem);
                     }
+                    if let Type::Applied(name, args) = &info.ast_ty {
+                        if name == "vec" && !args.is_empty() {
+                            return self.type_to_llvm(&args[0]);
+                        }
+                    }
                 }
             }
         }
@@ -371,6 +315,20 @@ impl<'ctx> CodeGen<'ctx> {
                     Err(HuziError::new_global(format!("Unsupported type: {}", other)))
                 }
             },
+            Type::Generic(g) => Err(HuziError::new_global(format!(
+                "Unresolved generic type parameter '{}'",
+                g
+            ))),
+            Type::Applied(name, args) => {
+                if name == "vec" {
+                    return Ok(self.vec_struct_type().into());
+                }
+                let mangled = crate::codegen::generic::mangle_name(name, args);
+                if let Some((st, _)) = self.structs.get(&mangled) {
+                    return Ok((*st).into());
+                }
+                Err(HuziError::new_global(format!("Unsupported type: {}", name)))
+            }
         }
     }
 

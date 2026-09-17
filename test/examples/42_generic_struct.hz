@@ -1,0 +1,28 @@
+struct Stack<T> {
+    v: vec<T>,
+    top: T,
+}
+
+struct Pair<K, V> {
+    key: K,
+    val: V,
+}
+
+fn make_pair<K, V>(k: K, v: V) -> Pair<K, V> {
+    return Pair<K, V> { key: k, val: v }
+}
+
+fn main() -> i32 {
+    let p = Pair<i32, str> { key: 1, val: "one" }
+    print(p.key)
+    print(p.val)
+    let p2 = make_pair<str, bool>("active", true)
+    print(p2.key)
+    print(p2.val)
+    let s = Stack<i32> { v: vec<i32>(), top: 10 }
+    print(s.top)
+    let b = box(Pair<i32, i32> { key: 7, val: 8 })
+    print(b.key)
+    print(b.val)
+    return 0
+}

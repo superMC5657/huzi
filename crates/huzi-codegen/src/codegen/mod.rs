@@ -85,9 +85,11 @@ mod stmt_for;
 #[cfg(test)]
 mod tests;
 mod tuples;
+mod type_cycles;
 mod types;
 mod vec;
 mod vec_ops;
+pub(super) mod generic;
 
 
 /// A variable slot: `ptr` always holds a pointer whose loaded value has type
@@ -246,6 +248,9 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn compile(&mut self, program: &Program) -> Result<()> {
+        let monomorphized = generic::monomorphize_all(program, &mut self.modules)?;
+        let program = &monomorphized;
+
         self.prelude()?;
 
         // 模块先注册类型与函数签名,主程序才能引用模块符号。

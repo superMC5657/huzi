@@ -70,11 +70,16 @@ impl Formatter {
     }
 
     fn format_struct(&mut self, s: &StructDef) {
+        let type_params = if s.type_params.is_empty() {
+            String::new()
+        } else {
+            format!("<{}>", s.type_params.join(", "))
+        };
         if s.fields.is_empty() {
-            self.line(&format!("struct {} {{}}", s.name));
+            self.line(&format!("struct {}{} {{}}", s.name, type_params));
             return;
         }
-        self.line(&format!("struct {} {{", s.name));
+        self.line(&format!("struct {}{} {{", s.name, type_params));
         self.indent += 1;
         for field in &s.fields {
             self.line(&format!("{}: {},", field.name, field.field_type));
@@ -103,14 +108,25 @@ impl Formatter {
     }
 
     fn format_fn(&mut self, f: &FnStmt) {
+        let type_params = if f.type_params.is_empty() {
+            String::new()
+        } else {
+            format!("<{}>", f.type_params.join(", "))
+        };
         let params: Vec<_> = f
             .params
             .iter()
             .map(|p| format!("{}: {}", p.name, p.param_type))
             .collect();
         let header = match &f.return_type {
-            Some(ret) => format!("fn {}({}) -> {} {{", f.name, params.join(", "), ret),
-            None => format!("fn {}({}) {{", f.name, params.join(", ")),
+            Some(ret) => format!(
+                "fn {}{}({}) -> {} {{",
+                f.name,
+                type_params,
+                params.join(", "),
+                ret
+            ),
+            None => format!("fn {}{}({}) {{", f.name, type_params, params.join(", ")),
         };
         self.line(&header);
         self.indent += 1;

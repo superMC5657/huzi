@@ -140,13 +140,19 @@ fn format_unary(u: &UnaryExpr) -> String {
 
 fn format_call(c: &CallExpr) -> String {
     let callee = format_expr(&c.callee);
+    let type_args = if c.type_args.is_empty() {
+        String::new()
+    } else {
+        let ts: Vec<_> = c.type_args.iter().map(|t| t.to_string()).collect();
+        format!("<{}>", ts.join(", "))
+    };
     let args = c
         .arguments
         .iter()
         .map(format_expr)
         .collect::<Vec<_>>()
         .join(", ");
-    format!("{}({})", callee, args)
+    format!("{}{}({})", callee, type_args, args)
 }
 
 fn format_array_index(a: &ArrayIndexExpr) -> String {
@@ -184,12 +190,18 @@ fn format_tuple_literal(elems: &[Expr]) -> String {
 }
 
 fn format_struct_literal(s: &StructLiteralExpr) -> String {
+    let type_args = if s.type_args.is_empty() {
+        String::new()
+    } else {
+        let ts: Vec<_> = s.type_args.iter().map(|t| t.to_string()).collect();
+        format!("<{}>", ts.join(", "))
+    };
     let fields: Vec<_> = s
         .fields
         .iter()
         .map(|(name, val)| format!("{}: {}", name, format_expr(val)))
         .collect();
-    format!("{} {{ {} }}", s.name, fields.join(", "))
+    format!("{}{} {{ {} }}", s.name, type_args, fields.join(", "))
 }
 
 fn format_enum_construct(e: &EnumConstructExpr) -> String {

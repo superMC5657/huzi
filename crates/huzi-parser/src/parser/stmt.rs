@@ -51,10 +51,46 @@ impl Parser {
         }))
     }
 
+    pub(super) fn parse_optional_type_params(&mut self) -> Result<Vec<String>> {
+        if !self.check(&Token::Less) {
+            return Ok(Vec::new());
+        }
+        self.advance(); // consume '<'
+        let mut params = Vec::new();
+        if self.check(&Token::Greater) {
+            return Err(HuziError::new(
+                "Expected type parameter name between '<' and '>'",
+                self.current_line(),
+                self.current_col(),
+            ));
+        }
+        while !self.check(&Token::Greater) && !self.is_at_end() {
+            let p = self.expect_ident("Expected type parameter name")?;
+            if params.contains(&p) {
+                return Err(HuziError::new(
+                    format!("Duplicate type parameter '{}'", p),
+                    self.current_line(),
+                    self.current_col(),
+                ));
+            }
+            params.push(p);
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.expect(&Token::Greater, "Expected '>' after type parameters")?;
+        Ok(params)
+    }
+
     pub(super) fn parse_struct_statement(&mut self) -> Result<Stmt> {
         self.advance();
 
         let name = self.expect_ident("Expected struct name")?;
+        let type_params = self.parse_optional_type_params()?;
+        let num_params = type_params.len();
+        self.push_type_params(&type_params);
 
         self.expect(&Token::LBrace, "Expected '{' after struct name")?;
 
@@ -78,8 +114,13 @@ impl Parser {
         }
 
         self.expect(&Token::RBrace, "Expected '}' after struct fields")?;
+        self.pop_type_params(num_params);
 
-        Ok(Stmt::Struct(StructDef { name, fields }))
+        Ok(Stmt::Struct(StructDef {
+            name,
+            type_params,
+            fields,
+        }))
     }
 
     pub(super) fn parse_enum_statement(&mut self) -> Result<Stmt> {
@@ -133,6 +174,9 @@ impl Parser {
         self.advance();
 
         let name = self.expect_ident("Expected function name")?;
+        let type_params = self.parse_optional_type_params()?;
+        let num_params = type_params.len();
+        self.push_type_params(&type_params);
 
         self.expect(&Token::LParen, "Expected '(' after function name")?;
 
@@ -165,10 +209,12 @@ impl Parser {
         self.in_function = true;
         let body_res = self.parse_block();
         self.in_function = prev_in_fn;
+        self.pop_type_params(num_params);
         let body = body_res?;
 
         Ok(Stmt::Fn(FnStmt {
             name,
+            type_params,
             params,
             return_type,
             body,

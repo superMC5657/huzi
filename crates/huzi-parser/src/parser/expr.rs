@@ -231,6 +231,7 @@ impl Parser {
                 expr = Expr::Call(CallExpr {
                     callee: Box::new(expr),
                     arguments,
+                    type_args: Vec::new(),
                 });
             } else {
                 break;
@@ -283,6 +284,12 @@ impl Parser {
                 // `vec < x` 比较误解析为泛型构造。
                 if name == "vec" && self.check(&Token::Less) {
                     if let Some(expr) = self.try_parse_vec_empty()? {
+                        return Ok(expr);
+                    }
+                }
+                // Generic call `id<i32>(42)` or struct literal `Pair<i32, str> { ... }`.
+                if self.check(&Token::Less) {
+                    if let Some(expr) = self.try_parse_generic(&name)? {
                         return Ok(expr);
                     }
                 }
@@ -375,6 +382,15 @@ impl Parser {
 
     /// Parse `{ field: expr, ... }` after the struct name was consumed.
     fn parse_struct_literal(&mut self, name: &str) -> Result<Expr> {
+        let fields = self.parse_struct_fields()?;
+        Ok(Expr::StructLiteral(StructLiteralExpr {
+            name: name.to_string(),
+            fields,
+            type_args: Vec::new(),
+        }))
+    }
+
+    fn parse_struct_fields(&mut self) -> Result<Vec<(String, Expr)>> {
         self.expect(&Token::LBrace, "Expected '{' in struct literal")?;
 
         let mut fields = Vec::new();
@@ -394,69 +410,68 @@ impl Parser {
         }
 
         self.expect(&Token::RBrace, "Expected '}' after struct literal fields")?;
-
-        Ok(Expr::StructLiteral(StructLiteralExpr {
-            name: name.to_string(),
-            fields,
-        }))
+        Ok(fields)
     }
 
-    /// If used as an expression: `let m = if c { a } else { b }`, with
-    /// `elif` chains folded into a nested expression.
-    fn parse_if_expression(&mut self) -> Result<Expr> {
-        self.advance();
-        let condition = self.parse_expression()?;
-        let then_branch = self.parse_block()?;
-
-        let mut elif_branches: Vec<(Expr, Block, usize, usize)> = Vec::new();
-        while self.check(&Token::Elif) {
-            let (elif_line, elif_col) = (self.current_line(), self.current_col());
-            self.advance();
-            let elif_cond = self.parse_expression()?;
-            let elif_block = self.parse_block()?;
-            elif_branches.push((elif_cond, elif_block, elif_line, elif_col));
+    /// 尝试解析泛型调用 `name<T1, T2>(args)` 或泛型结构体字面量 `name<T1, T2> { ... }`。
+    /// 未匹配或后续非 `(` / `{` 时安全回退并返回 `None`。
+    fn try_parse_generic(&mut self, name: &str) -> Result<Option<Expr>> {
+        let saved = self.pos;
+        if !self.check(&Token::Less) {
+            return Ok(None);
         }
-
-        self.expect(&Token::Else, "Expected 'else' after if expression")?;
-
-        let else_block = if self.check(&Token::If) {
-            let (nested_line, nested_col) = (self.current_line(), self.current_col());
-            let nested = self.parse_if_expression()?;
-            self.expr_block(nested, nested_line, nested_col)
-        } else {
-            self.parse_block()?
-        };
-
-        let else_branch = Self::fold_elif_expr(&elif_branches, else_block);
-
-        Ok(Expr::If(IfExpr {
-            condition: Box::new(condition),
-            then_branch,
-            else_branch,
-        }))
-    }
-
-    /// Fold elif branches into nested if expressions as the else block.
-    /// 每层折叠出的合成语句继承对应 `elif` 关键字的位置。
-    fn fold_elif_expr(elifs: &[(Expr, Block, usize, usize)], else_b: Block) -> Block {
-        match elifs.split_first() {
-            None => else_b,
-            Some(((cond, block, line, col), rest)) => {
-                let nested = Expr::If(IfExpr {
-                    condition: Box::new(cond.clone()),
-                    then_branch: block.clone(),
-                    else_branch: Self::fold_elif_expr(rest, else_b),
-                });
-                Self::synth_block_at(nested, *line, *col)
+        self.advance(); // consume '<'
+        let mut type_args = Vec::new();
+        while !self.check(&Token::Greater) && !self.is_at_end() {
+            match self.parse_type() {
+                Ok(ty) => type_args.push(ty),
+                Err(_) => {
+                    self.pos = saved;
+                    return Ok(None);
+                }
+            }
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
             }
         }
-    }
-
-    /// 与 `Parser::expr_block` 等价的静态版本(fold 递归中没有 parser 可用)。
-    fn synth_block_at(expr: Expr, line: usize, col: usize) -> Block {
-        Block {
-            statements: vec![Spanned::new(Stmt::Expr(ExprStmt { expr }), line, col)],
+        if type_args.is_empty() || !self.check(&Token::Greater) {
+            self.pos = saved;
+            return Ok(None);
         }
+        self.advance(); // consume '>'
+
+        // Generic function call: name<T1, T2>(args)
+        if self.check(&Token::LParen) {
+            self.advance(); // consume '('
+            let mut arguments = Vec::new();
+            while !self.check(&Token::RParen) && !self.is_at_end() {
+                arguments.push(self.parse_expression()?);
+                if self.check(&Token::Comma) {
+                    self.advance();
+                }
+            }
+            self.expect(&Token::RParen, "Expected ')' after arguments")?;
+            return Ok(Some(Expr::Call(CallExpr {
+                callee: Box::new(Expr::Ident(name.to_string())),
+                arguments,
+                type_args,
+            })));
+        }
+
+        // Generic struct literal: name<T1, T2> { field: value }
+        if self.check(&Token::LBrace) && self.looks_like_struct_literal() {
+            let fields = self.parse_struct_fields()?;
+            return Ok(Some(Expr::StructLiteral(StructLiteralExpr {
+                name: name.to_string(),
+                fields,
+                type_args,
+            })));
+        }
+
+        self.pos = saved;
+        Ok(None)
     }
 
     /// 解析 `box` 后的 `(expr)`(调用时 `(` 尚未消费)。

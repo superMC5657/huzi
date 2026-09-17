@@ -19,6 +19,8 @@ pub enum Type {
     /// (每层仍是指针,最内层须为具名结构体);`Box<i32>` 等非结构体
     /// 直接包装与 `vec` 字段类型不受支持。
     Box(Box<Type>),
+    Generic(String),
+    Applied(String, Vec<Type>),
 }
 
 impl fmt::Display for Type {
@@ -47,6 +49,17 @@ impl fmt::Display for Type {
                 write!(f, ")")
             }
             Type::Box(inner) => write!(f, "Box<{}>", inner),
+            Type::Generic(name) => write!(f, "{}", name),
+            Type::Applied(name, args) => {
+                write!(f, "{}<", name)?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", arg)?;
+                }
+                write!(f, ">")
+            }
         }
     }
 }
@@ -186,6 +199,7 @@ pub struct LetStmt {
 #[derive(Debug, Clone)]
 pub struct FnStmt {
     pub name: String,
+    pub type_params: Vec<String>,
     pub params: Vec<FnParam>,
     pub return_type: Option<Type>,
     pub body: Block,
@@ -208,6 +222,7 @@ pub struct ImportStmt {
 #[derive(Debug, Clone)]
 pub struct StructDef {
     pub name: String,
+    pub type_params: Vec<String>,
     pub fields: Vec<StructField>,
 }
 
@@ -340,11 +355,12 @@ pub struct FieldAccessExpr {
     pub field: String,
 }
 
-/// Struct instantiation: `Point { x: 1, y: 2 }`
+/// Struct instantiation: `Point { x: 1, y: 2 }` or `Pair<i32, str> { key: 1, val: "a" }`
 #[derive(Debug, Clone)]
 pub struct StructLiteralExpr {
     pub name: String,
     pub fields: Vec<(String, Expr)>,
+    pub type_args: Vec<Type>,
 }
 
 /// If used as an expression: `let m = if cond { a } else { b }`
@@ -387,6 +403,7 @@ pub struct UnaryExpr {
 pub struct CallExpr {
     pub callee: Box<Expr>,
     pub arguments: Vec<Expr>,
+    pub type_args: Vec<Type>,
 }
 
 #[derive(Debug, Clone)]

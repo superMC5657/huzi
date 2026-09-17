@@ -11,6 +11,7 @@ fn main_program(body: Vec<Spanned<Stmt>>) -> Program {
     Program {
         statements: vec![sp(Stmt::Fn(FnStmt {
             name: "main".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::I32),
             body: Block { statements: body },
@@ -85,6 +86,7 @@ fn module_function_callable_via_qualified_name() {
     let helpers = Program {
         statements: vec![sp(Stmt::Fn(FnStmt {
             name: "add".to_string(),
+            type_params: vec![],
             params: vec![
                 FnParam { name: "a".to_string(), param_type: Type::I32 },
                 FnParam { name: "b".to_string(), param_type: Type::I32 },
@@ -264,6 +266,7 @@ fn system_builtins_verify() {
     let call = |name: &str, args: Vec<Expr>| Expr::Call(CallExpr {
         callee: Box::new(Expr::Ident(name.to_string())),
         arguments: args,
+        type_args: vec![],
     });
     let program = main_program(vec![
         sp(Stmt::Expr(ExprStmt {
@@ -294,6 +297,7 @@ fn vec_push_grows_and_verifies() {
     let call = |name: &str, args: Vec<Expr>| Expr::Call(CallExpr {
         callee: Box::new(Expr::Ident(name.to_string())),
         arguments: args,
+        type_args: vec![],
     });
     let vec_ident = || Expr::Ident("v".to_string());
     let program = main_program(vec![
@@ -334,6 +338,7 @@ fn file_io_builtins_verify() {
     let call = |name: &str, args: Vec<Expr>| Expr::Call(CallExpr {
         callee: Box::new(Expr::Ident(name.to_string())),
         arguments: args,
+        type_args: vec![],
     });
     let program = main_program(vec![
         let_stmt("content", Expr::Literal(Literal::String("data".to_string()))),

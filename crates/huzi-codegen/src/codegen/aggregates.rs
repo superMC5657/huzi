@@ -82,6 +82,7 @@ impl<'ctx> CodeGen<'ctx> {
             return self.compile_call(&CallExpr {
                 callee: Box::new(Expr::Ident(callee_name)),
                 arguments: expr.args.clone(),
+                type_args: Vec::new(),
             });
         }
 

@@ -1,0 +1,9 @@
+# 负例：泛型实参使用不存在的未知类型
+fn id<T>(x: T) -> T {
+    return x
+}
+
+fn main() -> i32 {
+    let a = id<NonExistentType>(42)
+    0
+}

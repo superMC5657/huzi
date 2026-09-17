@@ -98,11 +98,16 @@ fn collect_fn(span: Span, f: &FnStmt, out: &mut Vec<Symbol>) {
 
 /// 登记一个 `struct` 定义。
 fn collect_struct(span: Span, d: &StructDef, out: &mut Vec<Symbol>) {
+    let type_params = if d.type_params.is_empty() {
+        String::new()
+    } else {
+        format!("<{}>", d.type_params.join(", "))
+    };
     out.push(Symbol {
         name: d.name.clone(),
         kind: SymbolKind::Struct,
         span,
-        detail: format!("struct {}", d.name),
+        detail: format!("struct {}{}", d.name, type_params),
     });
 }
 
@@ -196,12 +201,17 @@ fn let_symbol(span: Span, l: &LetStmt) -> Symbol {
 
 /// `fn` 签名串,如 `fn add(a: i32): i32`。
 fn fn_signature(f: &FnStmt) -> String {
+    let type_params = if f.type_params.is_empty() {
+        String::new()
+    } else {
+        format!("<{}>", f.type_params.join(", "))
+    };
     let params: Vec<String> = f
         .params
         .iter()
         .map(|p| format!("{}: {}", p.name, p.param_type))
         .collect();
-    let mut s = format!("fn {}({})", f.name, params.join(", "));
+    let mut s = format!("fn {}{}({})", f.name, type_params, params.join(", "));
     if let Some(ret) = &f.return_type {
         s.push_str(&format!(": {}", ret));
     }
@@ -220,6 +230,7 @@ mod tests {
         Spanned::with_range(
             Stmt::Fn(FnStmt {
                 name: name.to_string(),
+                type_params: vec![],
                 params: vec![FnParam {
                     name: "a".to_string(),
                     param_type: Type::I32,
@@ -238,6 +249,7 @@ mod tests {
         Spanned::with_range(
             Stmt::Struct(StructDef {
                 name: name.to_string(),
+                type_params: vec![],
                 fields: vec![],
             }),
             line,
@@ -370,6 +382,7 @@ mod tests {
             statements: vec![Spanned::with_range(
                 Stmt::Fn(FnStmt {
                     name: "run".to_string(),
+                    type_params: vec![],
                     params: vec![],
                     return_type: None,
                     body,

@@ -1,4 +1,5 @@
 mod expr;
+mod expr_if;
 mod pattern;
 mod stmt;
 #[cfg(test)]
@@ -14,6 +15,7 @@ pub struct Parser {
     tokens: Vec<SpannedToken>,
     pos: usize,
     in_function: bool,
+    type_params_in_scope: Vec<String>,
 }
 
 /// 单次 `parse_recoverable` 最多收集的错误数(防级联误报刷屏)。
@@ -25,7 +27,21 @@ impl Parser {
             tokens,
             pos: 0,
             in_function: false,
+            type_params_in_scope: Vec::new(),
         }
+    }
+
+    pub(super) fn push_type_params(&mut self, params: &[String]) {
+        self.type_params_in_scope.extend(params.iter().cloned());
+    }
+
+    pub(super) fn pop_type_params(&mut self, count: usize) {
+        let new_len = self.type_params_in_scope.len().saturating_sub(count);
+        self.type_params_in_scope.truncate(new_len);
+    }
+
+    pub(super) fn is_type_param(&self, name: &str) -> bool {
+        self.type_params_in_scope.iter().any(|p| p == name)
     }
 
     /// 语句级错误恢复入口:单条语句失败则记错并同步到下一
@@ -179,22 +195,17 @@ impl Parser {
             Token::Ident(name) => {
                 let name = name.clone();
                 self.advance();
-                // `Box<T>` — 全语言唯一的尖括号泛型;其它名字后跟 `<`
-                // 是非法的(调用点负责报更友好的比较/泛型错误)。
                 if self.check(&Token::Less) {
-                    if name != "Box" {
-                        return Err(HuziError::new(
-                            format!(
-                                "Only Box<T> supports generic parameters (found '{}<')",
-                                name
-                            ),
-                            self.current_line(),
-                            self.current_col(),
-                        ));
+                    if name == "Box" {
+                        return self.parse_box_type();
                     }
-                    return self.parse_box_type();
+                    return self.parse_applied_type(name);
                 }
-                Type::Named(name)
+                if self.is_type_param(&name) {
+                    Type::Generic(name)
+                } else {
+                    Type::Named(name)
+                }
             }
             _ => {
                 return Err(HuziError::new(
@@ -208,13 +219,13 @@ impl Parser {
     }
 
     /// 解析 `Box` 后的 `<T>`(调用时 `<` 尚未消费)。`T` 为具名
-    /// 结构体或嵌套 `Box<..>`(递归,最内层须为具名结构体);
+    /// 结构体、泛型形参或嵌套 `Box<..>`(递归,最内层须为具名结构体或形参);
     /// 词法上 `>>` 为两个 `Greater`,内外层各消费一个。
     fn parse_box_type(&mut self) -> Result<Type> {
         self.advance(); // consume '<'
         let inner = self.parse_type()?;
         match &inner {
-            Type::Named(_) | Type::Box(_) => {}
+            Type::Named(_) | Type::Box(_) | Type::Generic(_) | Type::Applied(..) => {}
             _ => {
                 return Err(HuziError::new(
                     format!("Box<T> requires a named struct type (found '{}')", inner),
@@ -225,6 +236,29 @@ impl Parser {
         }
         self.expect(&Token::Greater, "Expected '>' in Box<T>")?;
         Ok(Type::Box(Box::new(inner)))
+    }
+
+    /// 解析具名类型后的 `<T1, T2, ...>` 参数化类型(如 `Stack<i32>`, `vec<i32>`)。
+    fn parse_applied_type(&mut self, name: String) -> Result<Type> {
+        self.advance(); // consume '<'
+        let mut args = Vec::new();
+        while !self.check(&Token::Greater) && !self.is_at_end() {
+            args.push(self.parse_type()?);
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.expect(&Token::Greater, "Expected '>' after type arguments")?;
+        if args.is_empty() {
+            return Err(HuziError::new(
+                format!("Type '{}' requires at least one type argument", name),
+                self.current_line(),
+                self.current_col(),
+            ));
+        }
+        Ok(Type::Applied(name, args))
     }
 
     fn is_expr_start(&self) -> bool {
