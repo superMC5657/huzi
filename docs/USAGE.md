@@ -281,7 +281,7 @@ fn main() -> i32 {
 - **比较**：支持与 `null` 进行判空（`x == null` / `x != null`）以及同类型 `Box` 之间的指针比较。
 - **字段访问**：通过点号访问 `Box` 字段时自动解引用（如 `head.next.val`）。
 - **打印**：`Box` 需逐字段打印（如 `print(b.val)`），不支持直接整体打印。
-- **内存管理**：当前采用进程退出统一回收机制（无 GC，未提供显式 `free`）。
+- **内存管理**：无 GC；手动释放(`free_box`，详见「内存管理」)，未 free 的内存在进程退出时由 OS 统一回收。
 
 完整示例见 `test/examples/32_box_linked_list.hz`。
 
@@ -449,6 +449,33 @@ fn main() -> i32 {
 区间、`trim` 空白判定均为**字节语义**，UTF-8 多字节字符不按字符切分；
 空分隔符 `split(s, "")` 将整体作为唯一一段；空子串 `contains(s, "")` 恒为 true。
 完整示例见 `test/examples/33_string_ops2.hz`。
+
+### 内存管理（手动释放，无 GC）
+
+| 函数 | 说明 | 安全态 |
+|------|------|--------|
+| `free_str(s)` | 释放堆字符串(`concat`/`substring`/`trim`/`to_string`/`read_line`/`read_file` 等返回)，变量指向空串 | `len(s) == 0` |
+| `free_vec(v)` | 释放 vec 的 `data` 数组，长度与容量清零(`{ null, 0, 0 }`)，后续 `push` 经 `realloc(null)` 复用 | `len(v) == 0`，可继续 `push` |
+| `free_box(b)` | 释放 `Box` 的堆槽，变量置 `null` | `b == null` 为 true |
+
+```python
+let mut s = concat("a", "b")
+free_str(s)        # len(s) == 0
+free_str(s)        # 二次 free 为 no-op，不崩
+let mut v = vec(1, 2, 3)
+free_vec(v)        # len(v) == 0
+push(v, 42)        # free 后可继续 push 复用
+```
+
+规则：
+
+- **手动释放、无 GC**：不调用 free 也能正常运行，未 free 的内存在进程退出时由 OS 统一回收。
+- **均需 `let mut`**（回写变量槽），返回整数 0（与 `push`/`clear` 一致，仅为兼容表达式位置）。
+- **二次 free 为 no-op**：`free_str` 对空串跳过，`free_vec` 对 `free(null)`（libc 语义即 no-op），`free_box` 对 `null` 跳过。
+- **浅释放**：`free_vec` 只释放 vec 自身的 `data`，不释放元素内部的堆内存；`free_box` 只释放 Box 自身的槽，不递归释放字段中的堆内存。
+- **字面量非堆分配**：`free_str` 仅用于堆字符串，对字符串字面量调用属于未定义行为；空串调用为安全的 no-op。
+
+完整示例见 `test/examples/35_memory_free.hz`。
 
 ### 输入函数
 

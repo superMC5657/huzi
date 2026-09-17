@@ -72,6 +72,7 @@ mod expr;
 mod expr_binary;
 mod expr_place;
 mod match_expr;
+mod mem_free;
 mod runtime;
 mod stmt;
 mod stmt_branch;

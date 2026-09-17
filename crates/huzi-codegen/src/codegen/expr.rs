@@ -186,6 +186,9 @@ impl<'ctx> CodeGen<'ctx> {
             "remove" => return self.compile_vec_remove(&expr.arguments),
             "insert" => return self.compile_vec_insert(&expr.arguments),
             "clear" => return self.compile_vec_clear(&expr.arguments),
+            "free_str" => return self.compile_free_str(&expr.arguments),
+            "free_vec" => return self.compile_free_vec(&expr.arguments),
+            "free_box" => return self.compile_free_box(&expr.arguments),
             _ => {}
         }
 

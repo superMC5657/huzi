@@ -57,6 +57,13 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("realloc", realloc_fn, None);
 
+        // free for manual release (free_str/free_vec/free_box)
+        let free_fn = self.context.void_type().fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        self.module.add_function("free", free_fn, None);
+
         // sprintf for to_string
         let sprintf_fn = self.context.i32_type().fn_type(
             &[
