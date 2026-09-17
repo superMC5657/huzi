@@ -335,6 +335,12 @@ fn main() -> i32 {
     push(e, 1)
     print("len =", len(v))
 
+    # 增删元素(均需 let mut)
+    let x = pop(v)      # 弹出末尾并返回(空 vec 报运行时错误)
+    remove(v, 0)        # 删除下标处元素并左移填补(越界报运行时错误)
+    insert(v, 0, 99)    # 在下标处右移腾位并写入(允许 idx == len,等价尾插)
+    clear(v)            # 长度置 0(保留容量,后续 push 复用)
+
     # 整体打印输出 [1, 20, 3, 4]
     print(v)
 
@@ -346,7 +352,7 @@ fn main() -> i32 {
 }
 ```
 
-约束：非空 `vec(...)` 元素类型由首元素推导；空向量须使用 `vec<T>()` 明确类型。`print(v)` 输出 `[e1, e2, ...]` 格式。`for x in v` 在进入循环时确定遍历长度。
+约束：非空 `vec(...)` 元素类型由首元素推导；空向量须使用 `vec<T>()` 明确类型。`print(v)` 输出 `[e1, e2, ...]` 格式。`for x in v` 在进入循环时确定遍历长度。`remove`/`insert` 越界与空 `pop` 触发运行时错误；`insert` 满时自动翻倍扩容；`clear` 后 `len(v) == 0` 且可继续 `push`。
 
 ### 阶乘计算
 
@@ -415,6 +421,34 @@ fn main() -> i32 {
     return 0
 }
 ```
+
+```python
+fn main() -> i32 {
+    # split 返回 vec<str>,与下标/len/print/for-in 互通
+    let parts = split("foo,bar,baz", ",")
+    print(len(parts))     # 3
+    print(parts[0])       # foo
+    print(parts)          # [foo, bar, baz]
+    for p in parts {
+        print(p)
+    }
+    let q = split("a::b::c", "::")
+    print(q[1])           # b
+
+    # substring 按字节区间,越界报运行时错误
+    print(substring("hello", 1, 4))   # ell
+
+    # trim 去两端空白,contains 返回布尔
+    print(trim("   hi  "))            # hi
+    print(contains("hello", "ell"))   # true
+    return 0
+}
+```
+
+说明：下标(`s[i]`)、`split`/`contains` 的分隔与匹配、`substring`
+区间、`trim` 空白判定均为**字节语义**，UTF-8 多字节字符不按字符切分；
+空分隔符 `split(s, "")` 将整体作为唯一一段；空子串 `contains(s, "")` 恒为 true。
+完整示例见 `test/examples/33_string_ops2.hz`。
 
 ### 输入函数
 
@@ -554,6 +588,10 @@ fn main() -> i32 {
 | `len(s)` | 获取字符串长度 | `len("hello")` → 5 |
 | `concat(a, b)` | 字符串拼接 | `concat("a", "b")` → "ab" |
 | `to_string(x)` | 数值转字符串 | `to_string(42)` → "42" |
+| `split(s, d)` | 按分隔符切分,返回 vec\<str\> | `split("a,b", ",")` → ["a", "b"] |
+| `substring(s, l, r)` | 字节区间 `[l, r)` 拷贝 | `substring("hello", 1, 4)` → "ell" |
+| `trim(s)` | 去两端 ASCII 空白 | `trim("  hi  ")` → "hi" |
+| `contains(s, sub)` | 是否包含子串 | `contains("hello", "ell")` → true |
 
 ### 随机数 / 时间 / 进程
 | 函数 | 说明 | 示例 |
@@ -593,7 +631,9 @@ fn main() -> i32 {
 - 整数除零 / 取模零：`Runtime error: division by zero`（浮点除法遵循 IEEE 754 语义）
 - 数组下标越界：`Runtime error: array index out of bounds (length N)`
 - vec 下标越界：`Runtime error: vec index out of bounds`
+- 空 vec 执行 `pop`：`Runtime error: vec pop from empty vec`
 - 字符串下标越界：`Runtime error: string index out of bounds`（按字节下标检查）
+- 子串区间越界：`Runtime error: substring out of bounds`（`start > end` 或 `end > len(s)`，含负数）
 
 ### 数学
 | 函数 | 说明 | 示例 |

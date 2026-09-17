@@ -161,6 +161,10 @@ impl<'ctx> CodeGen<'ctx> {
             "ceil" => return self.compile_libm_unary("ceil", &expr.arguments),
             "round" => return self.compile_libm_unary("round", &expr.arguments),
             "concat" => return self.compile_concat(&expr.arguments),
+            "split" => return self.compile_split(&expr.arguments),
+            "substring" => return self.compile_substring(&expr.arguments),
+            "trim" => return self.compile_trim(&expr.arguments),
+            "contains" => return self.compile_contains(&expr.arguments),
             "to_string" => return self.compile_to_string(&expr.arguments),
             "arg_count" => return self.compile_arg_count(),
             "arg" => return self.compile_arg(&expr.arguments),
@@ -174,6 +178,10 @@ impl<'ctx> CodeGen<'ctx> {
             "write_file" => return self.compile_write_file(&expr.arguments),
             "vec" => return self.compile_vec_ctor(&expr.arguments),
             "push" => return self.compile_vec_push(&expr.arguments),
+            "pop" => return self.compile_vec_pop(&expr.arguments),
+            "remove" => return self.compile_vec_remove(&expr.arguments),
+            "insert" => return self.compile_vec_insert(&expr.arguments),
+            "clear" => return self.compile_vec_clear(&expr.arguments),
             _ => {}
         }
 

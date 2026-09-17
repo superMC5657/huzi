@@ -62,6 +62,7 @@ mod builtins;
 mod builtins_math;
 mod builtins_print;
 mod builtins_string;
+mod builtins_string_util;
 mod builtins_io;
 mod builtins_sys;
 mod debuginfo;
@@ -79,6 +80,7 @@ mod tests;
 mod tuples;
 mod types;
 mod vec;
+mod vec_ops;
 
 
 /// A variable slot: `ptr` always holds a pointer whose loaded value has type

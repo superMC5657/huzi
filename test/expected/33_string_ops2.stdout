@@ -1,0 +1,20 @@
+=== split ===
+3
+foo
+baz
+[foo, bar, baz]
+foo
+bar
+baz
+3
+b
+[x, y]
+=== substring ===
+ell
+hello
+=== trim ===
+hi
+0
+=== contains ===
+true
+false

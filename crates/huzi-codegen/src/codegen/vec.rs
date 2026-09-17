@@ -1,5 +1,7 @@
 //! Vec 动态数组:`let v = vec(1, 2, 3)` / `let v = vec<T>()` + `push(v, x)` +
 //! `v[i]`/`v[i] = x` + `len(v)` + `for x in v` + `print(v)`。
+//! 增删操作 `pop`/`remove`/`insert`/`clear` 见 `vec_ops.rs`(同模块分文件,
+//! 保持本文件 500 行以内)。
 //!
 //! 表示:变量槽内存放匿名结构体值 `{ data: ptr, len: i32, cap: i32 }`,data 指向堆
 //! (首个 push 即按需 `realloc` 翻倍,程序结束前不释放,与既有堆字符串一致)。
@@ -47,7 +49,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// vec 匿名结构体类型 `{ data: ptr, len: i32, cap: i32 }`(data 为非类型化指针)。
-    fn vec_struct_type(&self) -> inkwell::types::StructType<'ctx> {
+    pub(super) fn vec_struct_type(&self) -> inkwell::types::StructType<'ctx> {
         self.context.struct_type(
             &[
                 self.context.ptr_type(inkwell::AddressSpace::default()).into(),
@@ -84,7 +86,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 回写 vec 结构体的 (data, len, cap) 三个字段。
-    fn store_vec_parts(
+    pub(super) fn store_vec_parts(
         &mut self,
         slot: &VarSlot<'ctx>,
         vec_ty: inkwell::types::StructType<'ctx>,
@@ -108,7 +110,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 元素类型的字节数(归一化为 i32,供 malloc/realloc 的总字节计算)。
-    fn elem_bytes_i32(
+    pub(super) fn elem_bytes_i32(
         &self,
         elem: inkwell::types::BasicTypeEnum<'ctx>,
     ) -> Result<IntValue<'ctx>> {

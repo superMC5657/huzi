@@ -105,6 +105,16 @@ impl<'ctx> CodeGen<'ctx> {
             self.emit_vec_value(vec_val, elem_ty)?;
             return Ok(true);
         }
+        // `print(split(s, d))` 直接打印临时 vec<str>。
+        if let Expr::Call(call) = arg {
+            if Self::is_split_ctor(call) {
+                self.flush_print_chunk(format_string, args)?;
+                let vec_val = self.compile_split(&call.arguments)?;
+                let str_ty = self.context.ptr_type(inkwell::AddressSpace::default()).into();
+                self.emit_vec_value(vec_val, str_ty)?;
+                return Ok(true);
+            }
+        }
         Ok(false)
     }
 
@@ -372,7 +382,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 已组装 vec 值的打印(表达式位置的 `vec<T>()` 等):拆出 data/len 后进循环。
-    fn emit_vec_value(
+    pub(super) fn emit_vec_value(
         &mut self,
         vec_val: BasicValueEnum<'ctx>,
         elem_ty: BasicTypeEnum<'ctx>,
