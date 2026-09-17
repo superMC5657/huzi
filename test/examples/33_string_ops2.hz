@@ -1,10 +1,4 @@
-# 字符串扩展操作示例:split/substring/trim/contains。
-# split 返回 vec<str>,与下标/len/print/for-in 互通;substring 按字节区间,
-# 越界报运行时错误;trim 去两端 ASCII 空白;contains 返回布尔。
-# 注意:下标与区间均为字节语义(UTF-8 多字节不做字符语义)。
-
 fn main() -> i32 {
-    # ========== split 单字符分隔 ==========
     print("=== split ===")
     let parts = split("foo,bar,baz", ",")
     print(len(parts))
@@ -14,27 +8,18 @@ fn main() -> i32 {
     for p in parts {
         print(p)
     }
-
-    # ========== split 多字符分隔 ==========
     let q = split("a::b::c", "::")
     print(len(q))
     print(q[1])
     print(split("x-y", "-"))
-
-    # ========== substring 字节区间 ==========
     print("=== substring ===")
     print(substring("hello", 1, 4))
     print(substring("hello", 0, 5))
-
-    # ========== trim 两端空白 ==========
     print("=== trim ===")
     print(trim("   hi  "))
     print(len(trim("   ")))
-
-    # ========== contains 布尔判定 ==========
     print("=== contains ===")
     print(contains("hello", "ell"))
     print(contains("hello", "xyz"))
-
     return 0
 }

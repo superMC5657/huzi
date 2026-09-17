@@ -1,71 +1,49 @@
-# 冒泡排序示例
-# 演示使用数组和循环实现冒泡排序算法
-
 fn main() -> i32 {
     print("=== 冒泡排序示例 ===\n")
-    
-    # 待排序数组
     let mut arr = [64, 34, 25, 12, 22, 11, 90, 88, 45, 50]
     let n = 10
-    
     print("原始数组:")
     for i in 0..n {
         print("  arr[", i, "] = ", arr[i])
     }
-    
-    # 冒泡排序
     print("\n开始排序...\n")
-    
     for i in 0..n {
         for j in 0..n - 1 - i {
-            # 比较相邻元素
             let curr = arr[j]
             let next = arr[j + 1]
-            
             if curr > next {
-                # 交换元素
                 arr[j] = next
                 arr[j + 1] = curr
             }
         }
-        
-        # 打印每轮结果
         print("第 ", i + 1, " 轮:")
         for k in 0..n {
             print("  ", arr[k])
         }
     }
-    
     print("\n排序完成!\n")
     print("排序后数组:")
     for i in 0..n {
         print("  arr[", i, "] = ", arr[i])
     }
-    
-    # 验证排序
     print("\n=== 验证排序 ===")
-    let  mut sorted = true
+    let mut sorted = true
     for i in 0..n - 1 {
         if arr[i] > arr[i + 1] {
             sorted = false
         }
     }
     print("数组已排序：", sorted)
-    
-    # 计算统计信息
     print("\n=== 统计信息 ===")
     let min_val = arr[0]
     let max_val = arr[n - 1]
-    let  mut sum = 0
-    
+    let mut sum = 0
     for i in 0..n {
         sum = sum + arr[i]
     }
-    
     print("最小值：", min_val)
     print("最大值：", max_val)
     print("总和：", sum)
     print("平均值：", sum / n)
-    
     return 0
 }

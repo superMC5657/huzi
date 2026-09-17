@@ -1,13 +1,3 @@
-# 管道输入示例
-# 从 stdin 逐行读取并回显,适合配合管道使用:
-#   echo "你好" | ./24_pipe_read.exe
-#   type file.txt | ./24_pipe_read.exe        (Windows)
-#   cat file.txt | ./24_pipe_read.exe         (Linux/macOS)
-#
-# 注意惯用法:先 read_line() 再检查 is_eof()。到达输入末尾时
-# read_line() 返回空串且 is_eof() 变为 true,此时应停止处理。
-# 直接向终端运行(无管道、无重定向)会阻塞等待键盘输入。
-
 fn main() -> i32 {
     let mut lines = 0
     let mut done = false

@@ -1,7 +1,3 @@
-# 递归函数示例
-# 演示递归函数的各种经典应用
-
-# 计算阶乘
 fn factorial(n: i32) -> i32 {
     if n <= 1 {
         return 1
@@ -9,7 +5,6 @@ fn factorial(n: i32) -> i32 {
     return n * factorial(n - 1)
 }
 
-# 计算斐波那契数
 fn fibonacci(n: i32) -> i32 {
     if n <= 1 {
         return n
@@ -17,7 +12,6 @@ fn fibonacci(n: i32) -> i32 {
     return fibonacci(n - 1) + fibonacci(n - 2)
 }
 
-# 计算幂
 fn power(base: f64, exp: i32) -> f64 {
     if exp == 0 {
         return 1.0
@@ -28,7 +22,6 @@ fn power(base: f64, exp: i32) -> f64 {
     return base * power(base, exp - 1)
 }
 
-# 计算最大公约数 (欧几里得算法)
 fn gcd(a: i32, b: i32) -> i32 {
     if b == 0 {
         return a
@@ -36,7 +29,6 @@ fn gcd(a: i32, b: i32) -> i32 {
     return gcd(b, a % b)
 }
 
-# 计算数字位数
 fn count_digits(n: i32) -> i32 {
     if n < 10 {
         return 1
@@ -44,29 +36,22 @@ fn count_digits(n: i32) -> i32 {
     return 1 + count_digits(n / 10)
 }
 
-# 计算数组元素和 (递归)
 fn array_sum_recursive(arr: i32, index: i32, len: i32) -> i32 {
     if index >= len {
         return 0
     }
-    # 这里简化处理，实际数组需要特殊处理
     return 0
 }
 
 fn main() -> i32 {
-    # ========== 阶乘 ==========
     print("=== 阶乘 ===")
     for i in 1..6 {
         print(i, "! = ", factorial(i))
     }
-    
-    # ========== 斐波那契 ==========
     print("\n=== 斐波那契数列 ===")
     for i in 0..10 {
         print("F(", i, ") = ", fibonacci(i))
     }
-    
-    # ========== 幂运算 ==========
     print("\n=== 幂运算 ===")
     print("2^0 = ", power(2.0, 0))
     print("2^1 = ", power(2.0, 1))
@@ -75,18 +60,13 @@ fn main() -> i32 {
     print("2^4 = ", power(2.0, 4))
     print("2^10 = ", power(2.0, 10))
     print("2^-2 = ", power(2.0, -2))
-    
-    # ========== 最大公约数 ==========
     print("\n=== 最大公约数 ===")
     print("gcd(48, 18) = ", gcd(48, 18))
     print("gcd(100, 25) = ", gcd(100, 25))
     print("gcd(17, 19) = ", gcd(17, 19))
-    
-    # ========== 数字位数 ==========
     print("\n=== 数字位数 ===")
     print("digits(5) = ", count_digits(5))
     print("digits(100) = ", count_digits(100))
     print("digits(9999) = ", count_digits(9999))
-    
     return 0
 }

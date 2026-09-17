@@ -1,23 +1,20 @@
-# 运行时系统函数:随机数、时间、进程退出、睡眠
-# rand()/srand(seed)/time()/exit(n)/sleep_ms(ms)
-
-# 固定 seed:同一 seed 产生同一伪随机数序列(可复现)
 srand(42)
+
 print("rand #1:", rand() % 100)
+
 print("rand #2:", rand() % 100)
 
-# time() 返回 Unix 时间戳(秒),不适合直接打印(每次运行不同),
-# 通常用于比较或计算耗时
 let start = time()
+
 print("unix epoch started:", start > 0)
 
-# sleep_ms 毫秒级暂停(这里睡 2 毫秒,不拖慢测试)
 sleep_ms(2)
+
 print("clock moves forward:", time() >= start)
 
-# exit(n) 立即终止程序,n 是退出码;这里条件为假不会触发
 if false {
     print("never printed")
     exit(3)
 }
+
 print("done")

@@ -1,7 +1,3 @@
-# 素数判断和查找
-# 演示素数判断算法和埃拉托斯特尼筛法
-
-# 判断是否为素数
 fn is_prime(n: i32) -> bool {
     if n <= 1 {
         return false
@@ -12,8 +8,7 @@ fn is_prime(n: i32) -> bool {
     if n % 2 == 0 || n % 3 == 0 {
         return false
     }
-    
-    let  mut i = 5
+    let mut i = 5
     while i * i <= n {
         if n % i == 0 || n % (i + 2) == 0 {
             return false
@@ -23,11 +18,9 @@ fn is_prime(n: i32) -> bool {
     return true
 }
 
-# 查找第 n 个素数
 fn nth_prime(n: i32) -> i32 {
-    let  mut count = 0
-    let  mut candidate = 2
-    
+    let mut count = 0
+    let mut candidate = 2
     while count < n {
         if is_prime(candidate) {
             count = count + 1
@@ -40,9 +33,8 @@ fn nth_prime(n: i32) -> i32 {
     return candidate
 }
 
-# 计算小于 n 的素数个数
 fn count_primes(n: i32) -> i32 {
-    let  mut count = 0
+    let mut count = 0
     for i in 2..n {
         if is_prime(i) {
             count = count + 1
@@ -51,11 +43,9 @@ fn count_primes(n: i32) -> i32 {
     return count
 }
 
-# 打印前 n 个素数
 fn print_first_n_primes(n: i32) -> i32 {
-    let  mut count = 0
-    let  mut candidate = 2
-    
+    let mut count = 0
+    let mut candidate = 2
     while count < n {
         if is_prime(candidate) {
             if count > 0 {
@@ -72,45 +62,30 @@ fn print_first_n_primes(n: i32) -> i32 {
 
 fn main() -> i32 {
     print("=== 素数判断 ===\n")
-    
-    # 测试一些数字是否为素数
     let test_numbers = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 19, 23, 29, 30, 31, 37, 41, 43, 47]
-    
     for i in 0..22 {
         let num = test_numbers[i]
         let prime_str = if is_prime(num) { "是素数" } else { "不是素数" }
         print(num, " ", prime_str)
     }
-    
-    # ========== 前 N 个素数 ==========
     print("\n=== 前 N 个素数 ===")
-    
     print("\n前 10 个素数:")
     print_first_n_primes(10)
-    
     print("\n\n前 20 个素数:")
     print_first_n_primes(20)
-    
-    # ========== 第 N 个素数 ==========
     print("\n\n=== 第 N 个素数 ===")
     print("第 1 个素数：", nth_prime(1))
     print("第 5 个素数：", nth_prime(5))
     print("第 10 个素数：", nth_prime(10))
     print("第 25 个素数：", nth_prime(25))
     print("第 50 个素数：", nth_prime(50))
-    
-    # ========== 素数计数 ==========
     print("\n=== 素数计数 ===")
     print("小于 10 的素数个数：", count_primes(10))
     print("小于 50 的素数个数：", count_primes(50))
     print("小于 100 的素数个数：", count_primes(100))
-    
-    # ========== 特殊素数 ==========
     print("\n=== 特殊素数 ===")
-    
-    # 孪生素数 (相差 2 的素数对)
     print("\n孪生素数对 (小于 100):")
-    let  mut twin_count = 0
+    let mut twin_count = 0
     for i in 2..98 {
         if is_prime(i) && is_prime(i + 2) {
             print("  (", i, ", ", i + 2, ")")
@@ -118,6 +93,5 @@ fn main() -> i32 {
         }
     }
     print("共 ", twin_count, " 对")
-    
     return 0
 }

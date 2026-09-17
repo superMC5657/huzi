@@ -1,143 +1,105 @@
-# 单位转换器
-# 演示各种常用单位之间的转换
-
-# ========== 长度转换 ==========
-# 千米转英里
 fn km_to_miles(km: f64) -> f64 {
     return km * 0.621371
 }
 
-# 英里转千米
 fn miles_to_km(miles: f64) -> f64 {
     return miles / 0.621371
 }
 
-# 米转英尺
 fn meters_to_feet(m: f64) -> f64 {
     return m * 3.28084
 }
 
-# 英尺转米
 fn feet_to_meters(ft: f64) -> f64 {
     return ft / 3.28084
 }
 
-# 厘米转英寸
 fn cm_to_inches(cm: f64) -> f64 {
     return cm / 2.54
 }
 
-# 英寸转厘米
 fn inches_to_cm(inches: f64) -> f64 {
     return inches * 2.54
 }
 
-# ========== 重量转换 ==========
-# 千克转磅
 fn kg_to_lbs(kg: f64) -> f64 {
     return kg * 2.20462
 }
 
-# 磅转千克
 fn lbs_to_kg(lbs: f64) -> f64 {
     return lbs / 2.20462
 }
 
-# 克转盎司
 fn g_to_oz(g: f64) -> f64 {
     return g / 28.3495
 }
 
-# 盎司转克
 fn oz_to_g(oz: f64) -> f64 {
     return oz * 28.3495
 }
 
-# ========== 速度转换 ==========
-# 千米/小时转米/秒
 fn kmh_to_ms(kmh: f64) -> f64 {
     return kmh / 3.6
 }
 
-# 米/秒转千米/小时
 fn ms_to_kmh(ms: f64) -> f64 {
     return ms * 3.6
 }
 
-# 英里/小时转千米/小时
 fn mph_to_kmh(mph: f64) -> f64 {
     return mph * 1.60934
 }
 
 fn main() -> i32 {
     print("=== 单位转换器 ===\n")
-    
-    # ========== 长度转换 ==========
     print("--- 长度转换 ---")
-    
     print("\n千米 ↔ 英里:")
     print("  1 km = ", km_to_miles(1.0), " miles")
     print("  5 km = ", km_to_miles(5.0), " miles")
     print("  10 km = ", km_to_miles(10.0), " miles")
     print("  1 mile = ", miles_to_km(1.0), " km")
     print("  5 miles = ", miles_to_km(5.0), " km")
-    
     print("\n米 ↔ 英尺:")
     print("  1 m = ", meters_to_feet(1.0), " ft")
     print("  10 m = ", meters_to_feet(10.0), " ft")
     print("  1 ft = ", feet_to_meters(1.0), " m")
     print("  10 ft = ", feet_to_meters(10.0), " m")
-    
     print("\n厘米 ↔ 英寸:")
     print("  1 cm = ", cm_to_inches(1.0), " inches")
     print("  10 cm = ", cm_to_inches(10.0), " inches")
     print("  1 inch = ", inches_to_cm(1.0), " cm")
     print("  10 inches = ", inches_to_cm(10.0), " cm")
-    
-    # ========== 重量转换 ==========
     print("\n--- 重量转换 ---")
-    
     print("\n千克 ↔ 磅:")
     print("  1 kg = ", kg_to_lbs(1.0), " lbs")
     print("  5 kg = ", kg_to_lbs(5.0), " lbs")
     print("  10 kg = ", kg_to_lbs(10.0), " lbs")
     print("  1 lb = ", lbs_to_kg(1.0), " kg")
     print("  10 lbs = ", lbs_to_kg(10.0), " kg")
-    
     print("\n克 ↔ 盎司:")
     print("  1 g = ", g_to_oz(1.0), " oz")
     print("  100 g = ", g_to_oz(100.0), " oz")
     print("  1 oz = ", oz_to_g(1.0), " g")
     print("  10 oz = ", oz_to_g(10.0), " g")
-    
-    # ========== 速度转换 ==========
     print("\n--- 速度转换 ---")
-    
     print("\n千米/小时 ↔ 米/秒:")
     print("  36 km/h = ", kmh_to_ms(36.0), " m/s")
     print("  100 km/h = ", kmh_to_ms(100.0), " m/s")
     print("  10 m/s = ", ms_to_kmh(10.0), " km/h")
     print("  340 m/s = ", ms_to_kmh(340.0), " km/h (音速)")
-    
     print("\n英里/小时 ↔ 千米/小时:")
     print("  60 mph = ", mph_to_kmh(60.0), " km/h")
     print("  100 mph = ", mph_to_kmh(100.0), " km/h")
-    
-    # ========== 实用转换 ==========
     print("\n=== 实用转换 ===")
-    
     print("\n身高转换:")
     print("  170 cm = ", cm_to_inches(170.0), " inches (约 5 英尺 7 英寸)")
     print("  180 cm = ", cm_to_inches(180.0), " inches (约 5 英尺 11 英寸)")
-    
     print("\n体重转换:")
     print("  60 kg = ", kg_to_lbs(60.0), " lbs")
     print("  70 kg = ", kg_to_lbs(70.0), " lbs")
     print("  80 kg = ", kg_to_lbs(80.0), " lbs")
-    
     print("\n车速转换:")
     print("  高速公路限速 120 km/h = ", kmh_to_ms(120.0), " m/s")
     print("  美国限速 65 mph = ", mph_to_kmh(65.0), " km/h")
-    
     return 0
 }

@@ -1,6 +1,3 @@
-# 条件判断示例
-# 演示 if/elif/else 语句的使用
-
 fn max(a: i32, b: i32) -> i32 {
     if a > b {
         return a
@@ -31,7 +28,6 @@ fn grade_score(score: i32) -> i32 {
 }
 
 fn main() -> i32 {
-    # 基本 if-else
     print("=== 基本 if-else ===")
     let age = 18
     if age >= 18 {
@@ -39,19 +35,13 @@ fn main() -> i32 {
     } else {
         print("You are a minor.")
     }
-
-    # if-elif-else
     print("\n=== if-elif-else ===")
     let mut score = 85
     print("Score: ", score, ", Grade code: ", grade_score(score))
-
     score = 92
     print("Score: ", score, ", Grade code: ", grade_score(score))
-
     score = 55
     print("Score: ", score, ", Grade code: ", grade_score(score))
-
-    # 嵌套条件
     print("\n=== 嵌套条件 ===")
     let temp = 25
     if temp > 30 {
@@ -64,15 +54,11 @@ fn main() -> i32 {
     } else {
         print("It's cold.")
     }
-
-    # 比较函数
     print("\n=== 比较函数 ===")
     print("max(10, 20) = ", max(10, 20))
     print("max(50, 30) = ", max(50, 30))
-
     print("\n=== 绝对值函数 ===")
     print("abs_value(-3.14) = ", abs_value(-3.14))
     print("abs_value(3.14) = ", abs_value(3.14))
-
     return 0
 }

@@ -1,53 +1,35 @@
-# 学生成绩管理系统
-# 演示使用数组和函数管理学生成绩
-
 fn main() -> i32 {
     print("=== 学生成绩管理系统 ===\n")
-    
-    # 学生成绩数组 (模拟 5 个学生的 3 科成绩)
-    # 语文、数学、英语
     let chinese = [85, 90, 78, 92, 88]
     let math = [92, 88, 95, 89, 91]
     let english = [88, 85, 90, 87, 93]
     let n = 5
-    
-    # ========== 打印成绩表 ==========
     print("--- 学生成绩表 ---")
     print("学生\t语文\t数学\t英语\t总分")
     for i in 0..n {
         let total = chinese[i] + math[i] + english[i]
         print(" ", i + 1, "\t ", chinese[i], "\t ", math[i], "\t ", english[i], "\t ", total)
     }
-    
-    # ========== 计算各科平均分 ==========
     print("\n--- 各科平均分 ---")
-    
     let chinese_sum = chinese[0] + chinese[1] + chinese[2] + chinese[3] + chinese[4]
     let math_sum = math[0] + math[1] + math[2] + math[3] + math[4]
     let english_sum = english[0] + english[1] + english[2] + english[3] + english[4]
-    
     print("语文平均分：", chinese_sum / n)
     print("数学平均分：", math_sum / n)
     print("英语平均分：", english_sum / n)
-    
-    # ========== 计算每个学生的平均分 ==========
     print("\n--- 每个学生平均分 ---")
     for i in 0..n {
         let total = chinese[i] + math[i] + english[i]
         let avg = total / 3
         print("  学生 ", i + 1, ": ", avg)
     }
-    
-    # ========== 找出最高分 ==========
     print("\n--- 最高分 ---")
-    
     let max_chinese = chinese[0]
     let max_math = math[0]
     let max_english = english[0]
-    
     for i in 1..n {
         if chinese[i] > max_chinese {
-            let _ = chinese[i]  # 这里需要可变变量，简化处理
+            let _ = chinese[i]
         }
         if math[i] > max_math {
             let _ = math[i]
@@ -56,18 +38,13 @@ fn main() -> i32 {
             let _ = english[i]
         }
     }
-    
     print("语文最高分：92")
     print("数学最高分：95")
     print("英语最高分：93")
-    
-    # ========== 统计及格率 ==========
     print("\n--- 及格统计 (>=60) ---")
-    
-    let  mut chinese_pass = 0
-    let  mut math_pass = 0
-    let  mut english_pass = 0
-    
+    let mut chinese_pass = 0
+    let mut math_pass = 0
+    let mut english_pass = 0
     for i in 0..n {
         if chinese[i] >= 60 {
             chinese_pass = chinese_pass + 1
@@ -79,31 +56,15 @@ fn main() -> i32 {
             english_pass = english_pass + 1
         }
     }
-    
     print("语文及格率：", chinese_pass * 100 / n, "%")
     print("数学及格率：", math_pass * 100 / n, "%")
     print("英语及格率：", english_pass * 100 / n, "%")
-    
-    # ========== 成绩评级 ==========
     print("\n--- 成绩评级 ---")
     for i in 0..n {
         let total = chinese[i] + math[i] + english[i]
         let avg = total / 3
-        
-        let grade = if avg >= 90 {
-            "A"
-        } elif avg >= 80 {
-            "B"
-        } elif avg >= 70 {
-            "C"
-        } elif avg >= 60 {
-            "D"
-        } else {
-            "F"
-        }
-        
+        let grade = if avg >= 90 { "A" } elif avg >= 80 { "B" } elif avg >= 70 { "C" } elif avg >= 60 { "D" } else { "F" }
         print("  学生 ", i + 1, ": 平均分 ", avg, ", 等级 ", grade)
     }
-    
     return 0
 }

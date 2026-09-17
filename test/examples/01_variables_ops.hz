@@ -1,24 +1,16 @@
 fn main() -> i32 {
-    # 不可变变量
     let x = 10
     let y = 3
-
     let mut counter = 0
-
-    # 带类型注解的变量
     let a: i32 = 100
     let b: f64 = 3.14159
     let flag: bool = true
-
-    # 算术运算符
     print("=== 算术运算符 ===")
     print("x + y = ", x + y)
     print("x - y = ", x - y)
     print("x * y = ", x * y)
     print("x / y = ", x / y)
     print("x % y = ", x % y)
-
-    # 比较运算符
     print("\n=== 比较运算符 ===")
     print("x > y:  ", x > y)
     print("x < y:  ", x < y)
@@ -26,27 +18,20 @@ fn main() -> i32 {
     print("x <= y: ", x <= y)
     print("x == y: ", x == y)
     print("x != y: ", x != y)
-
-    # 逻辑运算符
     print("\n=== 逻辑运算符 ===")
     let t = true
     let f = false
     print("true && false = ", t && f)
     print("true || false = ", t || f)
-
-    # 自增自减
     print("\n=== 自增自减 ===")
     counter = counter + 1
     print("counter after +1: ", counter)
     counter = counter + 1
     print("counter after +1: ", counter)
-
-    # 负数运算
     print("\n=== 负数运算 ===")
     let neg = -42
     print("neg = ", neg)
     print("-neg = ", -neg)
     print("abs(neg) = ", abs(neg))
-
     return 0
 }

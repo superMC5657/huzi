@@ -1,18 +1,16 @@
-// 22_modules.hz — 模块系统:import 文件模块与内置模块
-
 import mods.helpers
 import math
 
-// 文件模块函数,按 `模块::函数` 限定调用
 let sum = helpers::add(3, 4)
+
 print(sum)
 
 print(helpers::greet("huzi"))
 
-// 文件模块的结构体与函数
-let p = helpers::origin()
+let p = helpers::origin
+
 print("origin: ", p.x, p.y)
 
-// 内置模块 math 的限定调用
 print(math::sqrt(144.0))
+
 print(math::pow(2.0, 10.0))

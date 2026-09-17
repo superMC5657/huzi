@@ -1,15 +1,9 @@
-# 数学函数示例
-# 演示 Huzi 标准库中的数学函数
-
 fn main() -> i32 {
-    # ========== 绝对值 ==========
     print("=== 绝对值 abs() ===")
     print("abs(-42) = ", abs(-42))
     print("abs(42) = ", abs(42))
     print("abs(-3.14) = ", abs(-3.14))
     print("abs(0) = ", abs(0))
-    
-    # ========== 平方根 ==========
     print("\n=== 平方根 sqrt() ===")
     print("sqrt(0) = ", sqrt(0.0))
     print("sqrt(1) = ", sqrt(1.0))
@@ -18,8 +12,6 @@ fn main() -> i32 {
     print("sqrt(16) = ", sqrt(16.0))
     print("sqrt(2) = ", sqrt(2.0))
     print("sqrt(100) = ", sqrt(100.0))
-    
-    # ========== 幂运算 ==========
     print("\n=== 幂运算 pow() ===")
     print("pow(2, 0) = ", pow(2.0, 0.0))
     print("pow(2, 1) = ", pow(2.0, 1.0))
@@ -28,40 +20,28 @@ fn main() -> i32 {
     print("pow(2, 10) = ", pow(2.0, 10.0))
     print("pow(10, 3) = ", pow(10.0, 3.0))
     print("pow(3, 4) = ", pow(3.0, 4.0))
-    
-    # ========== 三角函数 ==========
     print("\n=== 三角函数 ===")
     print("--- sin() ---")
     print("sin(0) = ", sin(0.0))
     print("sin(π/2) ≈ ", sin(1.5707963267948966))
     print("sin(π) ≈ ", sin(3.141592653589793))
-    
     print("\n--- cos() ---")
     print("cos(0) = ", cos(0.0))
     print("cos(π/2) ≈ ", cos(1.5707963267948966))
     print("cos(π) ≈ ", cos(3.141592653589793))
-    
-    # ========== 综合数学计算 ==========
     print("\n=== 综合数学计算 ===")
-    
-    # 计算圆的面积
     let radius = 5.0
     let pi = 3.141592653589793
     let area = pi * pow(radius, 2.0)
     print("Circle area (r=5): ", area)
-    
-    # 计算直角三角形斜边
     let a = 3.0
     let b = 4.0
     let c = sqrt(pow(a, 2.0) + pow(b, 2.0))
     print("Triangle hypotenuse (3,4): ", c)
-    
-    # 计算复利
     let principal = 1000.0
-    let rate = 1.05  # 5% 利率
+    let rate = 1.05
     let years = 10
     let final_amount = pow(rate, years) * principal
     print("Compound interest (1000@5% for 10y): ", final_amount)
-    
     return 0
 }

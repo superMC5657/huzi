@@ -1,39 +1,22 @@
-// 25_calculator.hz — 四则计算器:模块拆分示例
-//
-// 主程序只做编排:循环读入表达式、识别退出与错误、调用模块、打印结果。
-//   - 输入模块 mods/calc_input.hz:读输入、找运算符、文本 → 数值
-//   - 计算模块 mods/calc_core.hz:四则运算
-//
-// 运行方式:
-//   ./25_calculator.exe            交互式,输入 q 退出
-//   echo "12.5*3" | ./25_calculator.exe   管道输入,EOF 自动退出
-//
-// 表达式格式:`12.5*3`、`100 / 4`,支持小数与空格;不支持一元负号和括号。
-
 import mods.calc_input
 import mods.calc_core
 
-// 处理一行表达式;返回 false 表示用户要求退出
 fn eval_once(expr: str) -> bool {
     if expr[0] == 'q' {
         return false
     }
-
     let op_idx = calc_input::find_operator(expr)
     if op_idx < 0 {
         print("无法识别,示例: 12.5*3")
         return true
     }
-
     let a = calc_input::parse_number(expr, 0, op_idx)
     let b = calc_input::parse_number(expr, op_idx + 1, len(expr))
     let op = expr[op_idx]
-
     if op == '/' && b == 0.0 {
         print("错误: 除数为 0")
         return true
     }
-
     print(concat("= ", to_string(calc_core::calculate(a, op, b))))
     return true
 }
@@ -42,7 +25,7 @@ fn main() -> i32 {
     print("四则计算器 (输入 q 退出, 示例: 12.5*3)")
     let mut done = false
     while !done {
-        let expr = calc_input::read_expression()
+        let expr = calc_input::read_expression
         if is_eof() {
             done = true
         } else {

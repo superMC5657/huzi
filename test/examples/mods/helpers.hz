@@ -1,5 +1,3 @@
-// mods/helpers.hz — 模块文件示例:只允许 fn/struct/enum 定义与 import
-
 fn add(a: i32, b: i32) -> i32 {
     return a + b
 }
@@ -10,7 +8,7 @@ fn greet(name: str) -> str {
 
 struct Point {
     x: i32,
-    y: i32
+    y: i32,
 }
 
 fn origin() -> Point {

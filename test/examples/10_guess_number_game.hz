@@ -1,9 +1,3 @@
-# 猜数字游戏
-# 演示 while 循环、break、随机数（线性同余生成器，seed 通过参数传递）
-
-# 返回 (新seed, 随机数) 的简单 LCG：用两个数组槽模拟多返回值不可行，
-# 这里直接推进 seed 并返回新 seed，调用方用固定次数变换。
-
 fn next_seed(seed: i32) -> i32 {
     let mut s = (seed * 1103515245 + 12345) % 2147483647
     if s < 0 {
@@ -14,7 +8,7 @@ fn next_seed(seed: i32) -> i32 {
 
 fn random_in_range(seed: i32, min: i32, max: i32) -> i32 {
     let s = next_seed(seed)
-    return min + (s % (max - min + 1))
+    return min + s % (max - min + 1)
 }
 
 fn abs_val(x: i32) -> i32 {
@@ -28,19 +22,13 @@ fn main() -> i32 {
     print("=== 猜数字游戏 ===")
     print("我想了一个 1 到 100 之间的数字...")
     print("你能猜出它是多少吗？\n")
-
-    # 生成随机数（固定种子以便可重复测试）
     let mut seed = 42
     seed = next_seed(seed)
     let secret = random_in_range(seed, 1, 100)
-
     let mut guess = 0
     let mut attempts = 0
     let mut won = false
-
-    # 游戏主循环
     while attempts < 10 {
-        # 由于没有输入函数，我们模拟几次猜测
         if attempts == 0 {
             guess = 50
         } elif attempts == 1 {
@@ -59,10 +47,8 @@ fn main() -> i32 {
             seed = next_seed(seed)
             guess = random_in_range(seed, 1, 100)
         }
-
         attempts = attempts + 1
         print("猜测 #", attempts, ": ", guess)
-
         if guess == secret {
             print("恭喜你！猜对了！")
             print("你用了 ", attempts, " 次猜对。")
@@ -74,12 +60,10 @@ fn main() -> i32 {
             print("太大了！")
         }
     }
-
     if !won {
         print("游戏结束！")
         print("正确答案是：", secret)
     }
-
     print("\n=== 随机数测试 ===")
     print("生成 5 个随机数：")
     let mut s2 = 100
@@ -88,6 +72,5 @@ fn main() -> i32 {
         let r = random_in_range(s2, 1, 100)
         print("  ", i + 1, ": ", r)
     }
-
     return 0
 }

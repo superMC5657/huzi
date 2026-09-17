@@ -1,7 +1,3 @@
-# 37_box_nest.hz — 嵌套 Box + Box 包装含 str 字段的结构体
-# Box<Box<Node>> 每层仍是指针:整体打印穿透嵌套,判空/字段自动解引用
-# 与单层行为一致;中间层不可具名取出(整体使用即可)。
-
 struct Node {
     val: i32,
     next: Box<Node>,

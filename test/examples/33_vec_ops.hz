@@ -1,31 +1,18 @@
-# 33_vec_ops.hz — pop/remove/insert/clear
-# pop 弹出末尾并返回(空 vec 报运行时错误);remove 删下标处并左移填补;
-# insert 在下标处右移腾位并写入(允许 idx == len,等价尾插,满时翻倍扩容);
-# clear 长度置 0(保留容量,可继续 push)。均需 let mut。
-
 fn main() -> i32 {
     let mut v = vec(1, 2, 3)
     print(v)
     print(pop(v))
     print(v)
-
-    # pop 返回值可参与表达式
     let last = pop(v)
     print("last =", last)
     print(v)
-
-    # 删除首元素并左移
     remove(v, 0)
     print(v)
-
-    # 头插与尾插(idx == len)
     insert(v, 0, 99)
     print(v)
     insert(v, 1, 7)
     print(v)
     print("len =", len(v))
-
-    # 清空后复用(第 4 次 push 触发 3->6 扩容,随后中间插入)
     clear(v)
     print("len =", len(v))
     print(v)

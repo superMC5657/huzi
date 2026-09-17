@@ -1,15 +1,9 @@
-# 九九乘法表
-# 演示嵌套循环和格式化输出
-
 fn main() -> i32 {
     print("=== 九九乘法表 ===\n")
-    
-    # 完整乘法表
     print("--- 完整乘法表 ---")
     for i in 1..10 {
         for j in 1..10 {
             let prod = i * j
-            # 格式化：个位数前面加空格
             if prod < 10 {
                 print(i, "×", j, "= ", prod, "  ")
             } else {
@@ -18,8 +12,6 @@ fn main() -> i32 {
         }
         print("")
     }
-    
-    # 上三角乘法表
     print("\n--- 上三角乘法表 ---")
     for i in 1..10 {
         for j in 1..10 {
@@ -36,8 +28,6 @@ fn main() -> i32 {
         }
         print("")
     }
-    
-    # 下三角乘法表 (更常见的格式)
     print("\n--- 下三角乘法表 ---")
     for i in 1..10 {
         for j in 1..i + 1 {
@@ -50,21 +40,15 @@ fn main() -> i32 {
         }
         print("")
     }
-    
-    # 特定数字的乘法表
     print("\n--- 特定数字的乘法表 ---")
-    
     print("\n5 的乘法表:")
     for j in 1..10 {
         print("5 × ", j, " = ", 5 * j)
     }
-    
     print("\n9 的乘法表:")
     for j in 1..10 {
         print("9 × ", j, " = ", 9 * j)
     }
-    
-    # 乘法表规律
     print("\n=== 乘法表规律 ===")
     print("9 的乘法表手指记忆法：")
     for j in 1..10 {
@@ -72,6 +56,5 @@ fn main() -> i32 {
         let ones = 9 * j % 10
         print("9 × ", j, " = ", 9 * j, " (十位:", tens, ", 个位:", ones, ", 和:", tens + ones, ")")
     }
-    
     return 0
 }

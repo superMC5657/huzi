@@ -1,9 +1,5 @@
-# 数组操作示例
-# 演示数组的各种操作
-
-# 查找数组最大值
 fn array_max(arr: [i32; 10], len: i32) -> i32 {
-    let  mut max_val = arr[0]
+    let mut max_val = arr[0]
     for i in 1..len {
         if arr[i] > max_val {
             max_val = arr[i]
@@ -12,9 +8,8 @@ fn array_max(arr: [i32; 10], len: i32) -> i32 {
     return max_val
 }
 
-# 查找数组最小值
 fn array_min(arr: [i32; 10], len: i32) -> i32 {
-    let  mut min_val = arr[0]
+    let mut min_val = arr[0]
     for i in 1..len {
         if arr[i] < min_val {
             min_val = arr[i]
@@ -23,16 +18,14 @@ fn array_min(arr: [i32; 10], len: i32) -> i32 {
     return min_val
 }
 
-# 计算数组平均值
 fn array_avg(arr: [i32; 10], len: i32) -> f64 {
-    let  mut sum = 0
+    let mut sum = 0
     for i in 0..len {
         sum = sum + arr[i]
     }
     return sum / len
 }
 
-# 查找元素
 fn array_contains(arr: [i32; 10], len: i32, target: i32) -> bool {
     for i in 0..len {
         if arr[i] == target {
@@ -43,48 +36,33 @@ fn array_contains(arr: [i32; 10], len: i32, target: i32) -> bool {
 }
 
 fn main() -> i32 {
-    # ========== 数组字面量 ==========
     print("=== 数组字面量 ===")
     let numbers = [5, 2, 8, 1, 9, 3, 7, 4, 6, 10]
     print("Array: ", numbers[0], ", ", numbers[1], ", ", numbers[2], ", ...")
-    
-    # ========== 数组最值 ==========
     print("\n=== 数组最值 ===")
     let max_val = array_max(numbers, 10)
     let min_val = array_min(numbers, 10)
     print("Max = ", max_val)
     print("Min = ", min_val)
-    
-    # ========== 数组求和 ==========
     print("\n=== 数组求和 ===")
-    let  mut sum = 0
+    let mut sum = 0
     for i in 0..10 {
         sum = sum + numbers[i]
     }
     print("Sum = ", sum)
-    
-    # ========== 数组查找 ==========
     print("\n=== 数组查找 ===")
     print("Contains 5: ", array_contains(numbers, 10, 5))
     print("Contains 15: ", array_contains(numbers, 10, 15))
-    
-    # ========== 数组遍历 ==========
     print("\n=== 数组遍历 ===")
     for i in 0..10 {
         print("numbers[", i, "] = ", numbers[i])
     }
-    
-    # ========== 数组修改 ==========
     print("\n=== 数组修改 ===")
     let mut arr = [1, 2, 3, 4, 5]
     print("Original: ", arr[0], ", ", arr[1], ", ", arr[2], ", ", arr[3], ", ", arr[4])
-    
-    # 修改数组元素
     arr[0] = 100
     arr[4] = 500
     print("Modified: ", arr[0], ", ", arr[1], ", ", arr[2], ", ", arr[3], ", ", arr[4])
-    
-    # ========== 数组计算 ==========
     print("\n=== 数组计算 ===")
     let data = [10, 20, 30, 40, 50]
     let mut total = 0
@@ -92,6 +70,5 @@ fn main() -> i32 {
         total = total + data[i]
     }
     print("Total = ", total)
-    
     return 0
 }

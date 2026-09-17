@@ -23,14 +23,34 @@ pub(crate) fn die(msg: String) -> ! {
 
 fn main() {
     let args = Args::parse();
+    if let Some(cmd) = args.command {
+        match cmd {
+            cli::Command::Fmt(fmt_args) => {
+                let ok = huzc::fmt::run_fmt(&fmt_args.path, fmt_args.check);
+                if !ok {
+                    std::process::exit(1);
+                }
+                return;
+            }
+        }
+    }
+
+    let input = match &args.input {
+        Some(i) => i,
+        None => {
+            eprintln!("error: either a subcommand (e.g. 'fmt') or '--input <file.hz>' is required");
+            std::process::exit(1);
+        }
+    };
+
     // Release mode runs silently: no progress logs, errors still go to stderr.
     let quiet = args.release;
 
-    let source = read_source(&args.input);
+    let source = read_source(input);
     let mut program = parse_source(&source, quiet);
 
     // 解析 import:内置模块直接注册,文件模块递归加载(去重 + 防循环)。
-    let base_dir = Path::new(&args.input)
+    let base_dir = Path::new(input)
         .parent()
         .unwrap_or(Path::new("."))
         .to_path_buf();
@@ -46,9 +66,9 @@ fn main() {
         // 调试模式:以规范化的绝对路径作为编译单元源文件。
         // 去掉 canonicalize 产生的 `\\?\` 前缀,否则 gdb/lldb 按此路径
         // 找不到源文件。
-        let source_path = fs::canonicalize(&args.input)
+        let source_path = fs::canonicalize(input)
             .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or_else(|_| args.input.clone());
+            .unwrap_or_else(|_| input.clone());
         let source_path = source_path
             .strip_prefix(r"\\?\")
             .map(|s| s.to_string())

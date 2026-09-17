@@ -1,24 +1,23 @@
-// 21_tuples.hz — 元组：字面量、类型标注、元素访问与赋值、函数传参/返回、print
-
-// 字面量与类型推导
 let t = (1, "hello", true)
+
 print(t)
 
-// 显式类型标注（元素做数值自动转换）
 let p: (i64, f64) = (3, 2)
+
 print(p)
 
-// 元素访问与赋值（受 let mut 约束）
 let mut point = (10, 20)
+
 print(point.0, point.1)
+
 point.0 = 42
+
 print(point)
 
-// 嵌套元组
 let nested = (1, (2, 3))
+
 print(nested.1.0)
 
-// 函数返回元组、元组作为参数
 fn divmod(a: i32, b: i32) -> (i32, i32) {
     return (a / b, a % b)
 }
@@ -28,7 +27,9 @@ fn scale(t: (i32, i32), k: i32) -> (i32, i32) {
 }
 
 let q = divmod(17, 5)
+
 print(q)
 
 let s = scale((1, 2), 3)
+
 print(s)

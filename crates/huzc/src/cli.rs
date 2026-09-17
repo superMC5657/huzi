@@ -33,14 +33,33 @@ impl LinkerKind {
     }
 }
 
+#[derive(clap::Subcommand, Clone, Debug)]
+pub enum Command {
+    /// Format Huzi source files (.hz)
+    Fmt(FmtArgs),
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct FmtArgs {
+    /// Check formatting without overwriting files
+    #[arg(long)]
+    pub check: bool,
+
+    /// Target file or directory
+    pub path: String,
+}
+
 /// Huzi Programming Language Compiler
 #[derive(Parser, Debug)]
 #[command(name = "huzc")]
 #[command(about = "Compile Huzi source code to executable")]
 pub struct Args {
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
     /// Input source file (.hz)
     #[arg(short, long)]
-    pub input: String,
+    pub input: Option<String>,
 
     /// Output file name (without extension). Defaults to the input
     /// file stem (`--input foo/bar.hz` -> `bar[.exe]` in cwd).
@@ -76,14 +95,15 @@ impl Args {
         if let Some(out) = &self.output {
             return out.clone();
         }
-        std::path::Path::new(&self.input)
+        let input = self.input.as_deref().unwrap_or("");
+        std::path::Path::new(input)
             .file_stem()
             .and_then(|s| s.to_str())
             .map(|s| s.to_string())
             .unwrap_or_else(|| {
                 crate::die(format!(
                     "无法从输入路径推导输出名,请显式指定 --output: {}",
-                    self.input
+                    input
                 ))
             })
     }

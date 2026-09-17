@@ -1,15 +1,8 @@
-// mods/calc_input.hz — 输入模块:负责把一行表达式文本变成数值
-//
-// 只提供三件事:读一行输入、定位运算符、把数字片段解析成 f64。
-// 不做计算,不做错误提示(那是主程序的事)。
-
-// 打印提示符并读取一行表达式
 fn read_expression() -> str {
     print(">")
     return read_line()
 }
 
-// 返回表达式中第一个四则运算符(+ - * /)的下标;找不到返回 -1
 fn find_operator(s: str) -> i32 {
     let mut i = 0
     while i < len(s) {
@@ -22,9 +15,6 @@ fn find_operator(s: str) -> i32 {
     return -1
 }
 
-// 把 s[start..end) 解析成数值,支持小数,忽略空格。
-// 整数部分按位累加;遇到 '.' 后进入小数部分,每读一位位权缩小 10 倍。
-// 限制:不支持一元负号(负号会被 find_operator 当作运算符)。
 fn parse_number(s: str, start: i32, end: i32) -> f64 {
     let mut v = 0.0
     let mut scale = 0.0

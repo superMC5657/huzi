@@ -1,17 +1,15 @@
-# 文件读写:write_file(path, content) / read_file(path)
-# 文件写到 out/ 目录(test.sh 保证其存在)
-
 let path = "test/out/file_io_demo.txt"
 
-# write_file 返回是否全部写成功(路径无效返回 false)
 let ok = write_file(path, "huzi file io demo\nline two\n")
+
 print("write ok:", ok)
 
-# read_file 一次性读入整个文件;失败返回空串
 let data = read_file(path)
+
 print("read len:", len(data))
+
 print("round trip:", data == "huzi file io demo\nline two\n")
 
-# 读不存在的文件:返回空串,程序不崩溃
 let missing = read_file("test/out/no_such_file.txt")
+
 print("missing len:", len(missing))

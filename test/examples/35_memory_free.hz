@@ -1,22 +1,15 @@
-# 35_memory_free.hz — 手动释放最小机制
-# free_str/free_vec/free_box 将槽位置空安全态(str 空串/vec 空/Box null),
-# 二次 free 为 no-op;vec free 后可继续 push 复用;不 free 也能正常运行。
-
 struct Node {
     val: i32,
     next: Box<Node>,
 }
 
 fn main() -> i32 {
-    # ========== str: 分配 -> free -> 判空 -> double-free ==========
     let mut s = concat("hello, ", "world")
     print("str len =", len(s))
     free_str(s)
     print("str len =", len(s))
     free_str(s)
     print("str len =", len(s))
-
-    # ========== vec: 分配 -> free -> 复用 push -> double-free ==========
     let mut v = vec(1, 2, 3)
     print("vec len =", len(v))
     print(v)
@@ -29,8 +22,6 @@ fn main() -> i32 {
     print("vec len =", len(v))
     print(v[0])
     print(v)
-
-    # ========== Box: 分配 -> free -> 判空 -> double-free ==========
     let mut b: Box<Node> = box(Node { val: 7, next: null })
     print(b.val)
     free_box(b)

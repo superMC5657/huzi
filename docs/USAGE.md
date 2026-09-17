@@ -58,6 +58,25 @@ cargo run --release --bin huzc -- --input test/examples/01_variables_ops.hz -o t
 - **Linux/macOS**: 输出 `hello`，中间文件 `hello.ll`、`hello.o`
 - 中间文件在编译完成后自动清理
 
+## 代码格式化 (huzc fmt)
+
+Huzc 内置源码格式化工具，基于抽象语法树 (AST) pretty-print 实现幂等格式化：
+
+```bash
+# 格式化单个文件
+huzc fmt path/to/file.hz
+
+# 递归格式化整个目录下的所有 .hz 文件
+huzc fmt test/examples
+
+# 仅检查是否已符合格式（不修改文件，有未格式化文件时退出码为 1）
+huzc fmt --check test/examples
+```
+
+- **缩进规范**：统一使用 4 个空格缩进。
+- **幂等性保障**：格式化后的代码再次格式化保持零 diff。
+- **注释说明**：首版格式化基于 AST 重构输出，注释会被归一化，保持源码语义与控制流完全一致。
+
 ## 调试
 
 `-g`/`--debug` 生成带 DWARF 调试信息的可执行文件(强制 `-O0`):

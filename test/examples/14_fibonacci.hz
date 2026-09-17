@@ -1,7 +1,3 @@
-# 斐波那契数列多种实现
-# 演示递归、迭代等不同方法计算斐波那契数
-
-# 方法 1：简单递归
 fn fib_recursive(n: i32) -> i32 {
     if n <= 1 {
         return n
@@ -9,103 +5,74 @@ fn fib_recursive(n: i32) -> i32 {
     return fib_recursive(n - 1) + fib_recursive(n - 2)
 }
 
-# 方法 2：迭代
 fn fib_iterative(n: i32) -> i32 {
     if n <= 1 {
         return n
     }
-    
-    let  mut a = 0
-    let  mut b = 1
-    
+    let mut a = 0
+    let mut b = 1
     for i in 2..n + 1 {
         let temp = a + b
         a = b
         b = temp
     }
-    
     return b
 }
 
-# 方法 3：使用数组缓存
 fn fib_array(n: i32) -> i32 {
     if n <= 1 {
         return n
     }
-    
-    # 创建数组存储斐波那契数
-    let mut fibs = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    
+    let mut fibs = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     fibs[0] = 0
     fibs[1] = 1
-    
     for i in 2..n + 1 {
         fibs[i] = fibs[i - 1] + fibs[i - 2]
     }
-    
     return fibs[n]
 }
 
-# 计算黄金比例
 fn golden_ratio(n: i32) -> f64 {
     if n <= 1 {
         return 1.0
     }
-    
-    let  mut a = 0.0
-    let  mut b = 1.0
-    
+    let mut a = 0.0
+    let mut b = 1.0
     for i in 2..n + 1 {
         let temp = a + b
         a = b
         b = temp
     }
-    
     let prev = a
     if prev == 0.0 {
         return 1.618033988749895
     }
-    
     return b / prev
 }
 
 fn main() -> i32 {
     print("=== 斐波那契数列多种实现 ===\n")
-    
-    # ========== 方法 1：递归 ==========
     print("--- 方法 1：递归 ---")
     for i in 0..11 {
         print("F(", i, ") = ", fib_recursive(i))
     }
-    
-    # ========== 方法 2：迭代 ==========
     print("\n--- 方法 2：迭代 ---")
     for i in 0..11 {
         print("F(", i, ") = ", fib_iterative(i))
     }
-    
-    # ========== 方法 3：数组 ==========
     print("\n--- 方法 3：数组 ---")
     for i in 0..11 {
         print("F(", i, ") = ", fib_array(i))
     }
-    
-    # ========== 性能比较 ==========
     print("\n=== 计算较大数值 ===")
     let n = 20
-    
     print("使用迭代计算 F(", n, "):")
     print("F(", n, ") = ", fib_iterative(n))
-    
-    # ========== 黄金比例 ==========
     print("\n=== 黄金比例 ===")
     print("F(10)/F(9)  ≈ ", golden_ratio(10))
     print("F(15)/F(14) ≈ ", golden_ratio(15))
     print("F(20)/F(19) ≈ ", golden_ratio(20))
     print("黄金比例 φ  ≈ 1.618033988749895")
-    
-    # ========== 斐波那契数列应用 ==========
     print("\n=== 斐波那契数列前 20 项 ===")
     for i in 0..20 {
         if i > 0 {
@@ -113,6 +80,5 @@ fn main() -> i32 {
         }
         print(fib_iterative(i))
     }
-    
     return 0
 }

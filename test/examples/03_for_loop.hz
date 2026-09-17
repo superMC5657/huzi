@@ -1,30 +1,20 @@
-# for 循环示例
-# 演示 for 循环的各种用法
-
 fn main() -> i32 {
-    # ========== 基本 for 循环 ==========
     print("=== 基本 for 循环 ===")
     for i in 0..5 {
         print("i = ", i)
     }
-    
-    # ========== 累加求和 ==========
     print("\n=== 累加求和 ===")
     let mut sum = 0
     for i in 1..11 {
         sum = sum + i
     }
     print("Sum of 1 to 10 = ", sum)
-    
-    # ========== 阶乘计算 ==========
     print("\n=== 阶乘计算 ===")
     let mut factorial = 1
     for i in 1..6 {
         factorial = factorial * i
     }
     print("5! = ", factorial)
-    
-    # ========== 遍历数组 ==========
     print("\n=== 遍历数组 ===")
     let arr = [10, 20, 30, 40, 50]
     let mut sum_arr = 0
@@ -32,8 +22,6 @@ fn main() -> i32 {
         sum_arr = sum_arr + arr[i]
     }
     print("Sum of array = ", sum_arr)
-    
-    # ========== 嵌套循环 ==========
     print("\n=== 嵌套循环 (乘法表) ===")
     for i in 1..4 {
         for j in 1..4 {
@@ -41,15 +29,12 @@ fn main() -> i32 {
             print(i, " x ", j, " = ", prod)
         }
     }
-    
-    # ========== 浮点数循环 ==========
     print("\n=== 浮点数循环 ===")
-    let  mut fsum = 0.0
+    let mut fsum = 0.0
     for i in 1..4 {
         let fi = i
         fsum = fsum + fi
     }
     print("Float sum = ", fsum)
-    
     return 0
 }
