@@ -372,6 +372,71 @@ fn main() -> i32 {
 
 约束：非空 `vec(...)` 元素类型由首元素推导；空向量须使用 `vec<T>()` 明确类型。`print(v)` 输出 `[e1, e2, ...]` 格式。`for x in v` 在进入循环时确定遍历长度。`remove`/`insert` 越界与空 `pop` 触发运行时错误；`insert` 满时自动翻倍扩容；`clear` 后 `len(v) == 0` 且可继续 `push`。
 
+### HashMap（str → i32 特化）
+
+```python
+fn main() -> i32 {
+    let mut m = map_new()
+    map_put(m, "apple", 10)        # 插入(需 let mut)；同键覆盖
+    map_put(m, "banana", 20)
+    print(map_len(m))              # 2
+
+    let r = map_get(m, "apple")    # 返回元组 (found: bool, val: i32)
+    print(r)                       # (true, 10)
+    print(r.0)                     # true
+    print(r.1)                     # 10
+
+    print(map_has(m, "banana"))    # true
+    print(map_remove(m, "banana")) # true(命中删除；缺键返回 false)
+    print(map_len(m))              # 1
+    return 0
+}
+```
+
+约束：仅 `str → i32` 特化，无泛型/方法/impl/trait；键须为 `str`、值须为 `i32`，其它类型在编译期报错。开放寻址线性探测，哈希为自实现 FNV-1a，键比较按内容（`strcmp`）；负载超过 3/4 时翻倍扩容并重哈希，删除使用墓碑标记不断链。缺键 `map_get` 返回 `(false, 0)`，不 abort；`map_remove` 缺键返回 `false`。`map` 只有局部变量形态（无字段/参数类型语法），不支持整体 `print` 与函数传参；`len(m)` 请改用 `map_len(m)`。完整示例见 `test/examples/38_hashmap.hz`。
+
+### HashMap 最小可用特化（str -> i32）
+
+```python
+fn main() -> i32 {
+    # 构造：无参数，总是 str->i32
+    let mut m = map_new()
+
+    # 写入（需 let mut；已存在则覆盖）
+    map_put(m, "apple", 10)
+    map_put(m, "banana", 20)
+    print("len = ", map_len(m))   # len = 2
+
+    # 读取：返回 (found: bool, val: i32) 元组；缺键返回 (false, 0)，不 abort
+    let r1 = map_get(m, "apple")
+    print(r1)           # (true, 10)
+    print(r1.0, r1.1)   # true10（print 多参数直接拼接）
+    let r2 = map_get(m, "missing")
+    print(r2)           # (false, 0)
+
+    # 存在性与删除（删除需 let mut，返回是否命中）
+    print(map_has(m, "banana"))     # true
+    print(map_remove(m, "banana"))  # true
+    print(map_has(m, "banana"))     # false
+    print("len = ", map_len(m))     # len = 1
+    return 0
+}
+```
+
+实现：开放寻址线性探测，槽复用 vec 三元组 `{ ptr, len, cap }`，条目为
+`{ hash, occupied, key_ptr, key_len, val }`；哈希为自实现 FNV-1a（免 libc 依赖），
+键相等借用 `strcmp`；负载超过 0.7 时翻倍扩容并重哈希，删除用墓碑标记保证探测链不断裂。
+
+边界（诚实声明，编译期明确报错）：
+
+- 仅 `str -> i32` 特化：键须为 `str`，值须为 `i32`，无泛型、无方法、无 `impl`/`trait`；
+  传其它类型报 `HashMap is specialized to str->i32 only`。
+- 仅局部变量形态：无字段/参数类型语法，不可作函数参数、结构体字段，不可 `print`；
+  `len(m)` 请改用 `map_len(m)`。
+- `map_put`/`map_remove` 需 `let mut` 变量；未释放内存在进程退出时由 OS 统一回收（与 vec 一致）。
+
+完整示例见 `test/examples/38_hashmap.hz`（含循环 put 100 个再全读回的扩容验证）。
+
 ### 阶乘计算
 
 ```python
@@ -529,6 +594,7 @@ fn main() -> i32 {
 | `[T; N]` | 固定长度数组 | `let arr: [i32; 5] = [1, 2, 3, 4, 5]` |
 | `(T1, T2, ...)` | 元组 | `let t = (1, "hello", true)` |
 | `vec` | 动态数组 | `let mut v = vec(1, 2, 3)` / `let mut e = vec<i32>()` |
+| `HashMap`(str→i32 特化) | 哈希表(开放寻址) | `let mut m = map_new()` + `map_put`/`map_get`/`map_has`/`map_remove`/`map_len` |
 | `struct` | 结构体 | `struct Point { x: i32, y: i32 }` |
 | `enum` | 枚举 | `enum Color { Red, Green }` / `enum Shape { Circle(f64) }` |
 | `Box<T>` | 堆指针结构体 | `let mut h: Box<Node> = box(Node { val: 1, next: null })` |

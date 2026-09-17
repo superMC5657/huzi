@@ -1,0 +1,53 @@
+# 38_hashmap.hz — HashMap 最小可用特化 str->i32
+# map_new()/map_put(m,k,v)/map_get(m,k)->(found,val)/map_has/map_remove/map_len
+# 开放寻址线性探测;缺键 get 返回 (false, 0) 不 abort;循环 put 100 个验证扩容不丢数据。
+
+fn main() -> i32 {
+    let mut m = map_new()
+    map_put(m, "apple", 10)
+    map_put(m, "banana", 20)
+    print("len = ", map_len(m))
+
+    let r1 = map_get(m, "apple")
+    print(r1)
+    print(r1.0, r1.1)
+
+    # 缺键:found=false,不 abort
+    let r2 = map_get(m, "missing")
+    print(r2)
+    print(map_has(m, "banana"))
+    print(map_has(m, "missing"))
+
+    # 覆盖写
+    map_put(m, "apple", 99)
+    let r3 = map_get(m, "apple")
+    print(r3)
+
+    # 删除闭环
+    print(map_remove(m, "banana"))
+    print(map_has(m, "banana"))
+    print("len = ", map_len(m))
+    print(map_remove(m, "missing"))
+
+    # 扩容:循环 put 100 个再全读回 (0+...+99=4950)
+    let mut i = 0
+    while i < 100 {
+        map_put(m, concat("k", to_string(i)), i)
+        i = i + 1
+    }
+    print("len = ", map_len(m))
+    let mut ok = 0
+    let mut total = 0
+    let mut j = 0
+    while j < 100 {
+        let r = map_get(m, concat("k", to_string(j)))
+        if r.0 {
+            ok = ok + 1
+            total = total + r.1
+        }
+        j = j + 1
+    }
+    print("ok = ", ok)
+    print("total = ", total)
+    0
+}

@@ -44,6 +44,9 @@ impl<'ctx> CodeGen<'ctx> {
             Some(Expr::Call(call)) if Self::is_split_ctor(call) => {
                 self.compile_let_split(stmt, &call.arguments, span)
             }
+            Some(Expr::Call(call)) if Self::is_map_ctor(call) => {
+                self.compile_let_map(stmt, &call.arguments, span)
+            }
             Some(Expr::VecEmpty(elem_ty)) => self.compile_let_vec_empty(stmt, elem_ty, span),
             Some(Expr::Null) => self.compile_let_null(stmt, span),
             Some(Expr::BoxAlloc(inner)) => self.compile_let_box(stmt, inner, span),

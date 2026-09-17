@@ -1,0 +1,14 @@
+len = 2
+(true, 10)
+true10
+(false, 0)
+true
+false
+(true, 99)
+true
+false
+len = 1
+false
+len = 101
+ok = 100
+total = 4950

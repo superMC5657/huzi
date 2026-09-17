@@ -14,6 +14,11 @@ impl<'ctx> CodeGen<'ctx> {
         // strings use strlen.
         if let Expr::Ident(name) = &arguments[0] {
             if let Some(slot) = self.scope_lookup(name) {
+                if Self::is_map_slot(&slot) {
+                    return Err(HuziError::new_global(
+                        "len() does not support HashMap; use map_len() (HashMap is str->i32 only)",
+                    ));
+                }
                 if Self::is_vec_slot(&slot) {
                     return self.vec_len_value(name);
                 }
