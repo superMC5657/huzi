@@ -542,6 +542,7 @@ if s == "quit" {
 |------|------|------|
 | `arg_count()` | 参数个数(含程序名) | `let n = arg_count()` |
 | `arg(i)` | 第 i 个参数;越界/负数返回空串 | `arg(1)` → 第一个用户参数 |
+| `arg_ok(i)` | 下标是否有效(`0 <= i < arg_count()`);先查再取,不用猜空串 | `arg_ok(99)` → false |
 
 ```huzi
 fn main() -> i32 {
@@ -600,6 +601,7 @@ fn main() -> i32 {
 | `rand()` | 伪随机数，`0..=RAND_MAX`（Windows 为 32767）；同一 seed 序列可复现 | `rand() % 100` |
 | `time()` | 当前 Unix 时间戳（秒，i64） | `let t = time()` |
 | `exit(n)` | 立即终止进程，退出码 n | `exit(1)` |
+| `panic(msg)` | 打印 `Runtime error: <msg>` 并以退出码 1 终止 | `panic("boom")` |
 | `sleep_ms(ms)` | 毫秒级睡眠（负值按 0 处理） | `sleep_ms(100)` |
 
 ```huzi
@@ -614,6 +616,8 @@ fn main() -> i32 {
 | 函数 | 说明 | 示例 |
 |------|------|------|
 | `read_file(path)` | 一次性读入整个文件（≤2GB）；失败返回空串 | `let s = read_file("data.txt")` |
+| `read_file_ok(path)` | 文件是否可读；先分支再读,不用猜空串 | `if read_file_ok(p) { read_file(p) }` |
+| `read_file_err(path)` | 成功返回空串,失败返回诊断文本 | `read_file_err("no.txt")` → "cannot open file" |
 | `write_file(path, content)` | 整体写入（覆盖）；返回是否成功 | `write_file("test/out/demo.txt", s)` |
 
 ```huzi
@@ -625,9 +629,27 @@ fn main() -> i32 {
 }
 ```
 
+哨兵消除(不用猜空串)：
+
+```huzi
+fn main() -> i32 {
+    let p = "test/out/no_such_file.txt"
+    if read_file_ok(p) {
+        print(read_file(p))
+    } else {
+        print(read_file_err(p))    # cannot open file
+    }
+    if arg_ok(1) {
+        print(arg(1))
+    }
+    0
+}
+```
+
 ### 运行时错误
 以下错误在运行时立即终止程序（以退出码 1 退出）：
 
+- 主动 abort：`panic("boom")` → `Runtime error: boom`（与下述检查共用同一报错/退出路径）
 - 整数除零 / 取模零：`Runtime error: division by zero`（浮点除法遵循 IEEE 754 语义）
 - 数组下标越界：`Runtime error: array index out of bounds (length N)`
 - vec 下标越界：`Runtime error: vec index out of bounds`

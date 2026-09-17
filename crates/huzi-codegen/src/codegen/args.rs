@@ -152,6 +152,49 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(phi.as_basic_value())
     }
 
+    /// `arg_ok(i) -> bool`: whether index `i` names a valid argv entry
+    /// (`0 <= i < arg_count()`). Use it to probe before `arg(i)` instead
+    /// of guessing from an empty string.
+    pub(super) fn compile_arg_ok(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
+        if arguments.len() != 1 {
+            return Err(HuziError::new_global("arg_ok() requires exactly 1 argument"));
+        }
+        let idx = self.coerce_arg_index(&arguments[0])?;
+        Ok(self.arg_idx_in_range(idx)?.into())
+    }
+
+    /// Coerce an `arg(i)`/`arg_ok(i)` index expression to i32.
+    fn coerce_arg_index(&mut self, expr: &Expr) -> Result<IntValue<'ctx>> {
+        let i32_type = self.context.i32_type();
+        match self.compile_expr(expr)? {
+            BasicValueEnum::IntValue(iv) => match iv.get_type().get_bit_width() {
+                32 => Ok(iv),
+                w if w < 32 => Ok(self
+                    .builder
+                    .build_int_s_extend(iv, i32_type, "arg_idx")
+                    .unwrap()),
+                _ => Ok(self.builder.build_int_truncate(iv, i32_type, "arg_idx").unwrap()),
+            },
+            _ => Err(HuziError::new_global("arg_ok() requires an integer index")),
+        }
+    }
+
+    /// `0 <= idx < argc` as an i1 value (negative indices fail the
+    /// signed lower-bound check, matching `arg(i)` out-of-range rules).
+    fn arg_idx_in_range(&mut self, idx: IntValue<'ctx>) -> Result<IntValue<'ctx>> {
+        let i32_type = self.context.i32_type();
+        let argc = self.load_argc()?;
+        let ge_zero = self
+            .builder
+            .build_int_compare(IntPredicate::SGE, idx, i32_type.const_int(0, false), "arg_ge_zero")
+            .unwrap();
+        let lt_argc = self
+            .builder
+            .build_int_compare(IntPredicate::SLT, idx, argc, "arg_lt_argc")
+            .unwrap();
+        Ok(self.builder.build_and(ge_zero, lt_argc, "arg_in_range").unwrap())
+    }
+
     /// `is_eof() -> bool`: whether a previous read_* hit end of stdin.
     pub(super) fn compile_is_eof(&mut self) -> Result<BasicValueEnum<'ctx>> {
         let eof_global = self.arg_global("huzi_eof");

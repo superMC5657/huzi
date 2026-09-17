@@ -1,0 +1,2 @@
+# panic 主动 abort:打印 Runtime error 并以退出码 1 退出
+panic("boom")

@@ -64,6 +64,7 @@ mod builtins_print;
 mod builtins_string;
 mod builtins_string_util;
 mod builtins_io;
+mod builtins_file_check;
 mod builtins_sys;
 mod debuginfo;
 mod enum_eq;
