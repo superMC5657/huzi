@@ -222,13 +222,12 @@ enum Shape {
 let c = Color::Green
 let s = Shape::Circle(2.0)
 
-# match 作为表达式，每个分支产出值
+# match 作为表达式，每个分支产出值（全覆盖时可省略 `_`）
 fn area(s: Shape) -> f64 {
     return match s {
         Shape::Circle(r) => 3.14159 * r * r,   # r 绑定 payload
         Shape::Rect(w) => w * w,
         Shape::Point2D => 0.0,
-        _ => 0.0,                              # 必须有 wildcard 兜底
     }
 }
 
@@ -236,7 +235,7 @@ print(area(s))          # 12.56636
 print(c == Color::Red)  # false
 ```
 
-限制：每个变体至多一个 payload；match 必须包含 `_` 分支（不做穷尽性检查）；带数据的枚举不支持 `==` 比较；`print` 简单枚举输出的是判别码整数。
+限制：每个变体至多一个 payload；match 做穷尽性检查（覆盖全变体即可省略 `_`，缺变体且无 `_` 时编译报错并列出缺失变体名；`_` 兜底仍兼容）；带数据的枚举不支持 `==` 比较；`print` 简单枚举输出的是判别码整数。
 
 ## 示例程序
 
@@ -356,7 +355,11 @@ fn main() -> i32 {
     let num = 42
     let str = to_string(num)
     print("num as string:", str)
-    
+
+    # 下标:按字节索引,s[i] 越界(含负下标)报运行时错误
+    let s = "hello"
+    print(s[0], s[len(s) - 1])
+
     return 0
 }
 ```
@@ -463,7 +466,8 @@ fn main() -> i32 {
 
 - `arg(0)` 是程序自身路径;`arg(1)` 起是用户参数。
 - `arg(i)` 返回的字符串直接指向 argv 存储(零拷贝),不要改写其内容。
-- 限制:Windows 下 argv 来自 ANSI 入口,非 ASCII 参数可能乱码。
+- Windows 下程序启动时从 Unicode 命令行(`GetCommandLineW`)转码为 UTF-8
+  重建 argv,中文等非 ASCII 参数不再乱码;Linux/macOS 直接使用系统 argv。
 
 ### 管道输入
 `read_line()`/`read_int()`/`read_float()` 均可读管道或重定向的 stdin,配合
@@ -534,7 +538,7 @@ fn main() -> i32 {
 - 整数除零 / 取模零:`Runtime error: division by zero`(浮点除法遵循 IEEE 语义,不检查)
 - 数组下标越界:`Runtime error: array index out of bounds (length N)`(负下标同样报错)
 - vec 下标越界:`Runtime error: vec index out of bounds`(负下标同样报错)
-- 字符串下标 `s[i]` 越界**不做检查**(返回越界字节),请先用 `len(s)` 校验
+- 字符串下标越界:`Runtime error: string index out of bounds`(负下标同样报错;按字节语义,UTF-8 多字节暂不做字符语义)
 
 ### 数学
 | 函数 | 说明 | 示例 |
@@ -648,12 +652,7 @@ huzc --input src/main.hz -o build/myapp
 
 ## 后续计划
 
-- [ ] 结构体支持
-- [ ] 枚举和 match 表达式
-- [ ] 类型验证和推导增强
-- [ ] 更多标准库函数
-- [ ] 模块系统
-- [ ] 调试信息生成
+TODO 全部已完成，暂无待开发功能（P5-16 发布需求已移除）。
 
 ---
 
