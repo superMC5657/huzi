@@ -126,9 +126,6 @@ impl<'ctx> CodeGen<'ctx> {
             None => value.get_type(),
         };
 
-        let alloca = self.build_alloca(var_type, &stmt.name)?;
-        self.builder.build_store(alloca, value).unwrap();
-
         // Box 槽记录 pointee(无标注时由值推导);Box 指针不做字符串元数据标记。
         let box_inner = match &stmt.type_annotation {
             Some(ann) => self.box_nest_of_ast(ann)?,
@@ -142,6 +139,23 @@ impl<'ctx> CodeGen<'ctx> {
         } else {
             None
         };
+
+        let alloca = if box_inner.is_some() {
+            let a = self.build_box_alloca(var_type, &stmt.name)?;
+            self.box_slots.push((a, var_type));
+            a
+        } else {
+            self.build_alloca(var_type, &stmt.name)?
+        };
+        self.builder.build_store(alloca, value).unwrap();
+
+        if box_inner.is_some() {
+            if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
+                if value.is_pointer_value() {
+                    self.emit_retain_box(value.into_pointer_value())?;
+                }
+            }
+        }
 
         self.scope_insert(
             stmt.name.clone(),
@@ -170,8 +184,6 @@ impl<'ctx> CodeGen<'ctx> {
                 )))
             }
         };
-        let alloca = self.build_alloca(ty, &stmt.name)?;
-        self.builder.build_store(alloca, ty.const_zero()).unwrap();
 
         let box_inner = match &stmt.type_annotation {
             Some(ann) => self.box_nest_of_ast(ann)?,
@@ -184,6 +196,15 @@ impl<'ctx> CodeGen<'ctx> {
         } else {
             None
         };
+
+        let alloca = if box_inner.is_some() {
+            let a = self.build_box_alloca(ty, &stmt.name)?;
+            self.box_slots.push((a, ty));
+            a
+        } else {
+            self.build_alloca(ty, &stmt.name)?
+        };
+        self.builder.build_store(alloca, ty.const_zero()).unwrap();
 
         self.scope_insert(
             stmt.name.clone(),
@@ -230,12 +251,23 @@ impl<'ctx> CodeGen<'ctx> {
         self.current_return_ast = stmt.return_type.clone();
         self.scopes = vec![HashMap::new()];
         self.defer_stack.clear();
+        self.box_slots.clear();
 
         for (i, param) in stmt.params.iter().enumerate() {
             let arg = function.get_nth_param(i as u32).unwrap();
             let arg_type = arg.get_type();
+            let box_inner = self.box_nest_of_ast(&param.param_type)?;
 
-            let alloca = self.build_alloca(arg_type, &param.name)?;
+            let alloca = if box_inner.is_some() {
+                let a = self.build_box_alloca(arg_type, &param.name)?;
+                self.box_slots.push((a, arg_type));
+                if arg.is_pointer_value() {
+                    self.emit_retain_box(arg.into_pointer_value())?;
+                }
+                a
+            } else {
+                self.build_alloca(arg_type, &param.name)?
+            };
             self.builder.build_store(alloca, arg).unwrap();
             self.declare_param(&param.name, alloca, arg_type, i as u32 + 1, span.start_line() as u32);
 
@@ -248,8 +280,6 @@ impl<'ctx> CodeGen<'ctx> {
                 Type::Named(n) if n == "str" => Some(self.context.i8_type().into()),
                 _ => None,
             };
-            // Box 形参记录 pointee,供函数体内的字段解引用。
-            let box_inner = self.box_nest_of_ast(&param.param_type)?;
 
             self.scopes.last_mut().unwrap().insert(
                 param.name.clone(),
@@ -273,6 +303,7 @@ impl<'ctx> CodeGen<'ctx> {
         // of the declared return type.
         if self.at_open_end() {
             self.emit_defers()?;
+            self.emit_release_active_boxes(None)?;
             self.builder
                 .build_return(Some(&return_type.const_zero()))
                 .unwrap();
@@ -290,18 +321,40 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap_or_else(|| self.context.i32_type().into());
 
         match &stmt.value {
-            Some(value) => {
+            Some(value_expr) => {
                 // `return null` 只能出现在 Box 返回位置。
                 if let Some(ast) = self.current_return_ast.clone() {
-                    self.check_box_assignable(value, &ast)?;
+                    self.check_box_assignable(value_expr, &ast)?;
                 }
-                let value = self.compile_expr(value)?;
+                let value = self.compile_expr(value_expr)?;
                 let value = self.coerce_value(ret_type, value)?;
                 self.emit_defers()?;
+
+                let is_ret_box = self
+                    .current_return_ast
+                    .as_ref()
+                    .map(|t| Self::is_box_ast(t))
+                    .unwrap_or(false);
+                let ret_slot_ptr = if is_ret_box {
+                    if let Expr::Ident(name) = value_expr {
+                        self.scope_lookup(name).map(|s| s.ptr)
+                    } else {
+                        if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
+                            if value.is_pointer_value() {
+                                self.emit_retain_box(value.into_pointer_value())?;
+                            }
+                        }
+                        None
+                    }
+                } else {
+                    None
+                };
+                self.emit_release_active_boxes(ret_slot_ptr)?;
                 self.builder.build_return(Some(&value)).unwrap();
             }
             None => {
                 self.emit_defers()?;
+                self.emit_release_active_boxes(None)?;
                 self.builder
                     .build_return(Some(&ret_type.const_zero()))
                     .unwrap();

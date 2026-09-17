@@ -46,13 +46,27 @@ impl<'ctx> CodeGen<'ctx> {
                     )));
                 }
 
+                if Self::is_box_slot(&slot) {
+                    let old_ptr = self
+                        .builder
+                        .build_load(slot.ty, slot.ptr, "rc_old")
+                        .unwrap()
+                        .into_pointer_value();
+                    if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
+                        if value.is_pointer_value() {
+                            self.emit_retain_box(value.into_pointer_value())?;
+                        }
+                    }
+                    self.emit_release_box(old_ptr)?;
+                }
+
                 let value = self.coerce_value(slot.ty, value)?;
                 self.builder.build_store(slot.ptr, value).unwrap();
                 Ok(value)
             }
             Expr::ArrayIndex(idx_expr) => {
                 self.ensure_mutable(&expr.target)?;
-                // vec 下标写走动态长度路径。
+                // vec 下标走动态长度路径。
                 if let Expr::Ident(name) = &*idx_expr.array {
                     if let Some(slot) = self.scope_lookup(name) {
                         if Self::is_vec_slot(&slot) {
@@ -95,12 +109,27 @@ impl<'ctx> CodeGen<'ctx> {
             Expr::FieldAccess(_) => {
                 self.ensure_mutable(&expr.target)?;
                 // 字段期望类型已知时先做 `box`/`null` 的 AST 校验。
+                let mut is_box_field = false;
                 if let Expr::FieldAccess(fa) = &*expr.target {
                     if let Some(expected) = self.field_ast_type(&fa.base, &fa.field) {
                         self.check_box_assignable(&expr.value, &expected)?;
+                        is_box_field = Self::is_box_ast(&expected);
                     }
                 }
                 let (field_ptr, field_ty) = self.compile_addr(&expr.target)?;
+                if is_box_field {
+                    let old_ptr = self
+                        .builder
+                        .build_load(field_ty, field_ptr, "rc_old_field")
+                        .unwrap()
+                        .into_pointer_value();
+                    if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
+                        if value.is_pointer_value() {
+                            self.emit_retain_box(value.into_pointer_value())?;
+                        }
+                    }
+                    self.emit_release_box(old_ptr)?;
+                }
                 let value = self.coerce_value(field_ty, value)?;
                 self.builder.build_store(field_ptr, value).unwrap();
                 Ok(value)

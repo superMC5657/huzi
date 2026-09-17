@@ -1,0 +1,14 @@
+b1 init: 1
+after alias b1: 2
+after alias b2: 2
+in fn: 3
+after fn call b1: 2
+b3 init: 1
+after reassign b1: 3
+after reassign b3: 3
+after free b3: 0
+b3 is null: true
+after free b1: 2
+ret val: 42
+ret rc: 1
+null rc: 0

@@ -580,6 +580,7 @@ fn main() -> i32 {
 | `free_str(s)` | 释放堆字符串(`concat`/`substring`/`trim`/`to_string`/`read_line`/`read_file` 等返回)，变量指向空串 | `len(s) == 0` |
 | `free_vec(v)` | 释放 vec 的 `data` 数组，长度与容量清零(`{ null, 0, 0 }`)，后续 `push` 经 `realloc(null)` 复用 | `len(v) == 0`，可继续 `push` |
 | `free_box(b)` | 释放 `Box` 的堆槽，变量置 `null` | `b == null` 为 true |
+| `ref_count(b)` | 获取 `Box` 的当前引用计数（null 返回 0） | `ref_count(b)` 为当前计数值 |
 
 ```python
 let mut s = concat("a", "b")
@@ -588,17 +589,21 @@ free_str(s)        # 二次 free 为 no-op，不崩
 let mut v = vec(1, 2, 3)
 free_vec(v)        # len(v) == 0
 push(v, 42)        # free 后可继续 push 复用
+let b = box(Node { val: 1, next: null })
+print(ref_count(b)) # 1
+let b2 = b
+print(ref_count(b)) # 2
 ```
 
 规则：
 
-- **手动释放、无 GC**：不调用 free 也能正常运行，未 free 的内存在进程退出时由 OS 统一回收。
+- **自动引用计数与显式释放结合**：`Box` 堆对象默认携带 8 字节负偏移引用计数头，在别名赋值、传参等操作时自动 `retain`，函数退出或作用域结束时自动 `release` 归零回收。`free_box` 可显式提前释放（减少计数并将槽位置 `null`）。循环引用不会自动回收，推荐结合 `defer free_box` 主动打破环。
 - **均需 `let mut`**（回写变量槽），返回整数 0（与 `push`/`clear` 一致，仅为兼容表达式位置）。
 - **二次 free 为 no-op**：`free_str` 对空串跳过，`free_vec` 对 `free(null)`（libc 语义即 no-op），`free_box` 对 `null` 跳过。
 - **浅释放**：`free_vec` 只释放 vec 自身的 `data`，不释放元素内部的堆内存；`free_box` 只释放 Box 自身的槽，不递归释放字段中的堆内存。
 - **字面量非堆分配**：`free_str` 仅用于堆字符串，对字符串字面量调用属于未定义行为；空串调用为安全的 no-op。
 
-完整示例见 `test/examples/35_memory_free.hz`。
+完整示例见 `test/examples/35_memory_free.hz` 与 `test/examples/40_rc.hz`。
 
 ### 输入函数
 

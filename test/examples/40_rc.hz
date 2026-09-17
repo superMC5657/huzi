@@ -1,0 +1,38 @@
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn check_param(n: Box<Node>) {
+    print("in fn: ", ref_count(n))
+}
+
+fn create_node(v: i32) -> Box<Node> {
+    let n = box(Node { val: v, next: null })
+    return n
+}
+
+fn main() -> i32 {
+    let mut b1 = box(Node { val: 10, next: null })
+    print("b1 init: ", ref_count(b1))
+    let b2 = b1
+    print("after alias b1: ", ref_count(b1))
+    print("after alias b2: ", ref_count(b2))
+    check_param(b1)
+    print("after fn call b1: ", ref_count(b1))
+    let mut b3 = box(Node { val: 20, next: null })
+    print("b3 init: ", ref_count(b3))
+    b3 = b1
+    print("after reassign b1: ", ref_count(b1))
+    print("after reassign b3: ", ref_count(b3))
+    free_box(b3)
+    print("after free b3: ", ref_count(b3))
+    print("b3 is null: ", b3 == null)
+    print("after free b1: ", ref_count(b1))
+    let ret: Box<Node> = create_node(42)
+    print("ret val: ", ret.val)
+    print("ret rc: ", ref_count(ret))
+    let nil: Box<Node> = null
+    print("null rc: ", ref_count(nil))
+    return 0
+}

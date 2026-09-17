@@ -13,7 +13,7 @@ use super::{box_nest::BoxNest, CodeGen, VarSlot};
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicValueEnum, PointerValue};
 
 /// `==`/`!=` 的 Box 操作数:AST 表达式(判 Box/null 身份) + 已编译值(指针比较)。
 pub(super) struct BoxOperand<'a, 'ctx> {
@@ -55,6 +55,17 @@ impl<'ctx> CodeGen<'ctx> {
                 .field_ast_type(&fa.base, &fa.field)
                 .map(|t| Self::is_box_ast(&t))
                 .unwrap_or(false),
+            Expr::Call(call) => {
+                if let Expr::Ident(name) = &*call.callee {
+                    let key = self.qualify_name(name);
+                    self.fn_return_ast
+                        .get(&key)
+                        .map(|t| Self::is_box_ast(t))
+                        .unwrap_or(false)
+                } else {
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -168,13 +179,26 @@ impl<'ctx> CodeGen<'ctx> {
         } else {
             self.context.ptr_type(inkwell::AddressSpace::default()).into()
         };
-        let one = self.context.i32_type().const_int(1, false);
-        let heap = self
+        let cell_bytes = self.elem_bytes_i32(cell_ty)?;
+        let eight = self.context.i32_type().const_int(8, false);
+        let total_bytes = self.builder.build_int_add(cell_bytes, eight, "box_sz").unwrap();
+        let malloc_fn = self.module.get_function("malloc").expect("malloc in prelude");
+        let raw_ptr = self
             .builder
-            .build_array_malloc(cell_ty, one, "box_alloc")
-            .map_err(|_| HuziError::new_global("Failed to allocate Box storage"))?;
-        self.builder.build_store(heap, val).unwrap();
-        Ok((heap.into(), nest))
+            .build_call(malloc_fn, &[total_bytes.into()], "box_raw")
+            .unwrap()
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_pointer_value();
+        let one_i64 = self.context.i64_type().const_int(1, false);
+        self.builder.build_store(raw_ptr, one_i64).unwrap();
+        let user_ptr = unsafe {
+            self.builder
+                .build_gep(self.context.i8_type(), raw_ptr, &[eight], "box_user")
+                .unwrap()
+        };
+        self.builder.build_store(user_ptr, val).unwrap();
+        Ok((user_ptr.into(), nest))
     }
 
     /// 空指针常量(LLVM 层面与 `str` 同为指针,合法性由各期望位置校验)。
@@ -276,6 +300,29 @@ impl<'ctx> CodeGen<'ctx> {
         self.is_box_expr(left) || self.is_box_expr(right) || Self::is_null_expr(left) || Self::is_null_expr(right)
     }
 
+    /// 在入口块为 Box 槽创建 alloca 并初始化为 null(保证未进入赋值分支时槽位为 safe null)。
+    pub(super) fn build_box_alloca(
+        &self,
+        ty: BasicTypeEnum<'ctx>,
+        name: &str,
+    ) -> Result<PointerValue<'ctx>> {
+        let function = self.current_function()?;
+        let entry = function
+            .get_first_basic_block()
+            .ok_or_else(|| HuziError::new_global("Function has no entry block"))?;
+        let builder = self.context.create_builder();
+        if let Some(first) = entry.get_first_instruction() {
+            builder.position_before(&first);
+        } else {
+            builder.position_at_end(entry);
+        }
+        let ptr = builder
+            .build_alloca(ty, name)
+            .map_err(|_| HuziError::new_global("Failed to build alloca"))?;
+        builder.build_store(ptr, ty.const_zero()).unwrap();
+        Ok(ptr)
+    }
+
     /// `let x[: Box<T>] = null` — 标注须为 Box(裸 `let x = null` 无法推导)。
     pub(super) fn compile_let_null(&mut self, stmt: &LetStmt, span: Span) -> Result<()> {
         let ann = stmt.type_annotation.as_ref().ok_or_else(|| {
@@ -291,7 +338,8 @@ impl<'ctx> CodeGen<'ctx> {
         }
         let ptr_ty = self.type_to_llvm(ann)?;
         let box_inner = self.box_nest_of_ast(ann)?;
-        let alloca = self.build_alloca(ptr_ty, &stmt.name)?;
+        let alloca = self.build_box_alloca(ptr_ty, &stmt.name)?;
+        self.box_slots.push((alloca, ptr_ty));
         self.builder.build_store(alloca, ptr_ty.const_zero()).unwrap();
         self.scope_insert(
             stmt.name.clone(),
@@ -334,7 +382,8 @@ impl<'ctx> CodeGen<'ctx> {
         mutable: bool,
         span: Span,
     ) -> Result<()> {
-        let alloca = self.build_alloca(slot_ty, name)?;
+        let alloca = self.build_box_alloca(slot_ty, name)?;
+        self.box_slots.push((alloca, slot_ty));
         self.builder.build_store(alloca, val).unwrap();
         self.scope_insert(
             name.to_string(),

@@ -195,6 +195,7 @@ impl<'ctx> CodeGen<'ctx> {
             "free_str" => return self.compile_free_str(&expr.arguments),
             "free_vec" => return self.compile_free_vec(&expr.arguments),
             "free_box" => return self.compile_free_box(&expr.arguments),
+            "ref_count" => return self.compile_ref_count(&expr.arguments),
             _ => {}
         }
 

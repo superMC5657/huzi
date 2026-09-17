@@ -160,6 +160,10 @@ pub struct CodeGen<'ctx> {
     /// 各函数的形参 AST 类型(限定名 -> 参数表),供 `box`/`null` 实参与
     /// `Box<T>` 形参的精确校验(LLVM 层面两者都是指针,无法区分)。
     fn_param_ast: HashMap<String, Vec<Type>>,
+    /// 各函数的返回 AST 类型,供表达式求值时判断调用结果是否为 Box。
+    fn_return_ast: HashMap<String, Type>,
+    /// 当前函数中分配的 Box 局部变量槽 (alloca_ptr, llvm_ty),统一在函数退出时 release。
+    box_slots: Vec<(inkwell::values::PointerValue<'ctx>, inkwell::types::BasicTypeEnum<'ctx>)>,
     /// 无返回值函数表(限定名 -> 是否省略返回类型):`fn foo() {...}` 仍按
     /// i32 隐式 `return 0` 生成代码,但其调用值不可用于变量赋值等值位置。
     fn_no_return: HashMap<String, bool>,
@@ -200,10 +204,12 @@ impl<'ctx> CodeGen<'ctx> {
             context,
             module,
             builder,
-            scopes: vec![HashMap::new()],
+            scopes: Vec::new(),
             functions: HashMap::new(),
             current_return_type: None,
             fn_param_ast: HashMap::new(),
+            fn_return_ast: HashMap::new(),
+            box_slots: Vec::new(),
             fn_no_return: HashMap::new(),
             current_return_ast: None,
             loop_stack: Vec::new(),
@@ -459,9 +465,13 @@ impl<'ctx> CodeGen<'ctx> {
         self.fn_no_return.insert(qualified_name.clone(), stmt.return_type.is_none());
         // 形参 AST 类型并行记录,供调用点 `box`/`null` 实参校验。
         self.fn_param_ast.insert(
-            qualified_name,
+            qualified_name.clone(),
             stmt.params.iter().map(|p| p.param_type.clone()).collect(),
         );
+        // 返回 AST 类型并行记录,供表达式求值时判断调用结果是否为 Box。
+        if let Some(ret_ty) = &stmt.return_type {
+            self.fn_return_ast.insert(qualified_name, ret_ty.clone());
+        }
 
         Ok(())
     }

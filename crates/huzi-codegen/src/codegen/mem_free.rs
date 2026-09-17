@@ -50,22 +50,6 @@ impl<'ctx> CodeGen<'ctx> {
         .as_pointer_value()
     }
 
-    /// 指针非空判定(经 ptrtoint 与 0 比较,供 free 前的 no-op 分支)。
-    fn ptr_is_not_null(&self, ptr: PointerValue<'ctx>) -> inkwell::values::IntValue<'ctx> {
-        let addr = self
-            .builder
-            .build_ptr_to_int(ptr, self.context.i64_type(), "free_notnull")
-            .unwrap();
-        self.builder
-            .build_int_compare(
-                inkwell::IntPredicate::NE,
-                addr,
-                self.context.i64_type().const_int(0, false),
-                "free_nz",
-            )
-            .unwrap()
-    }
-
     /// `free_str(s)` — 堆字符串 free 后指向空串;空串/已 free 为 no-op。
     /// 槽校验:指针类型 + 非 Box + 非定长数组 + 非 vec 结构体。
     pub(super) fn compile_free_str(
@@ -144,7 +128,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(self.context.i32_type().const_int(0, false).into())
     }
 
-    /// `free_box(b)` — 非空时 free 后置 `null`;空/已 free 为 no-op。
+    /// `free_box(b)` — 非空时 release 后置 `null`;空/已 free 为 no-op。
     pub(super) fn compile_free_box(
         &mut self,
         arguments: &[Expr],
@@ -163,16 +147,7 @@ impl<'ctx> CodeGen<'ctx> {
             .build_load(slot.ty, slot.ptr, "free_box_cur")
             .unwrap()
             .into_pointer_value();
-        let not_null = self.ptr_is_not_null(cur);
-        let function = self.current_function()?;
-        let do_bb = self.context.append_basic_block(function, "free_box_do");
-        let done_bb = self.context.append_basic_block(function, "free_box_done");
-        self.builder.build_conditional_branch(not_null, do_bb, done_bb).unwrap();
-        self.builder.position_at_end(do_bb);
-        let free_fn = self.module.get_function("free").expect("free in prelude");
-        self.builder.build_call(free_fn, &[cur.into()], "free_box_call").unwrap();
-        self.builder.build_unconditional_branch(done_bb).unwrap();
-        self.builder.position_at_end(done_bb);
+        self.emit_release_box(cur)?;
         let null = self.context.ptr_type(AddressSpace::default()).const_null();
         self.builder.build_store(slot.ptr, null).unwrap();
         Ok(self.context.i32_type().const_int(0, false).into())

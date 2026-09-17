@@ -84,6 +84,15 @@ impl<'ctx> CodeGen<'ctx> {
                     depth: content.depth + 1,
                 })
             }
+            Expr::Call(call) => {
+                if let Expr::Ident(name) = &*call.callee {
+                    let key = self.qualify_name(name);
+                    let ast = self.fn_return_ast.get(&key)?;
+                    self.box_nest_of_ast(ast).ok()?
+                } else {
+                    None
+                }
+            }
             _ => None,
         }
     }
