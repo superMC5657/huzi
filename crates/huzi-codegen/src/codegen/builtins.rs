@@ -8,6 +8,9 @@ impl<'ctx> CodeGen<'ctx> {
         self.declare_libc_functions();
         self.declare_libm_functions();
         self.declare_arg_support();
+        if cfg!(windows) {
+            self.declare_windows_argv_imports();
+        }
         Ok(())
     }
 

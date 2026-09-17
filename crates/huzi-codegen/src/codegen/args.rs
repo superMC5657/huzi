@@ -41,7 +41,9 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// Store the hidden `main(argc, argv)` parameters into the globals the
-    /// arg builtins read from. Called at the top of the entry block.
+    /// arg builtins read from. Called at the top of the entry block. On
+    /// Windows the stored ANSI values are then replaced with UTF-8 strings
+    /// converted from the Unicode command line (see `args_utf8`).
     pub(super) fn store_main_args(&mut self, function: FunctionValue<'ctx>) {
         let argc_global = self.arg_global("huzi_argc");
         let argv_global = self.arg_global("huzi_argv");
@@ -49,6 +51,9 @@ impl<'ctx> CodeGen<'ctx> {
         let argv = function.get_nth_param(1).unwrap().into_pointer_value();
         self.builder.build_store(argc_global, argc).unwrap();
         self.builder.build_store(argv_global, argv).unwrap();
+        if cfg!(windows) {
+            self.refresh_windows_argv_utf8();
+        }
     }
 
     /// OR the given `eof_hit` condition (i1) into the sticky EOF flag.

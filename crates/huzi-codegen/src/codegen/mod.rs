@@ -56,6 +56,7 @@ fn module_fn_statements(program: &Program) -> Vec<(FnStmt, Span)> {
 
 mod aggregates;
 mod args;
+mod args_utf8;
 mod builtins;
 mod builtins_math;
 mod builtins_print;
