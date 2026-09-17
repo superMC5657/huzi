@@ -7,6 +7,8 @@ impl<'ctx> CodeGen<'ctx> {
     pub(super) fn prelude(&mut self) -> Result<()> {
         self.declare_libc_functions();
         self.declare_libm_functions();
+        self.declare_net_functions();
+        self.declare_thread_functions();
         self.declare_arg_support();
         if cfg!(windows) {
             self.declare_windows_argv_imports();
@@ -273,7 +275,106 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(buffer)
     }
 
-    // ==================== Struct Functions ====================
+    /// Declare network functions (link to ws2_32 on Windows, libc on POSIX).
+    fn declare_net_functions(&mut self) {
+        let i32_ty = self.context.i32_type();
+        let i64_ty = self.context.i64_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
 
+        if cfg!(windows) {
+            let wsa_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into()], false);
+            self.module.add_function("WSAStartup", wsa_fn, None);
 
+            let sock_fn = i64_ty.fn_type(&[i32_ty.into(), i32_ty.into(), i32_ty.into()], false);
+            self.module.add_function("socket", sock_fn, None);
+
+            let close_fn = i32_ty.fn_type(&[i64_ty.into()], false);
+            self.module.add_function("closesocket", close_fn, None);
+
+            let bind_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into()], false);
+            self.module.add_function("bind", bind_fn, None);
+
+            let listen_fn = i32_ty.fn_type(&[i64_ty.into(), i32_ty.into()], false);
+            self.module.add_function("listen", listen_fn, None);
+
+            let accept_fn = i64_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), ptr_ty.into()], false);
+            self.module.add_function("accept", accept_fn, None);
+
+            let conn_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into()], false);
+            self.module.add_function("connect", conn_fn, None);
+
+            let send_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into(), i32_ty.into()], false);
+            self.module.add_function("send", send_fn, None);
+
+            let recv_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into(), i32_ty.into()], false);
+            self.module.add_function("recv", recv_fn, None);
+        } else {
+            let sock_fn = i32_ty.fn_type(&[i32_ty.into(), i32_ty.into(), i32_ty.into()], false);
+            self.module.add_function("socket", sock_fn, None);
+
+            let close_fn = i32_ty.fn_type(&[i32_ty.into()], false);
+            self.module.add_function("close", close_fn, None);
+
+            let bind_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), i32_ty.into()], false);
+            self.module.add_function("bind", bind_fn, None);
+
+            let listen_fn = i32_ty.fn_type(&[i32_ty.into(), i32_ty.into()], false);
+            self.module.add_function("listen", listen_fn, None);
+
+            let accept_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), ptr_ty.into()], false);
+            self.module.add_function("accept", accept_fn, None);
+
+            let conn_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), i32_ty.into()], false);
+            self.module.add_function("connect", conn_fn, None);
+
+            let send_fn = i64_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), i64_ty.into(), i32_ty.into()], false);
+            self.module.add_function("send", send_fn, None);
+
+            let recv_fn = i64_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), i64_ty.into(), i32_ty.into()], false);
+            self.module.add_function("recv", recv_fn, None);
+        }
+
+        let inet_fn = i32_ty.fn_type(&[ptr_ty.into()], false);
+        self.module.add_function("inet_addr", inet_fn, None);
+    }
+
+    /// Declare threading functions (link to kernel32 on Windows, lpthread on POSIX).
+    fn declare_thread_functions(&mut self) {
+        let i32_ty = self.context.i32_type();
+        let i64_ty = self.context.i64_type();
+        let ptr_ty = self.context.ptr_type(AddressSpace::default());
+
+        if cfg!(windows) {
+            let ct_fn = ptr_ty.fn_type(
+                &[
+                    ptr_ty.into(),
+                    i64_ty.into(),
+                    ptr_ty.into(),
+                    ptr_ty.into(),
+                    i32_ty.into(),
+                    ptr_ty.into(),
+                ],
+                false,
+            );
+            self.module.add_function("CreateThread", ct_fn, None);
+
+            let wfso_fn = i32_ty.fn_type(&[ptr_ty.into(), i32_ty.into()], false);
+            self.module.add_function("WaitForSingleObject", wfso_fn, None);
+
+            let gect_fn = i32_ty.fn_type(&[ptr_ty.into(), ptr_ty.into()], false);
+            self.module.add_function("GetExitCodeThread", gect_fn, None);
+
+            let ch_fn = i32_ty.fn_type(&[ptr_ty.into()], false);
+            self.module.add_function("CloseHandle", ch_fn, None);
+        } else {
+            let pc_fn = i32_ty.fn_type(
+                &[ptr_ty.into(), ptr_ty.into(), ptr_ty.into(), ptr_ty.into()],
+                false,
+            );
+            self.module.add_function("pthread_create", pc_fn, None);
+
+            let pj_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into()], false);
+            self.module.add_function("pthread_join", pj_fn, None);
+        }
+    }
 }

@@ -915,6 +915,37 @@ fn main() -> i32 {
 }
 ```
 
+### 网络通信 (TCP)
+| 函数 | 说明 | 示例 |
+|------|------|------|
+| `tcp_connect(host, port)` | 连接目标 TCP 地址，成功返回套接字描述符 `i32`，失败返回 `-1` | `let sock = tcp_connect("127.0.0.1", 8080)` |
+| `tcp_send(sock, data)` | 发送字符串数据，返回发送字节数 | `tcp_send(sock, "hello")` |
+| `tcp_recv(sock, max_len)` | 接收最多 `max_len` 字节数据并返回字符串（断开或出错返回空串） | `let msg = tcp_recv(sock, 1024)` |
+| `tcp_close(sock)` | 关闭 TCP 套接字 | `tcp_close(sock)` |
+| `tcp_listen(port)` | 在指定端口开启 TCP 监听，成功返回套接字，失败返回 `-1` | `let srv = tcp_listen(8080)` |
+| `tcp_accept(listener)` | 接受传入连接，返回客户端套接字 | `let client = tcp_accept(srv)` |
+
+### 并发多线程 (Threading)
+| 函数 | 说明 | 示例 |
+|------|------|------|
+| `spawn(func, [arg])` | 启动新线程执行 `func`（可选传递整数参数），返回线程句柄 `i64`（别名 `thread_spawn`） | `let h = spawn(worker, 42)` |
+| `join(handle)` | 等待指定线程执行完毕并获取返回值 `i32`（别名 `thread_join`） | `let res = join(h)` |
+
+```huzi
+fn worker(x: i32) -> i32 {
+    sleep_ms(10)
+    return x * 2
+}
+
+fn main() -> i32 {
+    let t1 = spawn(worker, 10)
+    let t2 = spawn(worker, 20)
+    print(join(t1)) # 20
+    print(join(t2)) # 40
+    return 0
+}
+```
+
 ### 运行时错误
 以下错误在运行时立即终止程序（以退出码 1 退出）：
 

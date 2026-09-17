@@ -46,6 +46,7 @@ fn link_msvc(paths: &OutputPaths, debug: bool, quiet: bool) {
         "/DEFAULTLIB:kernel32.lib".to_string(),
         // CommandLineToArgvW (UTF-8 argv fixup in main) lives in shell32.
         "/DEFAULTLIB:shell32.lib".to_string(),
+        "/DEFAULTLIB:ws2_32.lib".to_string(),
         paths.obj_path.to_str().unwrap().to_string(),
     ]);
     let lld_args_ref: Vec<&str> = lld_args.iter().map(|s| s.as_str()).collect();
@@ -85,10 +86,12 @@ fn link_mingw(paths: &OutputPaths, debug: bool, quiet: bool) {
     if cfg!(target_os = "windows") {
         // CommandLineToArgvW (UTF-8 argv fixup in main) lives in shell32.
         mingw_args.push("-lshell32".to_string());
+        mingw_args.push("-lws2_32".to_string());
     }
     if cfg!(target_os = "linux") {
         // sqrt, pow, sin, ... are in libm on glibc
         mingw_args.push("-lm".to_string());
+        mingw_args.push("-lpthread".to_string());
     }
     let mingw_args_ref: Vec<&str> = mingw_args.iter().map(|s| s.as_str()).collect();
     if !quiet {
@@ -135,11 +138,13 @@ fn clang_link_args(target: Option<&str>, exe_path: &Path, obj_path: &Path) -> Ve
             "-lkernel32".to_string(),
             // CommandLineToArgvW (UTF-8 argv fixup in main)
             "-lshell32".to_string(),
+            "-lws2_32".to_string(),
         ]);
     }
     if cfg!(target_os = "linux") {
         // sqrt, pow, sin, ... are in libm on glibc
         args.push("-lm".to_string());
+        args.push("-lpthread".to_string());
     }
     args
 }

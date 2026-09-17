@@ -26,6 +26,8 @@ mod builtins_string_util;
 mod builtins_io;
 mod builtins_file_check;
 mod builtins_sys;
+mod builtins_net;
+mod builtins_thread;
 mod debuginfo;
 mod defer;
 mod enum_eq;

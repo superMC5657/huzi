@@ -200,6 +200,14 @@ impl<'ctx> CodeGen<'ctx> {
             "free_vec" => return self.compile_free_vec(&expr.arguments),
             "free_box" => return self.compile_free_box(&expr.arguments),
             "ref_count" => return self.compile_ref_count(&expr.arguments),
+            "tcp_connect" => return self.compile_tcp_connect(&expr.arguments),
+            "tcp_send" => return self.compile_tcp_send(&expr.arguments),
+            "tcp_recv" => return self.compile_tcp_recv(&expr.arguments),
+            "tcp_close" => return self.compile_tcp_close(&expr.arguments),
+            "tcp_listen" => return self.compile_tcp_listen(&expr.arguments),
+            "tcp_accept" => return self.compile_tcp_accept(&expr.arguments),
+            "spawn" | "thread_spawn" => return self.compile_spawn(&expr.arguments),
+            "join" | "thread_join" => return self.compile_join(&expr.arguments),
             _ => {}
         }
 

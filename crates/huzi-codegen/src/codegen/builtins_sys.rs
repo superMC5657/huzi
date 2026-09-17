@@ -107,7 +107,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 系统类内置函数的单整数参数校验 + 装载。
-    fn i32_builtin_arg(&mut self, arguments: &[Expr], name: &str) -> Result<IntValue<'ctx>> {
+    pub(super) fn i32_builtin_arg(&mut self, arguments: &[Expr], name: &str) -> Result<IntValue<'ctx>> {
         if arguments.len() != 1 {
             return Err(HuziError::new_global(format!(
                 "{}() requires exactly 1 argument",

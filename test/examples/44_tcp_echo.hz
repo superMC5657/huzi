@@ -1,0 +1,34 @@
+fn echo_server(server_fd: i32) -> i32 {
+    let client_fd = tcp_accept(server_fd)
+    if client_fd < 0 {
+        return 1
+    }
+    let msg = tcp_recv(client_fd, 64)
+    let reply = concat("echo: ", msg)
+    tcp_send(client_fd, reply)
+    tcp_close(client_fd)
+    return 0
+}
+
+fn main() -> i32 {
+    let port = 28081
+    let server_fd = tcp_listen(port)
+    if server_fd < 0 {
+        print("listen failed")
+        return 1
+    }
+    let th = spawn(echo_server, server_fd)
+    sleep_ms(20)
+    let client_fd = tcp_connect("127.0.0.1", port)
+    if client_fd < 0 {
+        print("connect failed")
+        return 1
+    }
+    tcp_send(client_fd, "hello tcp")
+    let response = tcp_recv(client_fd, 64)
+    print(response)
+    tcp_close(client_fd)
+    join(th)
+    tcp_close(server_fd)
+    return 0
+}
