@@ -142,7 +142,6 @@ huzc/
 - [x] Cargo.toml 完善 (resolver = "2")
 - [x] 版本号管理
 - [x] CI (.github/workflows/ci.yml:linux-x64/windows-x64/macos-arm64,构建零警告+单测+test.sh)
-- [ ] crates.io 发布 (元数据已就绪:`cargo package --allow-dirty` 验证通过;待网络+token 后按依赖序 `cargo publish -p huzi-error -p huzi-ast -p huzi-lexer -p huzi-parser -p huzi-codegen -p huzc`)
 
 ---
 
