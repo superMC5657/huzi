@@ -201,7 +201,7 @@ let data = Data { nums: [1, 2, 3], total: 6 }
 print(data.nums[2], len(data.nums))
 ```
 
-限制：结构体不支持自引用/相互嵌套的值循环（`struct A { b: B }` + `struct B { a: A }` 会报编译错误）；`print` 支持整个结构体，按 `Point {x: 3, y: 4}` 格式输出（字段编译期展开，嵌套结构体/数组字段递归打印）。
+限制：结构体不支持自引用/相互嵌套的值循环（`struct A { b: B }` + `struct B { a: A }` 会报编译错误；环边经过 `Box` 的自引用是合法的，见下节「Box 与自引用结构体」）；`print` 支持整个结构体，按 `Point {x: 3, y: 4}` 格式输出（字段编译期展开，嵌套结构体/数组字段递归打印；含 `Box` 字段的结构体整体打印会报错，请逐字段打印）。
 
 ### 6. 枚举与 match
 
@@ -244,6 +244,43 @@ print(r == Shape::Rect(3.0, 4.0))  # true（带数据枚举支持 ==/!=）
 带数据枚举的 `==` 先比判别码再逐字段比：整数/浮点/bool/char 按值比，`str` 按内容比（`strcmp`），嵌套结构体按字段递归比；变体不同则直接不等，`!=` 取反。比较两个不同枚举类型是编译错误。
 
 限制：match 做穷尽性检查（覆盖全变体即可省略 `_`，缺变体且无 `_` 时编译报错并列出缺失变体名；`_` 兜底仍兼容）；`print` 简单枚举输出的是判别码整数。
+
+### 7. Box 与自引用结构体
+
+```python
+# 自引用结构体:环边经过 Box<T> 即合法(直接值循环仍报编译错误)
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn main() -> i32 {
+    # box(Node { ... }) 在堆上分配并返回 Box<Node>;null 表空位
+    let mut head: Box<Node> = box(Node { val: 1, next: null })
+    head.next = box(Node { val: 2, next: null })
+
+    # Box 字段读自动解引用(head.next.val 逐层解)
+    print(head.val, head.next.val)   # 12
+
+    # ==/!= 支持 Box vs null(判空)与 Box vs Box(比指针)
+    if head.next == null {
+        print("empty")
+    }
+    return 0
+}
+```
+
+规则：
+
+- **类型**：`Box<T>` 是全语言唯一的尖括号泛型，`T` 须为具名结构体；嵌套 `Box<Box<..>>` 暂不支持（编译报错）；`Box<T>` 在 LLVM 层面降为指针，含 Box 字段的结构体定长。
+- **构造**：`box(expr)` 先求值再 `malloc` 存入，`expr` 须为 `T` 的值（如 `box(Node { val: 1, next: null })`）；`box(null)` 无意义，直接写 `null`。
+- **null**：只能出现在 `Box` 期望位置（`let` 标注、字段赋值、函数参数、`return`）；裸 `let x = null` 无法推导类型，须写 `let x: Box<Node> = null`；`null` 赋给非 Box（如 `let x: i32 = null`）编译报错；`Box<T>` 与 `T` 之间不隐式转换。
+- **赋值**：Box 整体赋值（`head.next = box(..)` / `head.next = null`）受 `let mut` 约束，与现有字段赋值规则一致。
+- **条件**：`if`/`while` 条件直接写 `x == null` / `x != null` 表达式即可（复用逻辑运算符）。
+- **print**：`print(boxVal)` 暂不支持（会报友好错误），请打印其字段（如 `print(b.val)`）；含 Box 字段的结构体整体打印同样报错。
+- **内存管理**：暂无 GC，也不提供 `free`，`box` 分配的内存在程序结束前不释放（泄漏可接受）；如需长期运行的堆管理，请自行设计 arena/复用池。
+
+完整示例见 `examples/32_box_linked_list.hz`。
 
 ## 示例程序
 
@@ -411,6 +448,7 @@ fn main() -> i32 {
 | `char` | 字符 | `let x: char = 'a'` |
 | `[T; N]` | 数组 | `let arr: [i32; 5] = [1, 2, 3, 4, 5]` |
 | `vec(T)` | 动态数组(非空由首元素推导,空 vec 用 `vec<T>()`) | `let mut v = vec(1, 2, 3)` / `let mut e = vec<i32>()` + `push(v, 4)` + `print(v)` → `[1, 2, 3, 4]` |
+| `Box<T>` | 堆指针(`T` 为具名结构体,支持自引用,无 GC) | `let mut h: Box<Node> = box(Node { val: 1, next: null })` + `h.next.val` + `h.next == null` |
 
 ## 运算符
 
