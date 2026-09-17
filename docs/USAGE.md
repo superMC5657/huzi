@@ -26,28 +26,28 @@ cargo build --release
 cargo run --release --bin huzc -- --input <源文件.hz> -o <输出名称>
 
 # 示例 - 编译到当前目录
-cargo run --release --bin huzc -- --input examples/hello.hz -o hello
+cargo run --release --bin huzc -- --input test/examples/01_variables_ops.hz -o 01_variables_ops
 
 # 示例 - 编译到子目录
-cargo run --release --bin huzc -- --input examples/hello.hz -o out/hello
+cargo run --release --bin huzc -- --input test/examples/01_variables_ops.hz -o test/out/01_variables_ops
 ```
 
 ### 3. 运行程序
 
 ```bash
 # Windows
-./hello.exe
+./01_variables_ops.exe
 
 # Linux/macOS
-./hello
+./01_variables_ops
 ```
 
 ## 编译器选项
 
 | 选项 | 说明 | 示例 |
 |------|------|------|
-| `--input <file>` | 输入的 .hz 源文件 | `--input hello.hz` |
-| `-o <name>` | 输出文件基础名 (自动添加平台扩展名)；缺省取输入文件名去后缀 (`--input foo.hz` → `foo[.exe]`) | `-o hello` → `hello.exe` (Windows) |
+| `--input <file>` | 输入的 .hz 源文件 | `--input test/examples/01_variables_ops.hz` |
+| `-o <name>` | 输出文件基础名，自动添加平台扩展名；缺省使用输入文件名（去除后缀） | `-o demo` → `demo.exe` (Windows) |
 | `--release` (`-r`) | Release 模式：生成代码前先用 `opt -O2` 优化 LLVM IR，运行速度显著更快；编译过程不打印任何日志（错误仍输出到 stderr）。默认 dev 模式不做 IR 优化并打印编译进度 | `huzc --input main.hz -o main --release` |
 | `--opt-level <0-3>` | LLVM 优化级别,覆盖 `--release` 的默认级别 2;`--opt-level 0` 等价于 dev 模式 | `huzc --input main.hz -o main --opt-level 3` |
 | `--debug` (`-g`) | 调试模式：在可执行文件中嵌入 DWARF 调试信息(编译单元、行号表、变量),可用 GDB/LLDB 断点单步;隐含 `--opt-level 0`(优化会打乱行号对应),链接器自动加调试参数 | `huzc --input main.hz -o main -g` |
@@ -150,8 +150,8 @@ print(42)                # 整数
 print(3.14)              # 浮点数
 print(true)              # 布尔值
 print("x =", x)          # 多参数
-print(v)                 # vec:[1, 2, 3](空 vec 为 [])
-print(p)                 # 结构体:Point {x: 3, y: 4}(嵌套递归)
+print(v)                 # vec: [1, 2, 3]
+print(p)                 # 结构体: Point { x: 3, y: 4 }
 ```
 
 ### 5. 结构体
@@ -201,7 +201,9 @@ let data = Data { nums: [1, 2, 3], total: 6 }
 print(data.nums[2], len(data.nums))
 ```
 
-限制：结构体不支持自引用/相互嵌套的值循环（`struct A { b: B }` + `struct B { a: A }` 会报编译错误；环边经过 `Box` 的自引用是合法的，见下节「Box 与自引用结构体」）；`print` 支持整个结构体，按 `Point {x: 3, y: 4}` 格式输出（字段编译期展开，嵌套结构体/数组字段递归打印；含 `Box` 字段的结构体整体打印会报错，请逐字段打印）。
+结构体之间不可形成直接的值循环嵌套；如需构建自引用或递归数据结构（如链表、树），需通过 `Box<T>` 间接引用（详见「Box 与自引用结构体」）。
+
+`print` 支持直接打印结构体，按 `Point { x: 3, y: 4 }` 递归展开字段输出；若结构体包含 `Box` 字段，需逐字段打印。
 
 ### 6. 枚举与 match
 
@@ -226,7 +228,7 @@ let c = Color::Green
 let s = Shape::Circle(2.0)
 let r = Shape::Rect(3.0, 4.0)
 
-# match 作为表达式，每个分支产出值（全覆盖时可省略 `_`）
+# match 表达式支持模式匹配并产出值
 fn area(s: Shape) -> f64 {
     return match s {
         Shape::Circle(r) => 3.14159 * r * r,   # r 绑定 payload
@@ -238,31 +240,31 @@ fn area(s: Shape) -> f64 {
 
 print(area(s))                # 12.56636
 print(c == Color::Red)        # false
-print(r == Shape::Rect(3.0, 4.0))  # true（带数据枚举支持 ==/!=）
+print(r == Shape::Rect(3.0, 4.0))  # true
 ```
 
-带数据枚举的 `==` 先比判别码再逐字段比：整数/浮点/bool/char 按值比，`str` 按内容比（`strcmp`），嵌套结构体按字段递归比；变体不同则直接不等，`!=` 取反。比较两个不同枚举类型是编译错误。
+枚举支持 `==` 和 `!=` 运算符：先比对变体判别码，再逐一比对 payload 字段（字符串按内容比对，结构体递归比对）。比较两个不同枚举类型会在编译期报错。
 
-限制：match 做穷尽性检查（覆盖全变体即可省略 `_`，缺变体且无 `_` 时编译报错并列出缺失变体名；`_` 兜底仍兼容）；`print` 简单枚举输出的是判别码整数。
+match 表达式要求分支穷尽，必须覆盖全部变体或包含 `_` 兜底分支；`print` 打印无 payload 的枚举变体时输出其判别码整数。
 
 ### 7. Box 与自引用结构体
 
 ```python
-# 自引用结构体:环边经过 Box<T> 即合法(直接值循环仍报编译错误)
+# 自引用结构体：通过 Box<T> 构建
 struct Node {
     val: i32,
     next: Box<Node>,
 }
 
 fn main() -> i32 {
-    # box(Node { ... }) 在堆上分配并返回 Box<Node>;null 表空位
+    # box(Node { ... }) 在堆上分配并返回 Box<Node>；null 表示空指针
     let mut head: Box<Node> = box(Node { val: 1, next: null })
     head.next = box(Node { val: 2, next: null })
 
-    # Box 字段读自动解引用(head.next.val 逐层解)
-    print(head.val, head.next.val)   # 12
+    # Box 字段访问自动解引用
+    print(head.val, head.next.val)   # 1 2
 
-    # ==/!= 支持 Box vs null(判空)与 Box vs Box(比指针)
+    # 支持判空与指针比较
     if head.next == null {
         print("empty")
     }
@@ -272,15 +274,16 @@ fn main() -> i32 {
 
 规则：
 
-- **类型**：`Box<T>` 是全语言唯一的尖括号泛型，`T` 须为具名结构体；嵌套 `Box<Box<..>>` 暂不支持（编译报错）；`Box<T>` 在 LLVM 层面降为指针，含 Box 字段的结构体定长。
-- **构造**：`box(expr)` 先求值再 `malloc` 存入，`expr` 须为 `T` 的值（如 `box(Node { val: 1, next: null })`）；`box(null)` 无意义，直接写 `null`。
-- **null**：只能出现在 `Box` 期望位置（`let` 标注、字段赋值、函数参数、`return`）；裸 `let x = null` 无法推导类型，须写 `let x: Box<Node> = null`；`null` 赋给非 Box（如 `let x: i32 = null`）编译报错；`Box<T>` 与 `T` 之间不隐式转换。
-- **赋值**：Box 整体赋值（`head.next = box(..)` / `head.next = null`）受 `let mut` 约束，与现有字段赋值规则一致。
-- **条件**：`if`/`while` 条件直接写 `x == null` / `x != null` 表达式即可（复用逻辑运算符）。
-- **print**：`print(boxVal)` 暂不支持（会报友好错误），请打印其字段（如 `print(b.val)`）；含 Box 字段的结构体整体打印同样报错。
-- **内存管理**：暂无 GC，也不提供 `free`，`box` 分配的内存在程序结束前不释放（泄漏可接受）；如需长期运行的堆管理，请自行设计 arena/复用池。
+- **类型**：`Box<T>` 为堆分配泛型指针，`T` 须为具名结构体；在 LLVM 层面表示为指针类型。
+- **构造**：`box(expr)` 在堆上分配内存并存入求值结果，返回 `Box<T>`。
+- **null**：表示空指针，适用于变量声明、字段赋值、参数传递与返回值。
+- **赋值**：`Box` 变量及字段赋值受 `let mut` 约束。
+- **比较**：支持与 `null` 进行判空（`x == null` / `x != null`）以及同类型 `Box` 之间的指针比较。
+- **字段访问**：通过点号访问 `Box` 字段时自动解引用（如 `head.next.val`）。
+- **打印**：`Box` 需逐字段打印（如 `print(b.val)`），不支持直接整体打印。
+- **内存管理**：当前采用进程退出统一回收机制（无 GC，未提供显式 `free`）。
 
-完整示例见 `examples/32_box_linked_list.hz`。
+完整示例见 `test/examples/32_box_linked_list.hz`。
 
 ## 示例程序
 
@@ -319,21 +322,20 @@ fn main() -> i32 {
 
 ```python
 fn main() -> i32 {
-    # 构造:非空时元素类型由首元素推导,至少 1 个元素;
-    # 空 vec 用 vec<T>() 显式指定元素类型(支持 i32/i64/f32/f64/bool/str/char/结构体)
+    # 构造：非空由首元素推导，空 vec 使用 vec<T>() 明确类型
     let mut v = vec(1, 2, 3)
     let mut e = vec<i32>()
 
-    # 下标读写(越界报运行时错误)
+    # 下标读写（越界触发运行时错误）
     print(v[0])
     v[1] = 20
 
-    # 追加:满时容量自动翻倍(空 vec 首 push 分配初始容量,需 let mut)
+    # 追加元素
     push(v, 4)
     push(e, 1)
     print("len =", len(v))
 
-    # 整体打印:[1, 20, 3, 4](空 vec 为 [];字符串元素无引号,与 print(str) 一致)
+    # 整体打印输出 [1, 20, 3, 4]
     print(v)
 
     # for-in 遍历
@@ -344,8 +346,7 @@ fn main() -> i32 {
 }
 ```
 
-约束:裸 `vec()` 无元素可推导类型，编译报错并引导写 `vec<T>()`；`print(v)` 按 `[e1, e2, ...]` 输出（运行时按 len 循环，元素复用自身打印逻辑，嵌套结构体可用）；
-`for x in v` 进入前一次性读取长度(循环内 push 新增的元素不保证被遍历)。
+约束：非空 `vec(...)` 元素类型由首元素推导；空向量须使用 `vec<T>()` 明确类型。`print(v)` 输出 `[e1, e2, ...]` 格式。`for x in v` 在进入循环时确定遍历长度。
 
 ### 阶乘计算
 
@@ -407,7 +408,7 @@ fn main() -> i32 {
     let str = to_string(num)
     print("num as string:", str)
 
-    # 下标:按字节索引,s[i] 越界(含负下标)报运行时错误
+    # 字符串按字节索引
     let s = "hello"
     print(s[0], s[len(s) - 1])
 
@@ -446,9 +447,12 @@ fn main() -> i32 {
 | `bool` | 布尔值 | `let x: bool = true` |
 | `str` | 字符串 | `let x: str = "hello"` |
 | `char` | 字符 | `let x: char = 'a'` |
-| `[T; N]` | 数组 | `let arr: [i32; 5] = [1, 2, 3, 4, 5]` |
-| `vec(T)` | 动态数组(非空由首元素推导,空 vec 用 `vec<T>()`) | `let mut v = vec(1, 2, 3)` / `let mut e = vec<i32>()` + `push(v, 4)` + `print(v)` → `[1, 2, 3, 4]` |
-| `Box<T>` | 堆指针(`T` 为具名结构体,支持自引用,无 GC) | `let mut h: Box<Node> = box(Node { val: 1, next: null })` + `h.next.val` + `h.next == null` |
+| `[T; N]` | 固定长度数组 | `let arr: [i32; 5] = [1, 2, 3, 4, 5]` |
+| `(T1, T2, ...)` | 元组 | `let t = (1, "hello", true)` |
+| `vec` | 动态数组 | `let mut v = vec(1, 2, 3)` / `let mut e = vec<i32>()` |
+| `struct` | 结构体 | `struct Point { x: i32, y: i32 }` |
+| `enum` | 枚举 | `enum Color { Red, Green }` / `enum Shape { Circle(f64) }` |
+| `Box<T>` | 堆指针结构体 | `let mut h: Box<Node> = box(Node { val: 1, next: null })` |
 
 ## 运算符
 
@@ -516,14 +520,13 @@ fn main() -> i32 {
 }
 ```
 
-- `arg(0)` 是程序自身路径;`arg(1)` 起是用户参数。
-- `arg(i)` 返回的字符串直接指向 argv 存储(零拷贝),不要改写其内容。
-- Windows 下程序启动时从 Unicode 命令行(`GetCommandLineW`)转码为 UTF-8
-  重建 argv,中文等非 ASCII 参数不再乱码;Linux/macOS 直接使用系统 argv。
+- `arg(0)` 是程序自身路径；`arg(1)` 起是用户参数。
+- `arg(i)` 返回的字符串直接指向 argv 存储，不可改写其内容。
+- 命令行参数统一按 UTF-8 处理（Windows 与 Unix 平台行为一致）。
 
 ### 管道输入
-`read_line()`/`read_int()`/`read_float()` 均可读管道或重定向的 stdin,配合
-`is_eof()` 判断输入结束:
+`read_line()`/`read_int()`/`read_float()` 均可读管道或重定向的 stdin，配合
+`is_eof()` 判断输入结束：
 
 ```huzi
 # echo "你好" | ./prog.exe
@@ -541,9 +544,9 @@ fn main() -> i32 {
 }
 ```
 
-惯用法是**先读取再检查 `is_eof()`**:读到末尾时 `read_line()` 返回空串且
-`is_eof()` 变为 true,此时停止处理即可。参考 `examples/23_cli_args.hz`
-与 `examples/24_pipe_read.hz`。
+惯用法是**先读取再检查 `is_eof()`**：读到末尾时 `read_line()` 返回空串且
+`is_eof()` 变为 true，此时停止处理即可。参考 `test/examples/23_cli_args.hz`
+与 `test/examples/24_pipe_read.hz`。
 
 ### 字符串
 | 函数 | 说明 | 示例 |
@@ -556,14 +559,14 @@ fn main() -> i32 {
 | 函数 | 说明 | 示例 |
 |------|------|------|
 | `srand(seed)` | 设置伪随机数序列起点 | `srand(42)` |
-| `rand()` | 伪随机数,`0..=RAND_MAX`(Windows 为 32767);同一 seed 序列可复现 | `rand() % 100` |
-| `time()` | 当前 Unix 时间戳(秒,i64) | `let t = time()` |
-| `exit(n)` | 立即终止进程,退出码 n | `exit(1)` |
-| `sleep_ms(ms)` | 毫秒级睡眠(负值按 0) | `sleep_ms(100)` |
+| `rand()` | 伪随机数，`0..=RAND_MAX`（Windows 为 32767）；同一 seed 序列可复现 | `rand() % 100` |
+| `time()` | 当前 Unix 时间戳（秒，i64） | `let t = time()` |
+| `exit(n)` | 立即终止进程，退出码 n | `exit(1)` |
+| `sleep_ms(ms)` | 毫秒级睡眠（负值按 0 处理） | `sleep_ms(100)` |
 
 ```huzi
 fn main() -> i32 {
-    srand(time())      # 用时钟播种,每次运行序列不同
+    srand(time())      # 用时钟播种，每次运行序列不同
     print(rand() % 6 + 1)   # 掷骰子
     0
 }
@@ -572,25 +575,25 @@ fn main() -> i32 {
 ### 文件读写
 | 函数 | 说明 | 示例 |
 |------|------|------|
-| `read_file(path)` | 一次性读入整个文件(≤2GB);失败返回空串 | `let s = read_file("data.txt")` |
-| `write_file(path, content)` | 整体写入(覆盖);返回是否成功 | `write_file("out.txt", s)` |
+| `read_file(path)` | 一次性读入整个文件（≤2GB）；失败返回空串 | `let s = read_file("data.txt")` |
+| `write_file(path, content)` | 整体写入（覆盖）；返回是否成功 | `write_file("test/out/demo.txt", s)` |
 
 ```huzi
 fn main() -> i32 {
-    if write_file("out/demo.txt", "hello file\n") {
-        print(read_file("out/demo.txt"))    # hello file
+    if write_file("test/out/demo.txt", "hello file\n") {
+        print(read_file("test/out/demo.txt"))    # hello file
     }
     0
 }
 ```
 
 ### 运行时错误
-以下错误在运行时立即终止程序(打印一行错误后以退出码 1 退出):
+以下错误在运行时立即终止程序（以退出码 1 退出）：
 
-- 整数除零 / 取模零:`Runtime error: division by zero`(浮点除法遵循 IEEE 语义,不检查)
-- 数组下标越界:`Runtime error: array index out of bounds (length N)`(负下标同样报错)
-- vec 下标越界:`Runtime error: vec index out of bounds`(负下标同样报错)
-- 字符串下标越界:`Runtime error: string index out of bounds`(负下标同样报错;按字节语义,UTF-8 多字节暂不做字符语义)
+- 整数除零 / 取模零：`Runtime error: division by zero`（浮点除法遵循 IEEE 754 语义）
+- 数组下标越界：`Runtime error: array index out of bounds (length N)`
+- vec 下标越界：`Runtime error: vec index out of bounds`
+- 字符串下标越界：`Runtime error: string index out of bounds`（按字节下标检查）
 
 ### 数学
 | 函数 | 说明 | 示例 |
@@ -664,33 +667,34 @@ import mods.helpers      # 文件模块:解析为 mods/helpers.hz
 
 ```
 huzc/
-├── examples/           # 示例程序
-│   ├── hello.hz
-│   ├── array.hz        # 数组示例
-│   ├── fact.hz         # 阶乘示例
-│   └── ...
 ├── crates/
-│   ├── huzc/           # 编译器入口
+│   ├── huzc/           # 编译器 CLI 入口与链接编排
+│   ├── huzi-ast/       # 抽象语法树与符号定义
 │   ├── huzi-lexer/     # 词法分析器
 │   ├── huzi-parser/    # 语法分析器
-│   ├── huzi-codegen/   # LLVM 代码生成
-│   ├── huzi-ast/       # AST 定义
-│   └── huzi-error/     # 错误处理
+│   ├── huzi-codegen/   # LLVM 代码生成与内置函数
+│   ├── huzi-error/     # 错误渲染与建议
+│   └── huzi-lsp/       # 语言服务器 (LSP)
+├── test/
+│   ├── examples/       # 示例程序与模块
+│   ├── expected/       # 示例标准输出快照
+│   ├── neg/            # 编译期与运行时负例测试
+│   └── out/            # 测试构建输出目录
 └── docs/
-    ├── USAGE.md        # 用户指南
-    └── TECHNICAL.md    # 技术文档
+    ├── USAGE.md        # 用户使用指南
+    └── 开发文档.md      # 技术架构与开发文档
 ```
 
 ## 常见问题
 
 ### Q: 编译报错 "Verification failed"
-A: 这是 LLVM 验证警告，编译器会继续生成可执行文件。如果生成的程序无法运行，请检查代码逻辑。
+A: 这是 LLVM 模块验证错误，说明生成的 IR 存在非法指令，属于编译器内部错误（bug），编译流程将直接终止并报错。
 
 ### Q: 如何查看生成的 LLVM IR
 A: 中间文件 `.ll` 在编译完成后会自动清理。如需查看，可临时修改代码保留中间文件。
 
 ### Q: 支持递归函数吗
-A: 支持。详见示例 `fact.hz`。
+A: 支持。详见示例 `test/examples/05_recursion.hz`。
 
 ### Q: 输出文件在哪里
 A: 中间文件 (`.ll` 和 `.obj/.o`) 与输出文件在同一目录，编译完成后自动清理。
@@ -698,13 +702,13 @@ A: 中间文件 (`.ll` 和 `.obj/.o`) 与输出文件在同一目录，编译完
 ### Q: 如何指定输出目录
 A: 使用 `-o` 指定路径即可：
 ```bash
-huzc --input src/main.hz -o build/myapp
+huzc --input test/examples/20_huzi_demo.hz -o build/myapp
 # 生成 build/myapp.exe (Windows) 或 build/myapp (Linux/macOS)
 ```
 
-## 后续计划
+## 项目状态
 
-TODO 全部已完成，暂无待开发功能（P5-16 发布需求已移除）。
+编译器核心功能、标准内置函数、复合数据类型（数组、元组、结构体、枚举、Vec、Box）、模块系统、调试支持与语言服务（LSP）均已完整实现并通过全量回归测试套件验证。
 
 ---
 

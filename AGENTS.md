@@ -11,7 +11,8 @@ crates/
 ├── huzi-parser/    # 语法分析
 ├── huzi-ast/       # AST 定义
 ├── huzi-codegen/   # LLVM 代码生成
-└── huzi-error/     # 错误类型
+├── huzi-error/     # 错误类型
+└── huzi-lsp/       # 语言服务器 (LSP)
 ```
 
 ## 代码组织规则
@@ -51,18 +52,8 @@ huzi-codegen/src/codegen/
 ## 验证流程(重构/改动的验收标准)
 
 1. `cargo build --workspace` — **零错误、零警告**。
-2. 编译并运行 examples/ 下全部非交互示例,确认 exit=0;交互类示例(如 `10_guess_number_game.hz`)跳过。
-3. 重构前先记录基线输出,重构后逐字节对比:
-
-   ```bash
-   # 记录基线(必须带 -o，缺省输出会写 ./a.exe 污染工作目录)
-   for f in examples/*.hz; do
-     n=$(basename "$f" .hz)
-     cargo run -q -p huzc -- --input "$f" -o "out/$n" >/dev/null 2>&1 && "./out/$n"; echo "[exit=$?] $n"
-   done > /tmp/baseline_output.txt
-   # 重构后同命令生成新输出,diff 两者必须为空
-   ```
-4. `git diff` 复核:确认是纯搬移(删除行与新增行内容对应),没有夹带逻辑改动。
+2. 编译并运行 test/examples/ 下全部非交互示例,确认 exit=0;交互类示例(如 `10_guess_number_game.hz`)跳过(可直接运行 `bash test.sh`)。
+3. `git diff` 复核:确认是纯搬移(删除行与新增行内容对应),没有夹带逻辑改动。
 
 ## 提交约定
 
