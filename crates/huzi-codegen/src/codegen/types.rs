@@ -319,6 +319,19 @@ impl<'ctx> CodeGen<'ctx> {
             // Arrays decay to pointers (LLVM opaque pointers make these
             // equivalent); element types are tracked in VarSlot.
             Type::Array(_, _) => Ok(self.context.ptr_type(AddressSpace::default()).into()),
+            // `Box<T>` lowers to a plain pointer to T's LLVM struct; structs
+            // holding a Box field are therefore fixed-size and any reference
+            // cycle through Box is legal (see check_type_cycles).
+            Type::Box(inner) => {
+                let inner_ty = self.type_to_llvm(inner)?;
+                if !self.is_box_pointee(inner_ty) {
+                    return Err(HuziError::new_global(format!(
+                        "Box<T> requires a named struct type (found '{}')",
+                        inner
+                    )));
+                }
+                Ok(self.context.ptr_type(AddressSpace::default()).into())
+            }
             // Tuples are literal structs: LLVM compares them structurally, so
             // two `(i32, str)` tuple types are always equal.
             Type::Tuple(elems) => {

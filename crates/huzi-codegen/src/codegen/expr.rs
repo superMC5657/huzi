@@ -23,6 +23,8 @@ impl<'ctx> CodeGen<'ctx> {
             Expr::ArrayIndex(idx_expr) => self.compile_array_index(idx_expr),
             Expr::ArrayLiteral(elements) => self.compile_array_literal(elements),
             Expr::VecEmpty(elem_ty) => self.compile_vec_empty_value(elem_ty),
+            Expr::BoxAlloc(inner) => Ok(self.compile_box_alloc(inner, None)?.0),
+            Expr::Null => self.compile_null(),
             Expr::TupleLiteral(elements) => self.compile_tuple_literal(elements),
             Expr::If(if_expr) => self.compile_if_expr(if_expr),
             Expr::FieldAccess(fa) => self.compile_field_access(fa),
@@ -194,6 +196,13 @@ impl<'ctx> CodeGen<'ctx> {
         }
 
         let mut args: Vec<inkwell::values::BasicMetadataValueEnum> = Vec::new();
+        // `box(..)`/`null` 实参与 `Box<T>` 形参的 AST 精确校验(LLVM 层面
+        // 都是指针,结构名错配只能在这里发现)。
+        if let Some(ast_params) = self.fn_param_ast.get(&lookup_key).cloned() {
+            for (arg_expr, expected) in expr.arguments.iter().zip(ast_params.iter()) {
+                self.check_box_assignable(arg_expr, expected)?;
+            }
+        }
         for (arg_expr, param_type) in expr.arguments.iter().zip(param_types.iter()) {
             let value = self.compile_expr(arg_expr)?;
             let value = self.coerce_value(*param_type, value)?;

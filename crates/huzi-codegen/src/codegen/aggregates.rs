@@ -46,6 +46,8 @@ impl<'ctx> CodeGen<'ctx> {
                 .enumerate()
                 .find(|(_, info)| info.name == *field_name)
                 .unwrap();
+            // Box 字段先做 `box`/`null` 的 AST 校验(指针层面无法区分内外层)。
+            self.check_box_assignable(field_expr, &info.ast_ty)?;
             let value = self.compile_expr(field_expr)?;
             let value = self.coerce_value(info.ty, value)?;
             let field_ptr = self

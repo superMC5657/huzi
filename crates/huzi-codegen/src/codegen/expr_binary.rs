@@ -15,6 +15,23 @@ impl<'ctx> CodeGen<'ctx> {
             _ => {}
         }
 
+        // Box 判空/判等走指针比较,不进字符串(strcmp)/数值路径。
+        if self.is_box_comparison(&expr.left, &expr.right) {
+            let left = self.compile_expr(&expr.left)?;
+            let right = self.compile_expr(&expr.right)?;
+            return self.build_box_compare(
+                &expr.operator,
+                super::boxed::BoxOperand {
+                    expr: &expr.left,
+                    value: left,
+                },
+                super::boxed::BoxOperand {
+                    expr: &expr.right,
+                    value: right,
+                },
+            );
+        }
+
         let mut left = self.compile_expr(&expr.left)?;
         let mut right = self.compile_expr(&expr.right)?;
 

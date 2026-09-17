@@ -82,6 +82,7 @@ impl<'ctx> CodeGen<'ctx> {
                 elem: None,
                 array_len: None,
                 mutable: stmt.mutable,
+                box_inner: None,
             },
         );
         self.declare_local(&stmt.name, tuple_ptr, tuple_ty.into(), span);

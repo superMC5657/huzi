@@ -1,0 +1,10 @@
+# 负例:直接值循环(环边不经过 Box),编译必须失败(exit != 0)。
+struct A {
+    b: B,
+}
+struct B {
+    a: A,
+}
+fn main() -> i32 {
+    return 0
+}

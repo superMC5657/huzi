@@ -42,6 +42,8 @@ impl<'ctx> CodeGen<'ctx> {
                 self.compile_let_vec(stmt, &call.arguments, span)
             }
             Some(Expr::VecEmpty(elem_ty)) => self.compile_let_vec_empty(stmt, elem_ty, span),
+            Some(Expr::Null) => self.compile_let_null(stmt, span),
+            Some(Expr::BoxAlloc(inner)) => self.compile_let_box(stmt, inner, span),
             Some(value_expr) => self.compile_let_with_value(stmt, value_expr, span),
             None => self.compile_let_uninitialized(stmt, span),
         }
@@ -86,6 +88,7 @@ impl<'ctx> CodeGen<'ctx> {
                 elem: Some(elem_type),
                 array_len: Some(values.len() as u32),
                 mutable: stmt.mutable,
+                box_inner: None,
             },
         );
         self.declare_local(&stmt.name, slot_ptr, ptr_ty.into(), span);
@@ -94,6 +97,10 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `let name[: T] = value`.
     fn compile_let_with_value(&mut self, stmt: &LetStmt, value_expr: &Expr, span: Span) -> Result<()> {
+        // 有标注时先做 `box`/`null` 的 AST 校验(LLVM 指针无法区分 Box 内外层)。
+        if let Some(ann) = &stmt.type_annotation {
+            self.check_box_assignable(value_expr, ann)?;
+        }
         let mut value = self.compile_expr(value_expr)?;
 
         let var_type = match &stmt.type_annotation {
@@ -108,8 +115,15 @@ impl<'ctx> CodeGen<'ctx> {
         let alloca = self.build_alloca(var_type, &stmt.name)?;
         self.builder.build_store(alloca, value).unwrap();
 
-        // Pointers to strings support char indexing.
-        let elem = if var_type.is_pointer_type() {
+        // Box 槽记录 pointee(无标注时由值推导);Box 指针不做字符串元数据标记。
+        let box_inner = match &stmt.type_annotation {
+            Some(ann) => self.box_pointee_of_ast(ann)?,
+            None => self.box_inner_of_expr(value_expr),
+        };
+        let elem = if box_inner.is_some() {
+            None
+        } else if var_type.is_pointer_type() {
+            // Pointers to strings support char indexing.
             Some(self.context.i8_type().into())
         } else {
             None
@@ -123,6 +137,7 @@ impl<'ctx> CodeGen<'ctx> {
                 elem,
                 array_len: None,
                 mutable: stmt.mutable,
+                box_inner,
             },
         );
         self.declare_local(&stmt.name, alloca, var_type, span);
@@ -144,7 +159,13 @@ impl<'ctx> CodeGen<'ctx> {
         let alloca = self.build_alloca(ty, &stmt.name)?;
         self.builder.build_store(alloca, ty.const_zero()).unwrap();
 
-        let elem = if ty.is_pointer_type() {
+        let box_inner = match &stmt.type_annotation {
+            Some(ann) => self.box_pointee_of_ast(ann)?,
+            None => None,
+        };
+        let elem = if box_inner.is_some() {
+            None
+        } else if ty.is_pointer_type() {
             Some(self.context.i8_type().into())
         } else {
             None
@@ -158,6 +179,7 @@ impl<'ctx> CodeGen<'ctx> {
                 elem,
                 array_len: None,
                 mutable: stmt.mutable,
+                box_inner,
             },
         );
         self.declare_local(&stmt.name, alloca, ty, span);
@@ -191,6 +213,7 @@ impl<'ctx> CodeGen<'ctx> {
             None => self.context.i32_type().into(),
         };
         self.current_return_type = Some(return_type);
+        self.current_return_ast = stmt.return_type.clone();
         self.scopes = vec![HashMap::new()];
 
         for (i, param) in stmt.params.iter().enumerate() {
@@ -210,6 +233,8 @@ impl<'ctx> CodeGen<'ctx> {
                 Type::Named(n) if n == "str" => Some(self.context.i8_type().into()),
                 _ => None,
             };
+            // Box 形参记录 pointee,供函数体内的字段解引用。
+            let box_inner = self.box_pointee_of_ast(&param.param_type)?;
 
             self.scopes.last_mut().unwrap().insert(
                 param.name.clone(),
@@ -222,6 +247,7 @@ impl<'ctx> CodeGen<'ctx> {
                         _ => None,
                     },
                     mutable: true,
+                    box_inner,
                 },
             );
         }
@@ -237,6 +263,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
 
         self.current_return_type = None;
+        self.current_return_ast = None;
 
         Ok(())
     }
@@ -248,6 +275,10 @@ impl<'ctx> CodeGen<'ctx> {
 
         match &stmt.value {
             Some(value) => {
+                // `return null` 只能出现在 Box 返回位置。
+                if let Some(ast) = self.current_return_ast.clone() {
+                    self.check_box_assignable(value, &ast)?;
+                }
                 let value = self.compile_expr(value)?;
                 let value = self.coerce_value(ret_type, value)?;
                 self.builder.build_return(Some(&value)).unwrap();

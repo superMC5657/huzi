@@ -24,6 +24,21 @@ impl<'ctx> CodeGen<'ctx> {
                     )));
                 }
 
+                // `null` 只能赋给 Box 槽;`box(..)` 不能赋给非 Box 槽(LLVM
+                // 层面指针与整数/字符串指针无法区分,此处补位)。
+                if Self::is_null_expr(&expr.value) && !Self::is_box_slot(&slot) {
+                    return Err(HuziError::new_global(format!(
+                        "null can only be assigned to a Box<T> slot (variable '{}' is not a Box)",
+                        name
+                    )));
+                }
+                if matches!(&*expr.value, Expr::BoxAlloc(_)) && !Self::is_box_slot(&slot) {
+                    return Err(HuziError::new_global(format!(
+                        "Cannot assign a Box value to non-Box variable '{}'",
+                        name
+                    )));
+                }
+
                 let value = self.coerce_value(slot.ty, value)?;
                 self.builder.build_store(slot.ptr, value).unwrap();
                 Ok(value)
@@ -72,6 +87,12 @@ impl<'ctx> CodeGen<'ctx> {
             }
             Expr::FieldAccess(_) => {
                 self.ensure_mutable(&expr.target)?;
+                // 字段期望类型已知时先做 `box`/`null` 的 AST 校验。
+                if let Expr::FieldAccess(fa) = &*expr.target {
+                    if let Some(expected) = self.field_ast_type(&fa.base, &fa.field) {
+                        self.check_box_assignable(&expr.value, &expected)?;
+                    }
+                }
                 let (field_ptr, field_ty) = self.compile_addr(&expr.target)?;
                 let value = self.coerce_value(field_ty, value)?;
                 self.builder.build_store(field_ptr, value).unwrap();
@@ -94,7 +115,8 @@ impl<'ctx> CodeGen<'ctx> {
                 Ok((slot.ptr, slot.ty))
             }
             Expr::FieldAccess(fa) => {
-                let (base_ptr, base_ty) = self.compile_addr(&fa.base)?;
+                // 基址是 Box 时先自动解引用(装载堆指针),再对 pointee 做 GEP。
+                let (base_ptr, base_ty) = self.compile_addr_deref(&fa.base)?;
                 self.gep_field(base_ptr, base_ty, &fa.field)
             }
             Expr::ArrayIndex(idx_expr) => {
@@ -188,7 +210,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// Best-effort struct definition lookup for an expression, following
-    /// variables and field chains.
+    /// variables and field chains (Box layers are auto-dereferenced).
     pub(super) fn struct_def_of_expr(
         &self,
         expr: &Expr,
@@ -196,11 +218,19 @@ impl<'ctx> CodeGen<'ctx> {
         match expr {
             Expr::Ident(name) => {
                 let slot = self.scope_lookup(name)?;
+                if let Some(inner) = slot.box_inner {
+                    return self.struct_def_by_type(inner);
+                }
                 self.struct_def_by_type(slot.ty)
             }
             Expr::FieldAccess(fa) => {
                 let (_, fields) = self.struct_def_of_expr(&fa.base)?;
                 let info = fields.iter().find(|info| info.name == fa.field)?;
+                // Box 字段:pointee 才是下一层的结构体。
+                if let Type::Box(inner) = &info.ast_ty {
+                    let inner_ty = self.type_to_llvm(inner).ok()?;
+                    return self.struct_def_by_type(inner_ty);
+                }
                 self.struct_def_by_type(info.ty)
             }
             _ => None,
@@ -232,7 +262,8 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         expr: &FieldAccessExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        let (base_ptr, base_ty) = self.compile_addr(&expr.base)?;
+        // 基址是 Box 时先自动解引用,逐层生效(`head.next.val`)。
+        let (base_ptr, base_ty) = self.compile_addr_deref(&expr.base)?;
         let (field_ptr, field_ty) = self.gep_field(base_ptr, base_ty, &expr.field)?;
         let loaded = self
             .builder

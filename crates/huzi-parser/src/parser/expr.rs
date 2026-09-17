@@ -270,6 +270,14 @@ impl Parser {
             }
             Token::Ident(name) => {
                 self.advance();
+                // `box(expr)` — 堆分配构造(上下文关键字,小写)。
+                if name == "box" && self.check(&Token::LParen) {
+                    return self.parse_box_alloc();
+                }
+                // `null` — 空指针字面量(上下文关键字)。
+                if name == "null" {
+                    return Ok(Expr::Null);
+                }
                 // `vec<T>()` — 空 vec 构造(零长,元素类型由尖括号指定)。
                 // 仅当 `<` 后能完整解析为 `Type>()` 时才提交,避免把
                 // `vec < x` 比较误解析为泛型构造。
@@ -449,6 +457,14 @@ impl Parser {
         Block {
             statements: vec![Spanned::new(Stmt::Expr(ExprStmt { expr }), line, col)],
         }
+    }
+
+    /// 解析 `box` 后的 `(expr)`(调用时 `(` 尚未消费)。
+    fn parse_box_alloc(&mut self) -> Result<Expr> {
+        self.expect(&Token::LParen, "Expected '(' after 'box'")?;
+        let inner = self.parse_expression()?;
+        self.expect(&Token::RParen, "Expected ')' after box expression")?;
+        Ok(Expr::BoxAlloc(Box::new(inner)))
     }
 
     /// 尝试解析 `vec` 后的 `<T>()`(调用时 `<` 尚未消费)。

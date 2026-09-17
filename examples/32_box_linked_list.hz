@@ -1,0 +1,21 @@
+# Box 单链表示例
+# struct Node { val: i32, next: Box<Node> } 自引用(环边经过 Box,合法);
+# box(Node { ... }) 堆分配构造;null 表空位;==/!= 判空/比指针。
+
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn main() -> i32 {
+    let mut head: Box<Node> = box(Node { val: 1, next: null })
+    head.next = box(Node { val: 2, next: null })
+    print(head.val, head.next.val)
+    if head.next == null {
+        print("empty")
+    }
+    if head.next != null {
+        print("has-next")
+    }
+    return 0
+}

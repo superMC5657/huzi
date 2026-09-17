@@ -57,6 +57,7 @@ fn module_fn_statements(program: &Program) -> Vec<(FnStmt, Span)> {
 mod aggregates;
 mod args;
 mod args_utf8;
+mod boxed;
 mod builtins;
 mod builtins_math;
 mod builtins_print;
@@ -82,7 +83,9 @@ mod vec;
 
 /// A variable slot: `ptr` always holds a pointer whose loaded value has type
 /// `ty`. For arrays, `ptr` holds the address of the array data (loaded as a
-/// `ptr`), and `elem` records the element type for GEP/indexing.
+/// `ptr`), and `elem` records the element type for GEP/indexing. For
+/// `Box<T>` variables, `ty` is a plain pointer and `box_inner` records the
+/// pointee struct type so field access can auto-deref.
 #[derive(Clone, Copy)]
 struct VarSlot<'ctx> {
     ptr: PointerValue<'ctx>,
@@ -90,6 +93,7 @@ struct VarSlot<'ctx> {
     elem: Option<inkwell::types::BasicTypeEnum<'ctx>>,
     array_len: Option<u32>,
     mutable: bool,
+    box_inner: Option<inkwell::types::BasicTypeEnum<'ctx>>,
 }
 
 /// A registered struct field. `ast_ty` keeps the original AST type because
@@ -143,6 +147,11 @@ pub struct CodeGen<'ctx> {
     scopes: Vec<HashMap<String, VarSlot<'ctx>>>,
     functions: HashMap<String, (FunctionValue<'ctx>, Vec<inkwell::types::BasicTypeEnum<'ctx>>)>,
     current_return_type: Option<inkwell::types::BasicTypeEnum<'ctx>>,
+    /// 各函数的形参 AST 类型(限定名 -> 参数表),供 `box`/`null` 实参与
+    /// `Box<T>` 形参的精确校验(LLVM 层面两者都是指针,无法区分)。
+    fn_param_ast: HashMap<String, Vec<Type>>,
+    /// 当前函数的 Huzi 声明返回类型,供 `return null` 的位置校验。
+    current_return_ast: Option<Type>,
     /// (continue_target, break_target) for each enclosing loop.
     loop_stack: Vec<(inkwell::basic_block::BasicBlock<'ctx>, inkwell::basic_block::BasicBlock<'ctx>)>,
     /// Registered user-defined structs: name -> (LLVM type, ordered fields).
@@ -176,6 +185,8 @@ impl<'ctx> CodeGen<'ctx> {
             scopes: vec![HashMap::new()],
             functions: HashMap::new(),
             current_return_type: None,
+            fn_param_ast: HashMap::new(),
+            current_return_ast: None,
             loop_stack: Vec::new(),
             structs: HashMap::new(),
             enums: HashMap::new(),
@@ -410,7 +421,12 @@ impl<'ctx> CodeGen<'ctx> {
             function.set_subprogram(sp);
         }
         self.functions
-            .insert(qualified_name, (function, param_llvm_types));
+            .insert(qualified_name.clone(), (function, param_llvm_types));
+        // 形参 AST 类型并行记录,供调用点 `box`/`null` 实参校验。
+        self.fn_param_ast.insert(
+            qualified_name,
+            stmt.params.iter().map(|p| p.param_type.clone()).collect(),
+        );
 
         Ok(())
     }

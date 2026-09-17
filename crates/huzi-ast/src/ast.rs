@@ -15,6 +15,8 @@ pub enum Type {
     Named(String),
     Array(Box<Type>, usize), // Array<ElementType, Size>
     Tuple(Vec<Type>),
+    /// 堆分配智能指针:`Box<Node>`(仅支持具名结构体,不支持嵌套)。
+    Box(Box<Type>),
 }
 
 impl fmt::Display for Type {
@@ -42,6 +44,7 @@ impl fmt::Display for Type {
                 }
                 write!(f, ")")
             }
+            Type::Box(inner) => write!(f, "Box<{}>", inner),
         }
     }
 }
@@ -206,6 +209,10 @@ pub enum Expr {
     TupleLiteral(Vec<Expr>),
     /// 空 vec 构造:`vec<T>()`(元素类型由尖括号显式指定,零长)。
     VecEmpty(Type),
+    /// 堆分配构造:`box(expr)`(求值后 malloc 存入,返回 `Box<T>`)。
+    BoxAlloc(Box<Expr>),
+    /// 空指针字面量:`null`(只能出现在 `Box<T>` 期望位置)。
+    Null,
     If(IfExpr),
     FieldAccess(FieldAccessExpr),
     StructLiteral(StructLiteralExpr),

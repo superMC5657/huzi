@@ -161,6 +161,7 @@ impl<'ctx> CodeGen<'ctx> {
                 elem: None,
                 array_len: None,
                 mutable: true,
+                box_inner: None,
             },
         );
         self.compile_block(&stmt.body)?;
@@ -253,6 +254,7 @@ impl<'ctx> CodeGen<'ctx> {
                 elem: None,
                 array_len: None,
                 mutable: true,
+                box_inner: None,
             },
         );
         self.compile_block(&stmt.body)?;
@@ -322,6 +324,7 @@ impl<'ctx> CodeGen<'ctx> {
                 elem: None,
                 array_len: None,
                 mutable: true,
+                box_inner: None,
             },
         );
         self.compile_block(&stmt.body)?;

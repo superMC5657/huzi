@@ -100,9 +100,24 @@ impl Parser {
 
         let ty = match self.peek() {
             Token::Ident(name) => {
-                let t = Type::Named(name.clone());
+                let name = name.clone();
                 self.advance();
-                t
+                // `Box<T>` — 全语言唯一的尖括号泛型;其它名字后跟 `<`
+                // 是非法的(调用点负责报更友好的比较/泛型错误)。
+                if self.check(&Token::Less) {
+                    if name != "Box" {
+                        return Err(HuziError::new(
+                            format!(
+                                "Only Box<T> supports generic parameters (found '{}<')",
+                                name
+                            ),
+                            self.current_line(),
+                            self.current_col(),
+                        ));
+                    }
+                    return self.parse_box_type();
+                }
+                Type::Named(name)
             }
             _ => {
                 return Err(HuziError::new(
@@ -113,6 +128,32 @@ impl Parser {
             }
         };
         Ok(ty)
+    }
+
+    /// 解析 `Box` 后的 `<T>`(调用时 `<` 尚未消费)。`T` 须为具名
+    /// 结构体,嵌套 `Box<Box<..>>` 暂不支持。
+    fn parse_box_type(&mut self) -> Result<Type> {
+        self.advance(); // consume '<'
+        let inner = self.parse_type()?;
+        match &inner {
+            Type::Named(_) => {}
+            Type::Box(_) => {
+                return Err(HuziError::new(
+                    "Nested Box<Box<..>> is not supported yet; use a struct field instead",
+                    self.current_line(),
+                    self.current_col(),
+                ))
+            }
+            _ => {
+                return Err(HuziError::new(
+                    format!("Box<T> requires a named struct type (found '{}')", inner),
+                    self.current_line(),
+                    self.current_col(),
+                ))
+            }
+        }
+        self.expect(&Token::Greater, "Expected '>' in Box<T>")?;
+        Ok(Type::Box(Box::new(inner)))
     }
 
     fn is_expr_start(&self) -> bool {

@@ -44,6 +44,17 @@ impl<'ctx> CodeGen<'ctx> {
         let mut args: Vec<inkwell::values::BasicMetadataValueEnum> = Vec::new();
 
         for arg in arguments.iter() {
+            // Box 与 null 不直接打印:引导打印字段(与裸 vec() 的引导策略一致)。
+            if Self::is_null_expr(arg) {
+                return Err(HuziError::new_global(
+                    "print() does not support 'null' directly; print a Box field instead",
+                ));
+            }
+            if self.is_box_expr(arg) {
+                return Err(HuziError::new_global(
+                    "print() does not support a Box<T> value directly; print its fields instead (e.g. print(b.val))",
+                ));
+            }
             // vec 实参走运行期循环打印(先落盘待定的标量片段)。
             if self.try_emit_vec_arg(arg, &mut format_string, &mut args)? {
                 continue;
@@ -327,7 +338,12 @@ impl<'ctx> CodeGen<'ctx> {
         field_ptr: PointerValue<'ctx>,
         info: &StructFieldInfo<'ctx>,
     ) -> Result<()> {
-        if let Type::Array(elem_ast_ty, size) = &info.ast_ty {
+        // Box 字段不直接打印(指针内容无意义),引导打印其字段。
+        if Self::is_box_ast(&info.ast_ty) {
+            return Err(HuziError::new_global(
+                "print() does not support a Box<T> field directly; print its fields instead (e.g. print(p.next.val))",
+            ));
+        }        if let Type::Array(elem_ast_ty, size) = &info.ast_ty {
             let elem_ty = self.type_to_llvm(elem_ast_ty)?;
             let arr_ptr = self
                 .builder
