@@ -1,0 +1,15 @@
+# 负例：match 缺变体且无 `_` 兜底，编译必须失败（穷尽性检查报缺失变体）。
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+fn main() -> i32 {
+    let c = Color::Red
+    let n = match c {
+        Color::Red => 1,
+        Color::Green => 2
+    }
+    print(n)
+    0
+}

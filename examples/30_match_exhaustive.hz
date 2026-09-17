@@ -1,0 +1,40 @@
+// 30_match_exhaustive.hz — match 穷尽性检查：全覆盖分支无需 `_` 兜底；`_` 仍兼容
+
+enum Color {
+    Red,
+    Green,
+    Blue
+}
+
+enum Shape {
+    Circle(f64),
+    Rect(f64),
+    Point2D
+}
+
+// 全覆盖无 `_`：简单枚举
+let c = Color::Green
+let n = match c {
+    Color::Red => 1,
+    Color::Green => 2,
+    Color::Blue => 3
+}
+print(n)
+
+// 全覆盖无 `_`：带数据枚举（含 payload 绑定）
+fn area(s: Shape) -> f64 {
+    return match s {
+        Shape::Circle(r) => 3.14159 * r * r,
+        Shape::Rect(w) => w * w,
+        Shape::Point2D => 0.0
+    }
+}
+print(area(Shape::Circle(2.0)))
+print(area(Shape::Rect(3.0)))
+
+// `_` 兜底仍兼容
+let wild = match c {
+    Color::Red => 10,
+    _ => 0
+}
+print(wild)

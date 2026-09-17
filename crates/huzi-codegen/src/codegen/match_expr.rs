@@ -17,10 +17,7 @@ impl<'ctx> CodeGen<'ctx> {
         let (scrut_addr, scrut_ty) = self.compile_addr(&expr.scrutinee)?;
 
         // The enum being matched, named by the first variant pattern.
-        let pat_enum_name = expr.arms.iter().find_map(|arm| match &arm.pattern {
-            Pattern::Variant { enum_name, .. } => Some(enum_name.as_str()),
-            Pattern::Wildcard => None,
-        });
+        let pat_enum_name = Self::match_pattern_enum(&expr.arms);
 
         // Data-carrying enums keep their tag in field 0 of the struct; simple
         // enums ARE the i32 tag, so the scrutinee value is the tag itself.
@@ -35,6 +32,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
             let st = info.llvm.unwrap();
             let info = info.clone();
+            Self::check_match_exhaustiveness(&expr.arms, Some(&info))?;
             let tag_ptr = self
                 .builder
                 .build_struct_gep(st, scrut_addr, 0, "match_tag_ptr")
@@ -68,6 +66,7 @@ impl<'ctx> CodeGen<'ctx> {
                 .build_load(self.context.i32_type(), scrut_addr, "match_tag")
                 .unwrap()
                 .into_int_value();
+            Self::check_match_exhaustiveness(&expr.arms, info.as_ref())?;
             return self.compile_match_arms(tag, None, info.as_ref(), &expr.arms);
         }
 
@@ -101,53 +100,185 @@ impl<'ctx> CodeGen<'ctx> {
                     HuziError::new_global("Cannot match variants without a known enum type")
                 })?;
                 let vinfo = find_variant(info, variant)?;
-
-                let expected = self
-                    .context
-                    .i32_type()
-                    .const_int(vinfo.tag as u64, false);
-                let cond = self
-                    .builder
-                    .build_int_compare(inkwell::IntPredicate::EQ, tag, expected, "match_cond")
-                    .unwrap();
-
-                let function = self.current_function()?;
-                let then_bb = self.context.append_basic_block(function, "match_arm");
-                let else_bb = self.context.append_basic_block(function, "match_next");
-                let merge_bb = self.context.append_basic_block(function, "match_merge");
-                self.builder
-                    .build_conditional_branch(cond, then_bb, else_bb)
-                    .unwrap();
-
-                // Matching arm: optionally bind the payload, evaluate the body.
-                self.builder.position_at_end(then_bb);
-                let then_val =
-                    self.compile_match_arm_body(data, info, vinfo, binding, &arm.body)?;
-
-                let result_ty = then_val.get_type();
-                let result_ptr = self.build_alloca(result_ty, "match_val")?;
-                self.builder.build_store(result_ptr, then_val).unwrap();
-                self.builder
-                    .build_unconditional_branch(merge_bb)
-                    .unwrap();
-
-                // Remaining arms run when the tag does not match.
-                self.builder.position_at_end(else_bb);
-                let else_val = self.compile_match_arms(tag, data, Some(info), rest)?;
-                let else_val = self.coerce_value(result_ty, else_val)?;
-                self.builder.build_store(result_ptr, else_val).unwrap();
-                self.builder
-                    .build_unconditional_branch(merge_bb)
-                    .unwrap();
-
-                self.builder.position_at_end(merge_bb);
-                let result = self
-                    .builder
-                    .build_load(result_ty, result_ptr, "match_load")
-                    .unwrap();
-                Ok(result)
+                if rest.is_empty() {
+                    return self.compile_last_variant_arm(tag, data, info, vinfo, binding, &arm.body);
+                }
+                self.compile_variant_arm(tag, data, info, vinfo, binding, &arm.body, rest)
             }
         }
+    }
+
+    /// Compile a variant arm that has following arms: mismatch falls through
+    /// to the remaining arm chain.
+    fn compile_variant_arm(
+        &mut self,
+        tag: inkwell::values::IntValue<'ctx>,
+        data: Option<(
+            inkwell::types::StructType<'ctx>,
+            PointerValue<'ctx>,
+        )>,
+        info: &EnumInfo<'ctx>,
+        vinfo: &EnumVariantInfo<'ctx>,
+        binding: &Option<String>,
+        body: &Block,
+        rest: &[MatchArm],
+    ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let (then_bb, else_bb, merge_bb) = self.emit_match_branch(tag, vinfo.tag)?;
+
+        // Matching arm: optionally bind the payload, evaluate the body.
+        self.builder.position_at_end(then_bb);
+        let then_val = self.compile_match_arm_body(data, info, vinfo, binding, body)?;
+
+        let result_ty = then_val.get_type();
+        let result_ptr = self.build_alloca(result_ty, "match_val")?;
+        self.builder.build_store(result_ptr, then_val).unwrap();
+        self.builder
+            .build_unconditional_branch(merge_bb)
+            .unwrap();
+
+        // Remaining arms run when the tag does not match.
+        self.builder.position_at_end(else_bb);
+        let else_val = self.compile_match_arms(tag, data, Some(info), rest)?;
+        let else_val = self.coerce_value(result_ty, else_val)?;
+        self.builder.build_store(result_ptr, else_val).unwrap();
+        self.builder
+            .build_unconditional_branch(merge_bb)
+            .unwrap();
+
+        self.builder.position_at_end(merge_bb);
+        let result = self
+            .builder
+            .build_load(result_ty, result_ptr, "match_load")
+            .unwrap();
+        Ok(result)
+    }
+
+    /// Compile the final variant arm of an exhaustive match: mismatch is
+    /// statically unreachable (exhaustiveness was checked up front).
+    fn compile_last_variant_arm(
+        &mut self,
+        tag: inkwell::values::IntValue<'ctx>,
+        data: Option<(
+            inkwell::types::StructType<'ctx>,
+            PointerValue<'ctx>,
+        )>,
+        info: &EnumInfo<'ctx>,
+        vinfo: &EnumVariantInfo<'ctx>,
+        binding: &Option<String>,
+        body: &Block,
+    ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let (then_bb, else_bb, merge_bb) = self.emit_match_branch(tag, vinfo.tag)?;
+        self.builder.position_at_end(then_bb);
+        let then_val = self.compile_match_arm_body(data, info, vinfo, binding, body)?;
+
+        let result_ty = then_val.get_type();
+        let result_ptr = self.build_alloca(result_ty, "match_val")?;
+        self.builder.build_store(result_ptr, then_val).unwrap();
+        self.builder
+            .build_unconditional_branch(merge_bb)
+            .unwrap();
+
+        self.builder.position_at_end(else_bb);
+        self.builder.build_unreachable().unwrap();
+
+        self.builder.position_at_end(merge_bb);
+        let result = self
+            .builder
+            .build_load(result_ty, result_ptr, "match_load")
+            .unwrap();
+        Ok(result)
+    }
+
+    /// Emit the tag comparison and the then/else/merge blocks for one arm.
+    fn emit_match_branch(
+        &self,
+        tag: inkwell::values::IntValue<'ctx>,
+        expected_tag: u32,
+    ) -> Result<(
+        inkwell::basic_block::BasicBlock<'ctx>,
+        inkwell::basic_block::BasicBlock<'ctx>,
+        inkwell::basic_block::BasicBlock<'ctx>,
+    )> {
+        let expected = self
+            .context
+            .i32_type()
+            .const_int(expected_tag as u64, false);
+        let cond = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::EQ, tag, expected, "match_cond")
+            .unwrap();
+
+        let function = self.current_function()?;
+        let then_bb = self.context.append_basic_block(function, "match_arm");
+        let else_bb = self.context.append_basic_block(function, "match_next");
+        let merge_bb = self.context.append_basic_block(function, "match_merge");
+        self.builder
+            .build_conditional_branch(cond, then_bb, else_bb)
+            .unwrap();
+        Ok((then_bb, else_bb, merge_bb))
+    }
+
+    /// The enum named by the first variant pattern, if any.
+    fn match_pattern_enum(arms: &[MatchArm]) -> Option<&str> {
+        arms.iter().find_map(|arm| match &arm.pattern {
+            Pattern::Variant { enum_name, .. } => Some(enum_name.as_str()),
+            Pattern::Wildcard => None,
+        })
+    }
+
+    /// Exhaustiveness analysis: a wildcard arm covers everything; otherwise
+    /// every variant of the matched enum must appear in the arm list.
+    fn check_match_exhaustiveness(
+        arms: &[MatchArm],
+        info: Option<&EnumInfo<'ctx>>,
+    ) -> Result<()> {
+        if arms.iter().any(|arm| matches!(arm.pattern, Pattern::Wildcard)) {
+            return Self::check_arm_enum_names(arms, info);
+        }
+        let info = info.ok_or_else(|| {
+            HuziError::new_global("match must have a wildcard arm `_`")
+        })?;
+        Self::check_arm_enum_names(arms, Some(info))?;
+        for arm in arms {
+            if let Pattern::Variant { variant, .. } = &arm.pattern {
+                find_variant(info, variant)?;
+            }
+        }
+        let missing: Vec<&str> = info
+            .variants
+            .iter()
+            .filter(|v| !arms.iter().any(|arm| match &arm.pattern {
+                Pattern::Variant { variant, .. } => variant == &v.name,
+                Pattern::Wildcard => false,
+            }))
+            .map(|v| v.name.as_str())
+            .collect();
+        if missing.is_empty() {
+            return Ok(());
+        }
+        Err(HuziError::new_global(format!(
+            "Non-exhaustive match for enum '{}': missing variants: {}\n  help: add arms for the missing variants or a wildcard arm `_`",
+            info.name,
+            missing.join(", ")
+        )))
+    }
+
+    /// Every variant arm must name the enum being matched.
+    fn check_arm_enum_names(arms: &[MatchArm], info: Option<&EnumInfo<'ctx>>) -> Result<()> {
+        let Some(info) = info else {
+            return Ok(());
+        };
+        for arm in arms {
+            if let Pattern::Variant { enum_name, .. } = &arm.pattern {
+                if enum_name != &info.name {
+                    return Err(HuziError::new_global(format!(
+                        "Match arms use '{}' but the scrutinee is '{}'",
+                        enum_name, info.name
+                    )));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Bind the payload (if the pattern has a binding) and evaluate the arm
@@ -241,6 +372,12 @@ fn find_variant<'ctx, 'a>(
     variant: &str,
 ) -> Result<&'a EnumVariantInfo<'ctx>> {
     info.variants.iter().find(|v| v.name == variant).ok_or_else(|| {
-        HuziError::new_global(format!("Enum '{}' has no variant '{}'", info.name, variant))
+        let mut message = format!("Enum '{}' has no variant '{}'", info.name, variant);
+        if let Some(hint) =
+            huzi_error::did_you_mean(variant, info.variants.iter().map(|v| v.name.as_str()))
+        {
+            message.push_str(&format!("\n  help: {}", hint));
+        }
+        HuziError::new_global(message)
     })
 }
