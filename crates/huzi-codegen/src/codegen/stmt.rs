@@ -222,7 +222,7 @@ impl<'ctx> CodeGen<'ctx> {
 
             let alloca = self.build_alloca(arg_type, &param.name)?;
             self.builder.build_store(alloca, arg).unwrap();
-            self.declare_param(&param.name, alloca, arg_type, i as u32 + 1, span.line as u32);
+            self.declare_param(&param.name, alloca, arg_type, i as u32 + 1, span.start_line() as u32);
 
             // Arrays decay to pointers; remember the element type for indexing.
             let elem = match &param.param_type {

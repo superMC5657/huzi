@@ -55,9 +55,10 @@ huzi-codegen/src/codegen/
 3. 重构前先记录基线输出,重构后逐字节对比:
 
    ```bash
-   # 记录基线
+   # 记录基线(必须带 -o，缺省输出会写 ./a.exe 污染工作目录)
    for f in examples/*.hz; do
-     cargo run -q -p huzc -- --input "$f" >/dev/null 2>&1 && ./out/a.exe; echo "[exit=$?]"
+     n=$(basename "$f" .hz)
+     cargo run -q -p huzc -- --input "$f" -o "out/$n" >/dev/null 2>&1 && "./out/$n"; echo "[exit=$?] $n"
    done > /tmp/baseline_output.txt
    # 重构后同命令生成新输出,diff 两者必须为空
    ```

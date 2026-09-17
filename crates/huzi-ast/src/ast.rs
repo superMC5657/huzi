@@ -49,11 +49,68 @@ impl fmt::Display for Type {
     }
 }
 
-/// 源码位置(1-based 行列号),与 lexer 的 `SpannedToken` 对齐。
+/// 源码位置:起止区间(1-based 行列号),与 lexer 的 `SpannedToken` 对齐。
+/// `line`/`column` 为起始位置(保留旧单点构造兼容),
+/// `end_line`/`end_column` 为结束位置(词法上取末 token 列 +1,无精确
+/// 末位置时退化为起始位置,保证 `end >= start`)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub line: usize,
     pub column: usize,
+    pub end_line: usize,
+    pub end_column: usize,
+}
+
+impl Span {
+    /// 单点构造:结束位置退化为起始位置(零宽区间)。
+    pub fn new(line: usize, column: usize) -> Self {
+        Self {
+            line,
+            column,
+            end_line: line,
+            end_column: column,
+        }
+    }
+
+    /// 区间构造:结束位置小于起始位置时钳制为起始位置,
+    /// 保证区间永不倒置(`end >= start`)。
+    pub fn new_range(
+        start_line: usize,
+        start_column: usize,
+        end_line: usize,
+        end_column: usize,
+    ) -> Self {
+        if (end_line, end_column) < (start_line, start_column) {
+            Self {
+                line: start_line,
+                column: start_column,
+                end_line: start_line,
+                end_column: start_column,
+            }
+        } else {
+            Self {
+                line: start_line,
+                column: start_column,
+                end_line,
+                end_column,
+            }
+        }
+    }
+
+    /// 起始行(兼容 accessor,供 codegen DWARF 行号使用)。
+    pub fn start_line(&self) -> usize {
+        self.line
+    }
+
+    /// 起始列(兼容 accessor,供 codegen DWARF 列号使用)。
+    pub fn start_column(&self) -> usize {
+        self.column
+    }
+
+    /// 是否为零宽(单点)区间。
+    pub fn is_empty(&self) -> bool {
+        (self.line, self.column) == (self.end_line, self.end_column)
+    }
 }
 
 /// 携带源码位置的 AST 节点包裹。语句级粒度即可满足
@@ -65,11 +122,31 @@ pub struct Spanned<T> {
 }
 
 impl<T> Spanned<T> {
+    /// 旧单点构造(向后兼容):结束位置退化为起始位置。
     pub fn new(node: T, line: usize, column: usize) -> Self {
         Self {
             node,
-            span: Span { line, column },
+            span: Span::new(line, column),
         }
+    }
+
+    /// 区间构造:记录语句起止位置。
+    pub fn with_range(
+        node: T,
+        start_line: usize,
+        start_column: usize,
+        end_line: usize,
+        end_column: usize,
+    ) -> Self {
+        Self {
+            node,
+            span: Span::new_range(start_line, start_column, end_line, end_column),
+        }
+    }
+
+    /// 沿用已有区间(elif 折叠等合成节点透传外层区间)。
+    pub fn with_span(node: T, span: Span) -> Self {
+        Self { node, span }
     }
 }
 

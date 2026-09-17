@@ -344,7 +344,7 @@ impl<'ctx> CodeGen<'ctx> {
         let main_type = i32_type.fn_type(&[i32_type.into(), ptr_type.into()], false);
         let line = top_level
             .first()
-            .map(|s| s.span.line as u32)
+            .map(|s| s.span.start_line() as u32)
             .unwrap_or(1);
         let sp = self.create_subprogram(
             "main",
@@ -415,7 +415,7 @@ impl<'ctx> CodeGen<'ctx> {
         let fn_type = return_type.fn_type(&param_types, false);
 
         let sp =
-            self.create_subprogram(&qualified_name, span.line as u32, &param_llvm_types, return_type);
+            self.create_subprogram(&qualified_name, span.start_line() as u32, &param_llvm_types, return_type);
         let function = self.module.add_function(&qualified_name, fn_type, None);
         if let Some(sp) = sp {
             function.set_subprogram(sp);

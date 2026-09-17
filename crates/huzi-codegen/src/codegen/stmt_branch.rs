@@ -11,7 +11,7 @@ impl<'ctx> CodeGen<'ctx> {
         } else {
             let nested = Self::fold_elif(&stmt.elif_branches, stmt.else_branch.as_ref(), span);
             Some(Block {
-                statements: vec![Spanned::new(Stmt::If(nested), span.line, span.column)],
+                statements: vec![Spanned::with_span(Stmt::If(nested), span)],
             })
         };
 
@@ -28,10 +28,9 @@ impl<'ctx> CodeGen<'ctx> {
             else_b.cloned()
         } else {
             Some(Block {
-                statements: vec![Spanned::new(
+                statements: vec![Spanned::with_span(
                     Stmt::If(Self::fold_elif(rest, else_b, span)),
-                    span.line,
-                    span.column,
+                    span,
                 )],
             })
         };

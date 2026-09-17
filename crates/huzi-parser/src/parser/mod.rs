@@ -15,27 +15,97 @@ pub struct Parser {
     pos: usize,
 }
 
+/// 单次 `parse_recoverable` 最多收集的错误数(防级联误报刷屏)。
+const MAX_RECOVERY_ERRORS: usize = 32;
+
 impl Parser {
     pub fn new(tokens: Vec<SpannedToken>) -> Self {
         Self { tokens, pos: 0 }
     }
 
-    pub fn parse(&mut self) -> Result<Program> {
+    /// 语句级错误恢复入口:单条语句失败则记错并同步到下一
+    /// 同步点,一次返回全部成功语句与全部错误(供 LSP 实时诊断)。
+    /// 成功语句的区间仍由 `parse_statement` 经 `with_range` 保留;
+    /// 失败语句不入 `Program`。
+    pub fn parse_recoverable(&mut self) -> (Program, Vec<HuziError>) {
         let mut statements = Vec::new();
-
+        let mut errors = Vec::new();
         while !self.is_at_end() {
-            statements.push(self.parse_statement()?);
+            match self.parse_statement() {
+                Ok(stmt) => statements.push(stmt),
+                Err(err) => {
+                    errors.push(err);
+                    if errors.len() >= MAX_RECOVERY_ERRORS {
+                        break;
+                    }
+                    self.synchronize();
+                }
+            }
         }
-
-        Ok(Program { statements })
+        (Program { statements }, errors)
     }
 
-    /// 解析一条语句并记录其起始位置(供调试行号使用)。
+    /// 首错即停的兼容入口:语义与旧 `parse` 一致(返回首错),
+    /// 供 huzc 主流程 `unwrap_or_else(die)` 使用。
+    pub fn parse(&mut self) -> Result<Program> {
+        let (program, errors) = self.parse_recoverable();
+        if let Some(first) = errors.into_iter().next() {
+            return Err(first);
+        }
+        Ok(program)
+    }
+
+    /// 错误同步:跳到下一个 `;`/`}`/EOF 或下一行行首。
+    /// 至少前进一步,避免失败语句原地空转。
+    fn synchronize(&mut self) {
+        let start = self.pos;
+        let fail_line = self.tokens.get(start).map(|t| t.line);
+        while !self.is_at_end() {
+            if self.check(&Token::Semi) {
+                self.advance();
+                break;
+            }
+            if self.check(&Token::RBrace) {
+                break;
+            }
+            let line = self.tokens.get(self.pos).map(|t| t.line);
+            if line != fail_line {
+                break;
+            }
+            self.advance();
+        }
+        if self.pos == start && !self.is_at_end() {
+            self.advance();
+        }
+    }
+
+    /// 解析一条语句并记录其起止区间(供调试行号/断点使用)。
+    /// 结束位置取解析成功后上一已消费 token 的列 +1(lexer 无 token
+    /// 宽度信息,无法给出精确末列);无历史时用起始 +1 兜底,保证
+    /// `end >= start`。
     fn parse_statement(&mut self) -> Result<Spanned<Stmt>> {
         let line = self.current_line();
         let column = self.current_col();
         let node = self.parse_statement_kind()?;
-        Ok(Spanned::new(node, line, column))
+        let (end_line, end_column) = self.stmt_end(line, column);
+        Ok(Spanned::with_range(node, line, column, end_line, end_column))
+    }
+
+    /// 上一条已消费 token 的结束位置(行,列 +1)。
+    fn stmt_end(&self, start_line: usize, start_column: usize) -> (usize, usize) {
+        let fallback = (start_line, start_column.saturating_add(1));
+        let Some(prev) = self.pos.checked_sub(1).and_then(|i| self.tokens.get(i)) else {
+            return fallback;
+        };
+        if prev.line == usize::MAX {
+            return fallback;
+        }
+        let end = (prev.line, prev.column.saturating_add(1));
+        if end < (start_line, start_column) {
+            fallback
+        } else {
+            end
+        }
     }
 
     fn parse_statement_kind(&mut self) -> Result<Stmt> {

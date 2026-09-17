@@ -163,8 +163,8 @@ impl<'ctx> CodeGen<'ctx> {
         let scope = sp.as_debug_info_scope();
         let loc = state.builder.create_debug_location(
             self.context,
-            span.line as u32,
-            span.column as u32,
+            span.start_line() as u32,
+            span.start_column() as u32,
             scope,
             None,
         );
@@ -228,7 +228,7 @@ impl<'ctx> CodeGen<'ctx> {
             return;
         };
         let file = state.current_file;
-        let line = span.line as u32;
+        let line = span.start_line() as u32;
         let scope = sp.as_debug_info_scope();
         let var = state
             .builder
@@ -236,7 +236,7 @@ impl<'ctx> CodeGen<'ctx> {
         let loc = state.builder.create_debug_location(
             self.context,
             line,
-            span.column as u32,
+            span.start_column() as u32,
             scope,
             None,
         );

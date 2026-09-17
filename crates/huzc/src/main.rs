@@ -1,6 +1,5 @@
 mod cli;
 mod linker;
-mod modules;
 mod paths;
 
 use clap::Parser;
@@ -9,6 +8,7 @@ use huzi_ast::Program;
 use huzi_codegen::CodeGen;
 use huzi_lexer::Lexer;
 use huzi_parser::Parser as HuziParser;
+use huzc::load_modules;
 use inkwell::context::Context;
 use linker::{link, run_command};
 use paths::OutputPaths;
@@ -34,7 +34,7 @@ fn main() {
         .parent()
         .unwrap_or(Path::new("."))
         .to_path_buf();
-    let imported = modules::load_modules(&mut program, &base_dir);
+    let imported = load_modules(&mut program, &base_dir);
 
     // [3/5] Compiling
     if !quiet {

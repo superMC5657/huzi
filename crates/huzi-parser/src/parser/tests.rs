@@ -1,5 +1,6 @@
 use super::*;
 use huzi_ast::*;
+use huzi_error::HuziError;
 use huzi_lexer::Lexer;
 
 fn parse(src: &str) -> Program {
@@ -9,6 +10,13 @@ fn parse(src: &str) -> Program {
     Parser::new(tokens)
         .parse()
         .unwrap_or_else(|e| panic!("unexpected parse error: {}", e))
+}
+
+fn parse_recoverable(src: &str) -> (Program, Vec<HuziError>) {
+    let tokens = Lexer::new(src.to_string())
+        .tokenize()
+        .unwrap_or_else(|e| panic!("unexpected lex error: {}", e));
+    Parser::new(tokens).parse_recoverable()
 }
 
 #[test]
@@ -88,8 +96,7 @@ fn statements_carry_source_span() {
 
 /// `for x in arr` 应解析为 ForSource::Array。
 #[test]
-fn parses_for_in_array() {
-    let program = parse("fn main() -> i32 {\n    for x in nums {\n        print(x)\n    }\n    return 0\n}");
+fn parses_for_in_array() {    let program = parse("fn main() -> i32 {\n    for x in nums {\n        print(x)\n    }\n    return 0\n}");
     let Stmt::Fn(fn_stmt) = &program.statements[0].node else {
         panic!("expected fn main");
     };
@@ -104,4 +111,49 @@ fn parses_for_in_array() {
         }
     }
     assert!(found_array, "for statement should be present");
+}
+
+/// 双错同报:一次返回 2 个带真实行列的错误,失败语句不入 Program。
+#[test]
+fn recoverable_reports_both_errors_with_positions() {
+    let (program, errors) = parse_recoverable("let x = ; let y = ;");
+    assert_eq!(errors.len(), 2);
+    assert_eq!((errors[0].line(), errors[0].column()), (1, 9));
+    assert_eq!((errors[1].line(), errors[1].column()), (1, 19));
+    assert!(program.statements.is_empty());
+}
+
+/// 错后好语句仍保留,且区间为 `with_range` 起止(第 2 行起始)。
+#[test]
+fn recoverable_keeps_good_statement_after_error() {
+    let (program, errors) = parse_recoverable("let x = ;\nlet y = 2");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(program.statements.len(), 1);
+    let Stmt::Let(let_stmt) = &program.statements[0].node else {
+        panic!("expected the good let statement to survive");
+    };
+    assert_eq!(let_stmt.name, "y");
+    assert_eq!(program.statements[0].span.line, 2);
+    assert_eq!(program.statements[0].span.column, 1);
+}
+
+/// 错误上限截断:40 个坏语句只收集 32 个错后停。
+#[test]
+fn recoverable_caps_errors_at_32() {
+    let src = "let x = ;\n".repeat(40);
+    let (program, errors) = parse_recoverable(&src);
+    assert_eq!(errors.len(), 32);
+    assert!(program.statements.is_empty());
+}
+
+/// 兼容入口仍首错即停:双错下 `parse` 返回第一个错。
+#[test]
+fn parse_still_returns_first_error() {
+    let tokens = Lexer::new("let x = ; let y = ;".to_string())
+        .tokenize()
+        .expect("lexing must succeed");
+    let err = Parser::new(tokens)
+        .parse()
+        .expect_err("double fault must still fail fast");
+    assert_eq!((err.line(), err.column()), (1, 9));
 }

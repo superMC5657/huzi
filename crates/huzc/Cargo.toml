@@ -11,6 +11,10 @@ repository.workspace = true
 name = "huzc"
 path = "src/main.rs"
 
+[lib]
+name = "huzc"
+path = "src/lib.rs"
+
 [dependencies]
 huzi-ast = { path = "../huzi-ast" }
 huzi-lexer = { path = "../huzi-lexer" }
