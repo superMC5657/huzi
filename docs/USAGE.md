@@ -285,15 +285,23 @@ fn main() -> i32 {
 规则：
 
 - **类型**：`Box<T>` 为堆分配泛型指针，`T` 须为具名结构体；在 LLVM 层面表示为指针类型。
+- **嵌套**：支持 `Box<Box<Node>>`（任意层数，每层仍是指针，堆单元逐层持有下一层指针，最内层持有结构体值）；`box(box(Node { ... }))` 逐层分配，`null` 可赋给任意层数的 `Box` 槽。
 - **构造**：`box(expr)` 在堆上分配内存并存入求值结果，返回 `Box<T>`。
 - **null**：表示空指针，适用于变量声明、字段赋值、参数传递与返回值。
-- **赋值**：`Box` 变量及字段赋值受 `let mut` 约束。
-- **比较**：支持与 `null` 进行判空（`x == null` / `x != null`）以及同类型 `Box` 之间的指针比较。
-- **字段访问**：通过点号访问 `Box` 字段时自动解引用（如 `head.next.val`）。
-- **打印**：`Box` 支持整体打印（`print(b)` 递归展开字段，空指针打印为 `null`）；逐字段打印（如 `print(b.val)`）仍然可用。
+- **赋值**：`Box` 变量及字段赋值受 `let mut` 约束；`box(..)` 与槽类型的层数 + 最内层结构名须一致，否则报 `Box type mismatch`（如 `box(box(..))` 不能进 `Box<Node>` 槽）。
+- **比较**：支持与 `null` 进行判空（`x == null` / `x != null`）以及同类型 `Box` 之间的指针比较（嵌套同样是指针比较）。
+- **字段访问**：通过点号访问 `Box` 字段时自动解引用（如 `head.next.val`）；嵌套逐层解引用直达最内层（如 `outer.val` 穿透 `Box<Box<Node>>`）。
+- **打印**：`Box` 支持整体打印（`print(b)` 递归展开字段，空指针打印为 `null`）；嵌套逐层判空后打印最内层结构体；逐字段打印（如 `print(b.val)`）仍然可用。
+- **含 str 字段的结构体**：可整体装箱（`Box<Msg>`，`Msg { tag: str, val: i32 }`），打印与字段访问行为一致。
 - **内存管理**：无 GC；手动释放(`free_box`，详见「内存管理」)，未 free 的内存在进程退出时由 OS 统一回收。
 
-完整示例见 `test/examples/32_box_linked_list.hz`。
+边界（暂不支持，编译期明确报错）：
+
+- `Box<i32>` / `Box<str>` 等非结构体直接包装：报 `Box<T> requires a named struct type`。
+- 含 `vec` 字段的结构体：`vec` 只有局部变量形态（无字段类型语法，写 `v: vec` 报 `Unsupported type: vec`），因此这类结构体无法定义，更无法装箱；`str`/数组/元组字段不受影响。
+- 嵌套中间层不可具名取出：没有显式解引用语法，`Box<Box<Node>>` 只能整体判空/打印/直达最内层字段，无法单独命名中间的 `Box<Node>` 值。
+
+完整示例见 `test/examples/32_box_linked_list.hz`（单层）与 `test/examples/37_box_nest.hz`（嵌套 + 含 `str` 字段装箱）；层数错配的负例见 `test/neg/box_nest_mismatch.compile_fail.hz`。
 
 ## 示例程序
 

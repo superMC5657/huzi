@@ -2,7 +2,7 @@
 //! 内联展开会无限递归,故按结构体类型生成一次性打印机函数
 //! (`huzi_print_struct_<Name>`,判空后递归调用,运行时遇到 null 终止)。
 
-use super::{CodeGen, StructFieldInfo};
+use super::{box_nest::BoxNest, CodeGen, StructFieldInfo};
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 use inkwell::types::BasicTypeEnum;
@@ -86,18 +86,58 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// 结构体 Box 字段的递归打印:null 输出 `null`,非空调用打印机递归。
+    /// 嵌套 Box 指针的判空递归打印:每层判空(null 输出 `null`),
+    /// 到最内层调用结构体打印机;单层退化为 `emit_box_ptr_print`。
+    pub(super) fn emit_box_nest_print(
+        &mut self,
+        ptr: PointerValue<'ctx>,
+        nest: BoxNest<'ctx>,
+    ) -> Result<()> {
+        if nest.depth <= 1 {
+            return self.emit_box_ptr_print(ptr, nest.ultimate);
+        }
+        let function = self.current_function()?;
+        let null_bb = self.context.append_basic_block(function, "box_nest_null");
+        let val_bb = self.context.append_basic_block(function, "box_nest_val");
+        let end_bb = self.context.append_basic_block(function, "box_nest_end");
+        let is_null = self.builder.build_is_null(ptr, "box_nest_isnull").unwrap();
+        self.builder.build_conditional_branch(is_null, null_bb, val_bb).unwrap();
+        self.builder.position_at_end(null_bb);
+        self.emit_printf_text("null")?;
+        self.builder.build_unconditional_branch(end_bb).unwrap();
+        self.builder.position_at_end(val_bb);
+        let ptr_ty: BasicTypeEnum<'ctx> = self
+            .context
+            .ptr_type(inkwell::AddressSpace::default())
+            .into();
+        let inner = self
+            .builder
+            .build_load(ptr_ty, ptr, "box_nest_inner")
+            .unwrap()
+            .into_pointer_value();
+        self.emit_box_nest_print(
+            inner,
+            BoxNest {
+                ultimate: nest.ultimate,
+                depth: nest.depth - 1,
+            },
+        )?;
+        self.builder.build_unconditional_branch(end_bb).unwrap();
+        self.builder.position_at_end(end_bb);
+        Ok(())
+    }
+
+    /// 结构体 Box(含嵌套)字段的递归打印:null 输出 `null`,非空逐层解引用后递归。
     pub(super) fn emit_box_field_print(
         &mut self,
         field_ptr: PointerValue<'ctx>,
         info: &StructFieldInfo<'ctx>,
     ) -> Result<()> {
-        let inner_ty = match &info.ast_ty {
-            Type::Box(inner) => self.type_to_llvm(inner)?,
-            _ => return Err(HuziError::new_global("print() does not support this field type")),
-        };
+        let nest = self
+            .box_nest_of_ast(&info.ast_ty)?
+            .ok_or_else(|| HuziError::new_global("print() does not support this field type"))?;
         let ptr = self.builder.build_load(info.ty, field_ptr, "box_field_ptr").unwrap().into_pointer_value();
-        self.emit_box_ptr_print(ptr, inner_ty)
+        self.emit_box_nest_print(ptr, nest)
     }
 
     /// `print(box_var)` / `print(box_field)` / `print(box(...))` / `print(null)`:
@@ -119,21 +159,21 @@ impl<'ctx> CodeGen<'ctx> {
         self.flush_print_chunk(format_string, args)?;
         if let Expr::Ident(name) = arg {
             let slot = self.scope_lookup(name).ok_or_else(|| self.unknown_variable_error(name))?;
-            let inner = slot.box_inner.ok_or_else(|| HuziError::new_global("print() cannot determine the Box pointee type"))?;
+            let nest = slot.box_inner.ok_or_else(|| HuziError::new_global("print() cannot determine the Box pointee type"))?;
             let ptr = self.builder.build_load(slot.ty, slot.ptr, "box_print_ptr").unwrap().into_pointer_value();
-            self.emit_box_ptr_print(ptr, inner)?;
+            self.emit_box_nest_print(ptr, nest)?;
             return Ok(true);
         }
         if let Expr::FieldAccess(_) = arg {
-            let inner = self.box_inner_of_expr(arg).ok_or_else(|| HuziError::new_global("print() cannot determine the Box pointee type"))?;
+            let nest = self.box_nest_of_expr(arg).ok_or_else(|| HuziError::new_global("print() cannot determine the Box pointee type"))?;
             let (ptr_to_box, box_ty) = self.compile_addr(arg)?;
             let ptr = self.builder.build_load(box_ty, ptr_to_box, "box_print_ptr").unwrap().into_pointer_value();
-            self.emit_box_ptr_print(ptr, inner)?;
+            self.emit_box_nest_print(ptr, nest)?;
             return Ok(true);
         }
         if let Expr::BoxAlloc(inner) = arg {
-            let (ptr_val, pointee_ty) = self.compile_box_alloc(inner, None)?;
-            self.emit_box_ptr_print(ptr_val.into_pointer_value(), pointee_ty)?;
+            let (ptr_val, nest) = self.compile_box_alloc(inner, None)?;
+            self.emit_box_nest_print(ptr_val.into_pointer_value(), nest)?;
             return Ok(true);
         }
         Err(HuziError::new_global("print() does not support this Box value; print its fields instead"))

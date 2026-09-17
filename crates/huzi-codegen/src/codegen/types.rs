@@ -321,8 +321,15 @@ impl<'ctx> CodeGen<'ctx> {
             Type::Array(_, _) => Ok(self.context.ptr_type(AddressSpace::default()).into()),
             // `Box<T>` lowers to a plain pointer to T's LLVM struct; structs
             // holding a Box field are therefore fixed-size and any reference
-            // cycle through Box is legal (see check_type_cycles).
+            // cycle through Box is legal (see check_type_cycles). Nested
+            // `Box<Box<..>>` is also a plain pointer: each layer's heap cell
+            // holds the next layer's pointer, so the layout stays flat.
             Type::Box(inner) => {
+                // 嵌套层直接放行(指针套指针);单层仍须校验具名结构体。
+                if matches!(&**inner, Type::Box(_)) {
+                    self.type_to_llvm(inner)?;
+                    return Ok(self.context.ptr_type(AddressSpace::default()).into());
+                }
                 let inner_ty = self.type_to_llvm(inner)?;
                 if !self.is_box_pointee(inner_ty) {
                     return Err(HuziError::new_global(format!(

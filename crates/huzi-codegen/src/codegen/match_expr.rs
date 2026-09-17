@@ -378,7 +378,7 @@ impl<'ctx> CodeGen<'ctx> {
             _ => None,
         };
         // Box payload 绑定同样记录 pointee,供手臂内的字段解引用。
-        let box_inner = self.box_pointee_of_ast(ast_ty)?;
+        let box_inner = self.box_nest_of_ast(ast_ty)?;
         self.scope_insert(
             binding.to_string(),
             VarSlot {
@@ -417,7 +417,7 @@ impl<'ctx> CodeGen<'ctx> {
                 Type::Array(_, size) => Some(*size as u32),
                 _ => None,
             };
-            let box_inner = self.box_pointee_of_ast(ast_ty)?;
+            let box_inner = self.box_nest_of_ast(ast_ty)?;
             self.scope_insert(
                 binding.to_string(),
                 VarSlot {

@@ -127,8 +127,8 @@ impl<'ctx> CodeGen<'ctx> {
 
         // Box 槽记录 pointee(无标注时由值推导);Box 指针不做字符串元数据标记。
         let box_inner = match &stmt.type_annotation {
-            Some(ann) => self.box_pointee_of_ast(ann)?,
-            None => self.box_inner_of_expr(value_expr),
+            Some(ann) => self.box_nest_of_ast(ann)?,
+            None => self.box_nest_of_expr(value_expr),
         };
         let elem = if box_inner.is_some() {
             None
@@ -170,7 +170,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_store(alloca, ty.const_zero()).unwrap();
 
         let box_inner = match &stmt.type_annotation {
-            Some(ann) => self.box_pointee_of_ast(ann)?,
+            Some(ann) => self.box_nest_of_ast(ann)?,
             None => None,
         };
         let elem = if box_inner.is_some() {
@@ -244,7 +244,7 @@ impl<'ctx> CodeGen<'ctx> {
                 _ => None,
             };
             // Box 形参记录 pointee,供函数体内的字段解引用。
-            let box_inner = self.box_pointee_of_ast(&param.param_type)?;
+            let box_inner = self.box_nest_of_ast(&param.param_type)?;
 
             self.scopes.last_mut().unwrap().insert(
                 param.name.clone(),

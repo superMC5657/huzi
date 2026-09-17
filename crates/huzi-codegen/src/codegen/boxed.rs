@@ -1,13 +1,15 @@
-//! `Box<T>` + `null`:堆分配智能指针,支持自引用结构体(典型用例:单链表)。
+//! `Box<T>` + `null`:堆分配智能指针,支持自引用结构体(典型用例:单链表)
+//! 与嵌套 `Box<Box<Node>>`(每层仍是指针,堆单元逐层持有下一层指针)。
 //!
-//! 表示:`Box<T>` 降为普通指针(`ty` 为 ptr),pointee 结构体类型记录在
-//! 变量槽的 `box_inner` 标记(变量)或字段的 `ast_ty`(结构体字段)中。
-//! `box(expr)` 求值后 `malloc` 存入并返回指针(复用 `vec.rs` 的堆分配
-//! 模式);`null` 为空指针常量,只能出现在 `Box<T>` 期望位置。
-//! 字段读写逐层自动解引用;`==`/`!=` 支持 Box vs null(判空)与
-//! Box vs Box(比指针)。不做 `free`/GC(泄漏可接受,见 USAGE)。
+//! 表示:`Box<T>` 降为普通指针(`ty` 为 ptr),嵌套层数与最内层 pointee
+//! 结构体记录在变量槽的 `box_inner: BoxNest`(变量)或字段的 `ast_ty`
+//! (结构体字段,按需解析)中。`box(expr)` 求值后 `malloc` 存入并返回
+//! 指针(复用 `vec.rs` 的堆分配模式);`null` 为空指针常量,只能出现在
+//! `Box<T>` 期望位置。字段读写逐层自动解引用;`==`/`!=` 支持 Box vs
+//! null(判空)与 Box vs Box(比指针)。不做 `free`/GC(泄漏可接受,见 USAGE)。
+//! 中间层 Box 不可具名取出:嵌套整体判空/打印/直达最内层字段,保持不透明。
 
-use super::{CodeGen, VarSlot};
+use super::{box_nest::BoxNest, CodeGen, VarSlot};
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 use inkwell::types::BasicTypeEnum;
@@ -33,25 +35,6 @@ impl<'ctx> CodeGen<'ctx> {
     /// AST 类型是否为 `Box<_>`。
     pub(super) fn is_box_ast(ty: &Type) -> bool {
         matches!(ty, Type::Box(_))
-    }
-
-    /// `Box` 的 pointee 结构体名(单层;嵌套在解析期已拒绝)。
-    pub(super) fn box_inner_name(ty: &Type) -> Option<&str> {
-        match ty {
-            Type::Box(inner) => match &**inner {
-                Type::Named(n) => Some(n),
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    /// AST 类型对应的 Box pointee LLVM 类型(`Box` -> inner 结构体,其它 -> None)。
-    pub(super) fn box_pointee_of_ast(&self, ty: &Type) -> Result<Option<BasicTypeEnum<'ctx>>> {
-        match ty {
-            Type::Box(inner) => Ok(Some(self.type_to_llvm(inner)?)),
-            _ => Ok(None),
-        }
     }
 
     /// 表达式是否为 `null` 字面量。
@@ -85,50 +68,9 @@ impl<'ctx> CodeGen<'ctx> {
             .map(|f| f.ast_ty.clone())
     }
 
-    /// 表达式的 Box pointee LLVM 类型(Box 变量槽 / Box 字段,其它为 None)。
-    pub(super) fn box_inner_of_expr(&self, expr: &Expr) -> Option<BasicTypeEnum<'ctx>> {
-        match expr {
-            Expr::Ident(name) => self.scope_lookup(name)?.box_inner,
-            Expr::FieldAccess(fa) => {
-                let ast = self.field_ast_type(&fa.base, &fa.field)?;
-                match ast {
-                    Type::Box(inner) => self.type_to_llvm(&inner).ok(),
-                    _ => None,
-                }
-            }
-            _ => None,
-        }
-    }
-
-    /// LLVM 结构体类型反查注册名(供 `box(变量)` 的结构名校验)。
-    fn struct_name_of_llvm(&self, ty: BasicTypeEnum<'ctx>) -> Option<String> {
-        let st = match ty {
-            BasicTypeEnum::StructType(st) => st,
-            _ => return None,
-        };
-        self.structs
-            .iter()
-            .find(|(_, (def_st, _))| *def_st == st)
-            .map(|(name, _)| name.clone())
-    }
-
-    /// `box(inner)` 内层值的结构体名(字面量取名;结构体变量反查;其它未知)。
-    fn box_value_struct_name(&self, inner: &Expr) -> Option<String> {
-        match inner {
-            Expr::StructLiteral(sl) => Some(sl.name.clone()),
-            Expr::Ident(name) => {
-                let slot = self.scope_lookup(name)?;
-                if slot.box_inner.is_some() {
-                    return None;
-                }
-                self.struct_name_of_llvm(slot.ty)
-            }
-            _ => None,
-        }
-    }
-
     /// 编译前校验 `box(..)`/`null` 与期望 AST 类型相容。LLVM 层面
-    /// `Box<Node>` 与 `Box<Other>` 都是指针,此处做结构名比对补位。
+    /// `Box<Node>` 与 `Box<Other>` 都是指针,此处做层数 + 结构名比对补位。
+    /// 嵌套层数不一致(如 `box(box(..))` 进 `Box<Node>` 槽)同样报错。
     pub(super) fn check_box_assignable(&self, value_expr: &Expr, expected: &Type) -> Result<()> {
         match value_expr {
             Expr::Null => {
@@ -141,41 +83,65 @@ impl<'ctx> CodeGen<'ctx> {
                 Ok(())
             }
             Expr::BoxAlloc(inner) => {
-                let expected_name = Self::box_inner_name(expected);
-                match (self.box_value_struct_name(inner), expected_name) {
-                    (_, None) => Err(HuziError::new_global(format!(
+                if !Self::is_box_ast(expected) {
+                    return Err(HuziError::new_global(format!(
                         "Cannot assign a Box value to non-Box type '{}'; use a `: Box<...>` slot",
                         expected
-                    ))),
-                    (Some(a), Some(b)) if a != b => Err(HuziError::new_global(format!(
-                        "Box type mismatch: value holds '{}', but the slot expects 'Box<{}>'",
-                        a, b
-                    ))),
-                    _ => Ok(()),
+                    )));
                 }
+                self.check_box_nest_match(inner, expected)
             }
             _ => Ok(()),
         }
     }
 
-    /// `box(expr)` — 求值后在堆上分配单个 pointee 并存入,返回 Box 指针。
-    /// 有 AST 期望(`Box<T>`)时把 inner 协调到 `T`,否则由 inner 值推导。
+    /// `box(E)` 实际形状与期望 `Box` 形状的层数 + 结构名比对。
+    /// 内容不可推导(如函数调用结果)时跳过,交由 LLVM 层决定。
+    fn check_box_nest_match(&self, inner: &Expr, expected: &Type) -> Result<()> {
+        let (edepth, ename) = Self::box_ast_shape(expected).ok_or_else(|| {
+            HuziError::new_global(format!(
+                "Cannot assign a Box value to non-Box type '{}'; use a `: Box<...>` slot",
+                expected
+            ))
+        })?;
+        let Some((adepth, aname)) = self.box_content_shape(inner) else {
+            return Ok(());
+        };
+        if adepth != edepth || aname != ename {
+            return Err(HuziError::new_global(format!(
+                "Box type mismatch: value holds '{}', but the slot expects '{}'",
+                Self::display_box_nest(adepth, &aname),
+                expected
+            )));
+        }
+        Ok(())
+    }
+
+    /// `box(expr)` — 求值后在堆上分配单个内容单元并存入,返回 Box 指针。
+    /// 有 AST 期望(`Box<T>`,可嵌套)时把 inner 协调到直接内容类型;
+    /// 否则由内容推导嵌套(结构体内容 1 层,Box 内容层数 +1)。
+    /// 返回新 Box 值的嵌套描述(层数 + 最内层结构体)。
     pub(super) fn compile_box_alloc(
         &mut self,
         inner: &Expr,
         expected: Option<&Type>,
-    ) -> Result<(BasicValueEnum<'ctx>, BasicTypeEnum<'ctx>)> {
+    ) -> Result<(BasicValueEnum<'ctx>, BoxNest<'ctx>)> {
         if Self::is_null_expr(inner) {
             return Err(HuziError::new_global(
                 "box(null) is meaningless; use `null` directly for an empty Box slot",
             ));
         }
         let mut val = self.compile_expr(inner)?;
-        let pointee_ty = match expected {
-            Some(Type::Box(t)) => {
+        let nest = match expected {
+            Some(exp @ Type::Box(t)) => {
                 let target = self.type_to_llvm(t)?;
                 val = self.coerce_value(target, val)?;
-                target
+                self.box_nest_of_ast(exp)?.ok_or_else(|| {
+                    HuziError::new_global(format!(
+                        "Cannot assign a Box value to non-Box type '{}'; use a `: Box<...>` slot",
+                        exp
+                    ))
+                })?
             }
             Some(other) => {
                 return Err(HuziError::new_global(format!(
@@ -183,21 +149,32 @@ impl<'ctx> CodeGen<'ctx> {
                     other
                 )))
             }
-            None => val.get_type(),
+            None => {
+                let content = self.box_content_nest(inner).ok_or_else(|| {
+                    HuziError::new_global(format!(
+                        "box() requires a struct value (found '{}'); write box(Node {{ ... }})",
+                        val.get_type()
+                    ))
+                })?;
+                BoxNest {
+                    ultimate: content.ultimate,
+                    depth: content.depth + 1,
+                }
+            }
         };
-        if !self.is_box_pointee(pointee_ty) {
-            return Err(HuziError::new_global(format!(
-                "box() requires a struct value (found '{}'); write box(Node {{ ... }})",
-                val.get_type()
-            )));
-        }
+        // 堆单元类型:单层为结构体,嵌套为指针(持有下一层指针)。
+        let cell_ty = if nest.depth == 1 {
+            nest.ultimate
+        } else {
+            self.context.ptr_type(inkwell::AddressSpace::default()).into()
+        };
         let one = self.context.i32_type().const_int(1, false);
         let heap = self
             .builder
-            .build_array_malloc(pointee_ty, one, "box_alloc")
+            .build_array_malloc(cell_ty, one, "box_alloc")
             .map_err(|_| HuziError::new_global("Failed to allocate Box storage"))?;
         self.builder.build_store(heap, val).unwrap();
-        Ok((heap.into(), pointee_ty))
+        Ok((heap.into(), nest))
     }
 
     /// 空指针常量(LLVM 层面与 `str` 同为指针,合法性由各期望位置校验)。
@@ -209,7 +186,8 @@ impl<'ctx> CodeGen<'ctx> {
             .into())
     }
 
-    /// 取址后若基址是 Box 则自动解引用(装载堆指针,类型切为 pointee)。
+    /// 取址后若基址是 Box 则自动解引用:按嵌套层数逐层装载堆指针,
+    /// 最终类型切为最内层 pointee(`outer.val` 可穿透 `Box<Box<Node>>`)。
     pub(super) fn compile_addr_deref(
         &mut self,
         expr: &Expr,
@@ -217,16 +195,25 @@ impl<'ctx> CodeGen<'ctx> {
         inkwell::values::PointerValue<'ctx>,
         BasicTypeEnum<'ctx>,
     )> {
-        let (ptr, ty) = self.compile_addr(expr)?;
-        if let Some(inner) = self.box_inner_of_expr(expr) {
+        let (mut ptr, slot_ty) = self.compile_addr(expr)?;
+        let Some(nest) = self.box_nest_of_expr(expr) else {
+            return Ok((ptr, slot_ty));
+        };
+        let mut load_ty = slot_ty;
+        let ptr_ty: BasicTypeEnum<'ctx> = self
+            .context
+            .ptr_type(inkwell::AddressSpace::default())
+            .into();
+        for _ in 0..nest.depth {
             let loaded = self
                 .builder
-                .build_load(ty, ptr, "box_deref")
+                .build_load(load_ty, ptr, "box_deref")
                 .unwrap()
                 .into_pointer_value();
-            return Ok((loaded, inner));
+            ptr = loaded;
+            load_ty = ptr_ty;
         }
-        Ok((ptr, ty))
+        Ok((ptr, nest.ultimate))
     }
 
     /// `==`/`!=` 的 Box 路径:Box vs null 判空,Box vs Box 比指针。
@@ -303,7 +290,7 @@ impl<'ctx> CodeGen<'ctx> {
             )));
         }
         let ptr_ty = self.type_to_llvm(ann)?;
-        let box_inner = self.box_pointee_of_ast(ann)?;
+        let box_inner = self.box_nest_of_ast(ann)?;
         let alloca = self.build_alloca(ptr_ty, &stmt.name)?;
         self.builder.build_store(alloca, ptr_ty.const_zero()).unwrap();
         self.scope_insert(
@@ -322,44 +309,45 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// `let x[: Box<T>] = box(inner)` — 有标注时校验 inner 与 T,无标注时推导。
+    /// 嵌套标注(`Box<Box<Node>>`)记录层数 + 最内层,供后续逐层解引用。
     pub(super) fn compile_let_box(&mut self, stmt: &LetStmt, inner: &Expr, span: Span) -> Result<()> {
         if let Some(ann) = &stmt.type_annotation {
             self.check_box_assignable(&Expr::BoxAlloc(Box::new(inner.clone())), ann)?;
-            let (val, _) = self.compile_box_alloc(inner, Some(ann))?;
+            let (val, nest) = self.compile_box_alloc(inner, Some(ann))?;
             let ptr_ty = self.type_to_llvm(ann)?;
-            let box_inner = self.box_pointee_of_ast(ann)?;
-            let alloca = self.build_alloca(ptr_ty, &stmt.name)?;
-            self.builder.build_store(alloca, val).unwrap();
-            self.scope_insert(
-                stmt.name.clone(),
-                VarSlot {
-                    ptr: alloca,
-                    ty: ptr_ty,
-                    elem: None,
-                    array_len: None,
-                    mutable: stmt.mutable,
-                    box_inner,
-                },
-            );
-            self.declare_local(&stmt.name, alloca, ptr_ty, span);
+            self.insert_box_slot(&stmt.name, ptr_ty, val, nest, stmt.mutable, span)?;
             return Ok(());
         }
-        let (val, pointee_ty) = self.compile_box_alloc(inner, None)?;
+        let (val, nest) = self.compile_box_alloc(inner, None)?;
         let var_ty = val.get_type();
-        let alloca = self.build_alloca(var_ty, &stmt.name)?;
+        self.insert_box_slot(&stmt.name, var_ty, val, nest, stmt.mutable, span)?;
+        Ok(())
+    }
+
+    /// Box 变量槽插入(标注/推导路径共用):指针类型 + 嵌套描述。
+    fn insert_box_slot(
+        &mut self,
+        name: &str,
+        slot_ty: BasicTypeEnum<'ctx>,
+        val: BasicValueEnum<'ctx>,
+        nest: BoxNest<'ctx>,
+        mutable: bool,
+        span: Span,
+    ) -> Result<()> {
+        let alloca = self.build_alloca(slot_ty, name)?;
         self.builder.build_store(alloca, val).unwrap();
         self.scope_insert(
-            stmt.name.clone(),
+            name.to_string(),
             VarSlot {
                 ptr: alloca,
-                ty: var_ty,
+                ty: slot_ty,
                 elem: None,
                 array_len: None,
-                mutable: stmt.mutable,
-                box_inner: Some(pointee_ty),
+                mutable,
+                box_inner: Some(nest),
             },
         );
-        self.declare_local(&stmt.name, alloca, var_ty, span);
+        self.declare_local(name, alloca, slot_ty, span);
         Ok(())
     }
 }

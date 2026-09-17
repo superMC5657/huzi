@@ -200,20 +200,14 @@ impl Parser {
         Ok(ty)
     }
 
-    /// 解析 `Box` 后的 `<T>`(调用时 `<` 尚未消费)。`T` 须为具名
-    /// 结构体,嵌套 `Box<Box<..>>` 暂不支持。
+    /// 解析 `Box` 后的 `<T>`(调用时 `<` 尚未消费)。`T` 为具名
+    /// 结构体或嵌套 `Box<..>`(递归,最内层须为具名结构体);
+    /// 词法上 `>>` 为两个 `Greater`,内外层各消费一个。
     fn parse_box_type(&mut self) -> Result<Type> {
         self.advance(); // consume '<'
         let inner = self.parse_type()?;
         match &inner {
-            Type::Named(_) => {}
-            Type::Box(_) => {
-                return Err(HuziError::new(
-                    "Nested Box<Box<..>> is not supported yet; use a struct field instead",
-                    self.current_line(),
-                    self.current_col(),
-                ))
-            }
+            Type::Named(_) | Type::Box(_) => {}
             _ => {
                 return Err(HuziError::new(
                     format!("Box<T> requires a named struct type (found '{}')", inner),

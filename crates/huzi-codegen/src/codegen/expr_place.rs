@@ -225,18 +225,18 @@ impl<'ctx> CodeGen<'ctx> {
         match expr {
             Expr::Ident(name) => {
                 let slot = self.scope_lookup(name)?;
-                if let Some(inner) = slot.box_inner {
-                    return self.struct_def_by_type(inner);
+                if let Some(nest) = slot.box_inner {
+                    return self.struct_def_by_type(nest.ultimate);
                 }
                 self.struct_def_by_type(slot.ty)
             }
             Expr::FieldAccess(fa) => {
                 let (_, fields) = self.struct_def_of_expr(&fa.base)?;
                 let info = fields.iter().find(|info| info.name == fa.field)?;
-                // Box 字段:pointee 才是下一层的结构体。
-                if let Type::Box(inner) = &info.ast_ty {
-                    let inner_ty = self.type_to_llvm(inner).ok()?;
-                    return self.struct_def_by_type(inner_ty);
+                // Box(含嵌套)字段:最内层 pointee 才是下一层结构体。
+                if Self::is_box_ast(&info.ast_ty) {
+                    let nest = self.box_nest_of_ast(&info.ast_ty).ok()??;
+                    return self.struct_def_by_type(nest.ultimate);
                 }
                 self.struct_def_by_type(info.ty)
             }

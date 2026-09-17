@@ -57,6 +57,7 @@ fn module_fn_statements(program: &Program) -> Vec<(FnStmt, Span)> {
 mod aggregates;
 mod args;
 mod args_utf8;
+mod box_nest;
 mod box_print;
 mod boxed;
 mod builtins;
@@ -90,7 +91,8 @@ mod vec_ops;
 /// `ty`. For arrays, `ptr` holds the address of the array data (loaded as a
 /// `ptr`), and `elem` records the element type for GEP/indexing. For
 /// `Box<T>` variables, `ty` is a plain pointer and `box_inner` records the
-/// pointee struct type so field access can auto-deref.
+/// nested pointee (see `box_nest::BoxNest`) so field access can
+/// auto-deref through every layer.
 #[derive(Clone, Copy)]
 struct VarSlot<'ctx> {
     ptr: PointerValue<'ctx>,
@@ -98,7 +100,7 @@ struct VarSlot<'ctx> {
     elem: Option<inkwell::types::BasicTypeEnum<'ctx>>,
     array_len: Option<u32>,
     mutable: bool,
-    box_inner: Option<inkwell::types::BasicTypeEnum<'ctx>>,
+    box_inner: Option<box_nest::BoxNest<'ctx>>,
 }
 
 /// A registered struct field. `ast_ty` keeps the original AST type because

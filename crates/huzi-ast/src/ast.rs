@@ -15,7 +15,9 @@ pub enum Type {
     Named(String),
     Array(Box<Type>, usize), // Array<ElementType, Size>
     Tuple(Vec<Type>),
-    /// 堆分配智能指针:`Box<Node>`(仅支持具名结构体,不支持嵌套)。
+    /// 堆分配智能指针:`Box<Node>`(具名结构体)或嵌套 `Box<Box<Node>>`
+    /// (每层仍是指针,最内层须为具名结构体);`Box<i32>` 等非结构体
+    /// 直接包装与 `vec` 字段类型不受支持。
     Box(Box<Type>),
 }
 
