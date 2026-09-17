@@ -42,9 +42,10 @@ pub struct Args {
     #[arg(short, long)]
     pub input: String,
 
-    /// Output file name (without extension)
-    #[arg(short, long, default_value = "a")]
-    pub output: String,
+    /// Output file name (without extension). Defaults to the input
+    /// file stem (`--input foo/bar.hz` -> `bar[.exe]` in cwd).
+    #[arg(short, long)]
+    pub output: Option<String>,
 
     /// Linker to use (defaults to msvc on Windows, clang on macOS/Linux)
     #[arg(short, long, value_enum, default_value_t = LinkerKind::platform_default())]
@@ -68,6 +69,25 @@ pub struct Args {
 }
 
 impl Args {
+    /// Effective output base name: explicit `--output` wins, otherwise the
+    /// input file stem (`foo/bar.hz` -> `bar`). Dies when the input path
+    /// has no file stem instead of silently falling back.
+    pub fn effective_output(&self) -> String {
+        if let Some(out) = &self.output {
+            return out.clone();
+        }
+        std::path::Path::new(&self.input)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| {
+                crate::die(format!(
+                    "无法从输入路径推导输出名,请显式指定 --output: {}",
+                    self.input
+                ))
+            })
+    }
+
     /// Effective LLVM opt level: explicit `--opt-level` wins over `--release`.
     /// `-g` forces level 0 to keep line info accurate.
     pub fn effective_opt_level(&self) -> u8 {

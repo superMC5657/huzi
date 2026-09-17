@@ -70,7 +70,7 @@ fn main() {
     if !quiet {
         println!("[4/5] Verifying...");
     }
-    let paths = OutputPaths::new(&args.output);
+    let paths = OutputPaths::new(&args.effective_output());
     write_ir(&codegen, &paths.ll_path);
     if !codegen.verify() {
         die("Error: LLVM module verification failed (this is a compiler bug)".to_string());

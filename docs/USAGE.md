@@ -47,7 +47,7 @@ cargo run --release --bin huzc -- --input examples/hello.hz -o out/hello
 | 选项 | 说明 | 示例 |
 |------|------|------|
 | `--input <file>` | 输入的 .hz 源文件 | `--input hello.hz` |
-| `-o <name>` | 输出文件基础名 (自动添加平台扩展名) | `-o hello` → `hello.exe` (Windows) |
+| `-o <name>` | 输出文件基础名 (自动添加平台扩展名)；缺省取输入文件名去后缀 (`--input foo.hz` → `foo[.exe]`) | `-o hello` → `hello.exe` (Windows) |
 | `--release` (`-r`) | Release 模式：生成代码前先用 `opt -O2` 优化 LLVM IR，运行速度显著更快；编译过程不打印任何日志（错误仍输出到 stderr）。默认 dev 模式不做 IR 优化并打印编译进度 | `huzc --input main.hz -o main --release` |
 | `--opt-level <0-3>` | LLVM 优化级别,覆盖 `--release` 的默认级别 2;`--opt-level 0` 等价于 dev 模式 | `huzc --input main.hz -o main --opt-level 3` |
 | `--debug` (`-g`) | 调试模式：在可执行文件中嵌入 DWARF 调试信息(编译单元、行号表、变量),可用 GDB/LLDB 断点单步;隐含 `--opt-level 0`(优化会打乱行号对应),链接器自动加调试参数 | `huzc --input main.hz -o main -g` |
