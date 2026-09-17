@@ -31,6 +31,10 @@ impl<'ctx> CodeGen<'ctx> {
             Expr::StructLiteral(sl) => self.compile_struct_literal(sl),
             Expr::EnumConstruct(ec) => self.compile_enum_construct(ec),
             Expr::Match(m) => self.compile_match_expr(m),
+            Expr::MethodCall(mc) => Err(HuziError::new_global(format!(
+                "Unresolved method call '{}'",
+                mc.method
+            ))),
         }
     }
 

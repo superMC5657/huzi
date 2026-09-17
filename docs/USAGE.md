@@ -343,6 +343,39 @@ fn main() -> i32 {
 
 完整示例见 `test/examples/32_box_linked_list.hz`（单层）与 `test/examples/37_box_nest.hz`（嵌套 + 含 `str` 字段装箱）；层数错配的负例见 `test/neg/box_nest_mismatch.compile_fail.hz`。
 
+### 8. Trait 与静态分发
+
+Huzi 支持零开销的静态分发 Trait 机制（通过编译期方法脱糖实现，无虚表运行时开销）：
+
+```python
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+trait Printable {
+    fn show(self) -> str
+}
+
+impl Printable for Point {
+    fn show(self) -> str {
+        return concat("Point(", concat(to_string(self.x), concat(", ", concat(to_string(self.y), ")"))))
+    }
+}
+
+fn main() -> i32 {
+    let p = Point { x: 3, y: 4 }
+    print(p.show()) # 输出: Point(3, 4)
+    return 0
+}
+```
+
+规则：
+- **声明与实现**：`trait TraitName { fn method(self, ...) -> Ret }`，并通过 `impl TraitName for StructName { ... }` 给出具体实现。
+- **静态分发**：方法调用 `receiver.method(...)` 在编译期静态重写为对应类型的函数调用 `StructName__method(receiver, ...)`，执行效率等同于直接函数调用。
+- **完备性检查**：`impl` 必须实现 Trait 声明的所有方法，且参数数量与返回类型必须匹配。
+- **冲突检测**：同一类型实现多个 Trait 时，若存在同名方法，编译器直接报错拒绝。
+
 ## 示例程序
 
 ### Hello World

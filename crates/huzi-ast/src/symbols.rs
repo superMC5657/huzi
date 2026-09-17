@@ -16,6 +16,7 @@ pub enum SymbolKind {
     Variable,
     Param,
     Module,
+    Trait,
 }
 
 /// 单个符号:名字、种类、源码区间与签名串。
@@ -46,6 +47,27 @@ fn collect_top_level(stmt: &crate::ast::Spanned<Stmt>, out: &mut Vec<Symbol>) {
         Stmt::Fn(f) => collect_fn(stmt.span, f, out),
         Stmt::Struct(d) => collect_struct(stmt.span, d, out),
         Stmt::Enum(d) => collect_enum(stmt.span, d, out),
+        Stmt::Trait(t) => {
+            out.push(Symbol {
+                name: t.name.clone(),
+                kind: SymbolKind::Trait,
+                span: stmt.span,
+                detail: format!("trait {}", t.name),
+            });
+            for m in &t.methods {
+                out.push(Symbol {
+                    name: m.name.clone(),
+                    kind: SymbolKind::Function,
+                    span: stmt.span,
+                    detail: format!("fn {}(...)", m.name),
+                });
+            }
+        }
+        Stmt::Impl(i) => {
+            for m in &i.methods {
+                collect_fn(stmt.span, m, out);
+            }
+        }
         Stmt::Let(l) => out.push(let_symbol(stmt.span, l)),
         Stmt::Import(i) => out.push(Symbol {
             name: i.name.clone(),
@@ -176,7 +198,7 @@ fn collect_block(block: &Block, out: &mut Vec<Symbol>) {
                 };
                 collect_block(&synthetic_block, out);
             }
-            Stmt::Expr(_) | Stmt::Return(_) | Stmt::Break | Stmt::Continue => {}
+            Stmt::Trait(_) | Stmt::Impl(_) | Stmt::Expr(_) | Stmt::Return(_) | Stmt::Break | Stmt::Continue => {}
         }
     }
 }

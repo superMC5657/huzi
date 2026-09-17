@@ -309,6 +309,7 @@ fn to_symbol_kind(kind: HuziSymbolKind) -> SymbolKind {
         HuziSymbolKind::Enum => SymbolKind::ENUM,
         HuziSymbolKind::Variant => SymbolKind::ENUM_MEMBER,
         HuziSymbolKind::Module => SymbolKind::MODULE,
+        HuziSymbolKind::Trait => SymbolKind::INTERFACE,
         HuziSymbolKind::Variable | HuziSymbolKind::Param => SymbolKind::VARIABLE,
     }
 }

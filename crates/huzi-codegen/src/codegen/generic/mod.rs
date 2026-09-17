@@ -319,6 +319,12 @@ impl Monomorphizer {
                     self.monomorphize_block(&mut arm.body)?;
                 }
             }
+            Expr::MethodCall(m) => {
+                self.monomorphize_expr(&mut m.receiver)?;
+                for a in &mut m.arguments {
+                    self.monomorphize_expr(a)?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -367,6 +373,11 @@ impl Monomorphizer {
                 self.monomorphize_block(&mut w.body)?;
             }
             Stmt::Defer(d) => self.monomorphize_stmt(&mut d.node)?,
+            Stmt::Impl(i) => {
+                for m in &mut i.methods {
+                    self.monomorphize_block(&mut m.body)?;
+                }
+            }
             _ => {}
         }
         Ok(())

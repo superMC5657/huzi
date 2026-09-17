@@ -170,6 +170,159 @@ impl Parser {
         Ok(Stmt::Enum(EnumDef { name, variants }))
     }
 
+    pub(super) fn parse_trait_statement(&mut self) -> Result<Stmt> {
+        self.advance();
+        let name = self.expect_ident("Expected trait name after 'trait'")?;
+        self.expect(&Token::LBrace, "Expected '{' after trait name")?;
+
+        let mut methods = Vec::new();
+        while !self.check(&Token::RBrace) && !self.is_at_end() {
+            self.expect(&Token::Fn, "Expected 'fn' in trait definition")?;
+            let method_name = self.expect_ident("Expected method name in trait definition")?;
+            self.expect(&Token::LParen, "Expected '(' after method name")?;
+
+            let mut has_self = false;
+            let mut params = Vec::new();
+
+            if !self.check(&Token::RParen) {
+                let is_self = match self.peek() {
+                    Token::Ident(pname) if pname == "self" => true,
+                    _ => false,
+                };
+                if is_self {
+                    self.advance();
+                    has_self = true;
+                    if self.check(&Token::Colon) {
+                        self.advance();
+                        self.parse_type()?;
+                    }
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    }
+                }
+
+                while !self.check(&Token::RParen) && !self.is_at_end() {
+                    let pname = self.expect_ident("Expected parameter name")?;
+                    self.expect(&Token::Colon, "Expected ':' after parameter name")?;
+                    let ptype = self.parse_type()?;
+                    params.push(FnParam {
+                        name: pname,
+                        param_type: ptype,
+                    });
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect(&Token::RParen, "Expected ')' after trait method parameters")?;
+
+            let return_type = if self.check(&Token::Arrow) {
+                self.advance();
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+
+            if self.check(&Token::Semi) {
+                self.advance();
+            }
+
+            methods.push(TraitMethodDef {
+                name: method_name,
+                has_self,
+                params,
+                return_type,
+            });
+        }
+
+        self.expect(&Token::RBrace, "Expected '}' after trait methods")?;
+        Ok(Stmt::Trait(TraitDef { name, methods }))
+    }
+
+    pub(super) fn parse_impl_statement(&mut self) -> Result<Stmt> {
+        self.advance();
+        let trait_name = self.expect_ident("Expected trait name after 'impl'")?;
+        self.expect(&Token::For, "Expected 'for' after trait name in impl")?;
+        let target_type = self.expect_ident("Expected target type after 'for'")?;
+        self.expect(&Token::LBrace, "Expected '{' after target type in impl")?;
+
+        let mut methods = Vec::new();
+        while !self.check(&Token::RBrace) && !self.is_at_end() {
+            self.expect(&Token::Fn, "Expected 'fn' in impl block")?;
+            let method_name = self.expect_ident("Expected method name in impl block")?;
+            self.expect(&Token::LParen, "Expected '(' after method name")?;
+
+            let mut params = Vec::new();
+            if !self.check(&Token::RParen) {
+                let is_self = match self.peek() {
+                    Token::Ident(pname) if pname == "self" => true,
+                    _ => false,
+                };
+                if is_self {
+                    self.advance();
+                    let self_type = if self.check(&Token::Colon) {
+                        self.advance();
+                        self.parse_type()?
+                    } else {
+                        Type::Named(target_type.clone())
+                    };
+                    params.push(FnParam {
+                        name: "self".to_string(),
+                        param_type: self_type,
+                    });
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    }
+                }
+
+                while !self.check(&Token::RParen) && !self.is_at_end() {
+                    let pname = self.expect_ident("Expected parameter name")?;
+                    self.expect(&Token::Colon, "Expected ':' after parameter name")?;
+                    let ptype = self.parse_type()?;
+                    params.push(FnParam {
+                        name: pname,
+                        param_type: ptype,
+                    });
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect(&Token::RParen, "Expected ')' after parameters")?;
+
+            let return_type = if self.check(&Token::Arrow) {
+                self.advance();
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+
+            let prev_in_fn = self.in_function;
+            self.in_function = true;
+            let body = self.parse_block()?;
+            self.in_function = prev_in_fn;
+
+            methods.push(FnStmt {
+                name: method_name,
+                type_params: Vec::new(),
+                params,
+                return_type,
+                body,
+            });
+        }
+
+        self.expect(&Token::RBrace, "Expected '}' after impl block")?;
+        Ok(Stmt::Impl(ImplBlock {
+            trait_name,
+            target_type,
+            methods,
+        }))
+    }
+
     pub(super) fn parse_fn_statement(&mut self) -> Result<Stmt> {
         self.advance();
 

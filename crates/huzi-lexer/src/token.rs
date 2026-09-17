@@ -20,6 +20,8 @@ pub enum Token {
     Break,
     Continue,
     Defer,
+    Trait,
+    Impl,
     True,
     False,
 

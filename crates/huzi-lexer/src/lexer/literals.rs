@@ -28,6 +28,8 @@ impl Lexer {
             "break" => Token::Break,
             "continue" => Token::Continue,
             "defer" => Token::Defer,
+            "trait" => Token::Trait,
+            "impl" => Token::Impl,
             "true" => Token::True,
             "false" => Token::False,
             "import" => Token::Import,

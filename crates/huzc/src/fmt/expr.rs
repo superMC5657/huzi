@@ -19,6 +19,7 @@ pub(super) fn format_expr(expr: &Expr) -> String {
         Expr::StructLiteral(s) => format_struct_literal(s),
         Expr::EnumConstruct(e) => format_enum_construct(e),
         Expr::Match(m) => format_match_expr(m),
+        Expr::MethodCall(m) => format_method_call(m),
     }
 }
 
@@ -324,4 +325,10 @@ fn format_match_expr(m: &MatchExpr) -> String {
     }
     out.push('}');
     out
+}
+
+fn format_method_call(m: &MethodCallExpr) -> String {
+    let receiver = format_expr(&m.receiver);
+    let args: Vec<_> = m.arguments.iter().map(format_expr).collect();
+    format!("{}.{}({})", receiver, m.method, args.join(", "))
 }

@@ -1,4 +1,5 @@
 mod expr;
+mod expr_generic;
 mod expr_if;
 mod pattern;
 mod stmt;
@@ -136,6 +137,10 @@ impl Parser {
             self.parse_struct_statement()
         } else if self.check_keyword(&[Token::Enum]) {
             self.parse_enum_statement()
+        } else if self.check_keyword(&[Token::Trait]) {
+            self.parse_trait_statement()
+        } else if self.check_keyword(&[Token::Impl]) {
+            self.parse_impl_statement()
         } else if self.check_keyword(&[Token::Fn]) {
             self.parse_fn_statement()
         } else if self.check_keyword(&[Token::Import]) {

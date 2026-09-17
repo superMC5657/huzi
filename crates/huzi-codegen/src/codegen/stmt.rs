@@ -32,6 +32,7 @@ impl<'ctx> CodeGen<'ctx> {
             Stmt::For(for_stmt) => self.compile_for(for_stmt, span),
             Stmt::While(while_stmt) => self.compile_while(while_stmt),
             Stmt::Defer(inner) => self.compile_defer(inner),
+            Stmt::Trait(_) | Stmt::Impl(_) => Ok(()),
         }
     }
 

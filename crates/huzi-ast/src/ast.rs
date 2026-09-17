@@ -186,6 +186,8 @@ pub enum Stmt {
     For(ForStmt),
     While(WhileStmt),
     Defer(Box<Spanned<Stmt>>),
+    Trait(TraitDef),
+    Impl(ImplBlock),
 }
 
 #[derive(Debug, Clone)]
@@ -244,6 +246,27 @@ pub struct EnumVariant {
     /// Payload types: `Red` has none, `Ok(i32)` has one,
     /// `Pair(i32, str)` has several.
     pub payloads: Vec<Type>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TraitDef {
+    pub name: String,
+    pub methods: Vec<TraitMethodDef>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TraitMethodDef {
+    pub name: String,
+    pub has_self: bool,
+    pub params: Vec<FnParam>,
+    pub return_type: Option<Type>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ImplBlock {
+    pub trait_name: String,
+    pub target_type: String,
+    pub methods: Vec<FnStmt>,
 }
 
 #[derive(Debug, Clone)]
@@ -313,6 +336,14 @@ pub enum Expr {
     StructLiteral(StructLiteralExpr),
     EnumConstruct(EnumConstructExpr),
     Match(MatchExpr),
+    MethodCall(MethodCallExpr),
+}
+
+#[derive(Debug, Clone)]
+pub struct MethodCallExpr {
+    pub receiver: Box<Expr>,
+    pub method: String,
+    pub arguments: Vec<Expr>,
 }
 
 /// Enum variant construction: `Color::Red` or `Result::Ok(42)`

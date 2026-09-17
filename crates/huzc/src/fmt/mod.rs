@@ -107,6 +107,37 @@ impl Formatter {
         self.line("}");
     }
 
+    fn format_trait(&mut self, t: &TraitDef) {
+        self.line(&format!("trait {} {{", t.name));
+        self.indent += 1;
+        for m in &t.methods {
+            let mut params = Vec::new();
+            if m.has_self {
+                params.push("self".to_string());
+            }
+            for p in &m.params {
+                params.push(format!("{}: {}", p.name, p.param_type));
+            }
+            let sig = match &m.return_type {
+                Some(ret) => format!("fn {}({}) -> {}", m.name, params.join(", "), ret),
+                None => format!("fn {}({})", m.name, params.join(", ")),
+            };
+            self.line(&sig);
+        }
+        self.indent -= 1;
+        self.line("}");
+    }
+
+    fn format_impl(&mut self, i: &ImplBlock) {
+        self.line(&format!("impl {} for {} {{", i.trait_name, i.target_type));
+        self.indent += 1;
+        for m in &i.methods {
+            self.format_fn(m);
+        }
+        self.indent -= 1;
+        self.line("}");
+    }
+
     fn format_fn(&mut self, f: &FnStmt) {
         let type_params = if f.type_params.is_empty() {
             String::new()
@@ -163,6 +194,8 @@ impl Formatter {
             Stmt::Import(imp) => self.line(&format!("import {}", imp.name)),
             Stmt::Struct(s) => self.format_struct(s),
             Stmt::Enum(e) => self.format_enum(e),
+            Stmt::Trait(t) => self.format_trait(t),
+            Stmt::Impl(i) => self.format_impl(i),
             Stmt::Fn(f) => self.format_fn(f),
         }
     }

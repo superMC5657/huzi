@@ -20,6 +20,7 @@ use crate::analysis::parse_and_collect;
 const KEYWORDS: &[&str] = &[
     "fn", "let", "mut", "if", "elif", "else", "for", "in", "while",
     "return", "break", "continue", "defer", "import", "match", "struct", "enum",
+    "trait", "impl",
 ];
 
 /// `math::` 模块函数(与 codegen libm/libc 声明对齐)。
@@ -186,6 +187,7 @@ fn to_completion_kind(kind: HuziSymbolKind) -> CompletionItemKind {
         HuziSymbolKind::Enum => CompletionItemKind::ENUM,
         HuziSymbolKind::Variant => CompletionItemKind::ENUM_MEMBER,
         HuziSymbolKind::Module => CompletionItemKind::MODULE,
+        HuziSymbolKind::Trait => CompletionItemKind::INTERFACE,
         HuziSymbolKind::Variable | HuziSymbolKind::Param => {
             CompletionItemKind::VARIABLE
         }

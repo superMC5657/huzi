@@ -122,6 +122,8 @@ fn classify(token: &Token, prev: Option<&Token>) -> Option<(u32, u32)> {
         Token::Break => Some((KIND_KEYWORD, 5)),
         Token::Continue => Some((KIND_KEYWORD, 8)),
         Token::Defer => Some((KIND_KEYWORD, 5)),
+        Token::Trait => Some((KIND_KEYWORD, 5)),
+        Token::Impl => Some((KIND_KEYWORD, 4)),
         Token::True => Some((KIND_KEYWORD, 4)),
         Token::False => Some((KIND_KEYWORD, 5)),
         _ => None,
@@ -132,7 +134,7 @@ fn classify(token: &Token, prev: Option<&Token>) -> Option<(u32, u32)> {
 fn ident_kind(prev: Option<&Token>) -> u32 {
     match prev {
         Some(Token::Fn | Token::PathSep) => KIND_FUNCTION,
-        Some(Token::Struct | Token::Enum | Token::Colon | Token::Arrow) => {
+        Some(Token::Struct | Token::Enum | Token::Trait | Token::Colon | Token::Arrow) => {
             KIND_TYPE
         }
         _ => KIND_VARIABLE,
