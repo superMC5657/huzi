@@ -6,7 +6,7 @@
 use huzi_error::Result;
 
 use super::CodeGen;
-use inkwell::values::{BasicMetadataValueEnum, IntValue};
+use inkwell::values::{BasicMetadataValueEnum, IntValue, PointerValue};
 
 impl<'ctx> CodeGen<'ctx> {
     /// 生成"条件成立则继续、否则报错退出"的运行时检查。
@@ -89,6 +89,53 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap();
         let fmt = format!("Runtime error: array index out of bounds (length {})\n\0", len);
         self.emit_runtime_check(cond, &fmt, &[index_i32.into()])
+    }
+
+    /// 字符串下标越界检查:strlen 取字节长度,无符号比较,负下标自然
+    /// 落入失败分支(与 vec 一致)。UTF-8 多字节按字节语义,不做字符语义。
+    pub(super) fn emit_str_bounds_check(
+        &mut self,
+        str_ptr: PointerValue<'ctx>,
+        index_i32: IntValue<'ctx>,
+    ) -> Result<()> {
+        let strlen_fn = self.module.get_function("strlen").expect("strlen in prelude");
+        let len = self
+            .builder
+            .build_call(strlen_fn, &[str_ptr.into()], "str_len")
+            .unwrap()
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_int_value();
+        let cond = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::ULT, index_i32, len, "str_idx_ok")
+            .unwrap();
+        self.emit_runtime_check(cond, "Runtime error: string index out of bounds\n\0", &[])
+    }
+
+    /// 是否为字符串下标:元素为 i8(char)且无编译期数组长度。
+    /// vec 由调用方先行分流,此处遇 vec 直接返回 false;定长 char
+    /// 数组有 array_len,不误判为字符串。
+    pub(super) fn is_string_index(
+        &self,
+        array_expr: &huzi_ast::Expr,
+        elem_type: inkwell::types::BasicTypeEnum<'ctx>,
+    ) -> Result<bool> {
+        if let huzi_ast::Expr::Ident(name) = array_expr {
+            if let Some(slot) = self.scope_lookup(name) {
+                if Self::is_vec_slot(&slot) {
+                    return Ok(false);
+                }
+            }
+        }
+        let is_i8 = matches!(
+            elem_type,
+            inkwell::types::BasicTypeEnum::IntType(t) if t.get_bit_width() == 8
+        );
+        if !is_i8 {
+            return Ok(false);
+        }
+        Ok(self.resolve_array_len(array_expr)?.is_none())
     }
 
     /// 求数组表达式的编译期长度:let 数组变量取槽内记录,结构体字段

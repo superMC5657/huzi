@@ -1,0 +1,12 @@
+# 字符串下标示例:按字节索引,越界报运行时错误(负下标同样报错)。
+# UTF-8 多字节暂按字节语义,不做字符语义。
+
+fn main() -> i32 {
+    let s = "hello"
+    print(s[0])
+    print(s[1])
+    print(s[len(s) - 1])
+    print(len(s))
+    print("hey"[1])
+    0
+}

@@ -223,7 +223,11 @@ impl<'ctx> CodeGen<'ctx> {
         let index_val = self.compile_expr(&expr.index)?;
         let index_i32 = self.coerce_index(index_val)?;
 
-        self.emit_bounds_check(&expr.array, index_i32)?;
+        if self.is_string_index(&expr.array, elem_type)? {
+            self.emit_str_bounds_check(array_ptr_val, index_i32)?;
+        } else {
+            self.emit_bounds_check(&expr.array, index_i32)?;
+        }
 
         // Build GEP to get element pointer
         let elem_ptr = unsafe {

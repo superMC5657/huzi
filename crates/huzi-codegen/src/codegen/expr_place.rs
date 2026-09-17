@@ -54,7 +54,11 @@ impl<'ctx> CodeGen<'ctx> {
                 let index_val = self.compile_expr(&idx_expr.index)?;
                 let index_i32 = self.coerce_index(index_val)?;
 
-                self.emit_bounds_check(&idx_expr.array, index_i32)?;
+                if self.is_string_index(&idx_expr.array, elem_type)? {
+                    self.emit_str_bounds_check(array_ptr, index_i32)?;
+                } else {
+                    self.emit_bounds_check(&idx_expr.array, index_i32)?;
+                }
 
                 let value = self.coerce_value(elem_type, value)?;
 
@@ -112,7 +116,11 @@ impl<'ctx> CodeGen<'ctx> {
                 let index_val = self.compile_expr(&idx_expr.index)?;
                 let index_i32 = self.coerce_index(index_val)?;
 
-                self.emit_bounds_check(&idx_expr.array, index_i32)?;
+                if self.is_string_index(&idx_expr.array, elem_type)? {
+                    self.emit_str_bounds_check(array_ptr, index_i32)?;
+                } else {
+                    self.emit_bounds_check(&idx_expr.array, index_i32)?;
+                }
 
                 let elem_ptr = unsafe {
                     self.builder
