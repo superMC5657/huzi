@@ -1,0 +1,31 @@
+# 36_ergonomics.hz — 人体工学改进
+# (a) 无返回值函数可省略 `->` 类型与 `return`:直接 `fn foo() { ... }`,
+#     调用时作语句使用,其值不可赋给变量(见 test/neg/unit_value_use)。
+# (b) print 支持 Box 整体打印:递归展开字段,空指针打印为 null。
+
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn greet(name: str) {
+    print("hello,", name)
+}
+
+fn bye() {
+    print("bye")
+    return
+}
+
+fn main() -> i32 {
+    greet("huzi")
+    bye()
+    let mut head: Box<Node> = box(Node { val: 1, next: null })
+    head.next = box(Node { val: 2, next: null })
+    print(head)
+    print(head.val, head.next.val)
+    let empty: Box<Node> = null
+    print(empty)
+    print(head.next.next)
+    return 0
+}

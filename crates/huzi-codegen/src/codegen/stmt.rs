@@ -100,6 +100,13 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `let name[: T] = value`.
     fn compile_let_with_value(&mut self, stmt: &LetStmt, value_expr: &Expr, span: Span) -> Result<()> {
+        // 无返回值函数的调用值不可赋给变量(语句位置调用仍放行)。
+        if let Some(name) = self.unit_call_name(value_expr) {
+            return Err(HuziError::new_global(format!(
+                "Function '{}' has no return value and cannot be used as a value; call it as a statement instead",
+                name
+            )));
+        }
         // 有标注时先做 `box`/`null` 的 AST 校验(LLVM 指针无法区分 Box 内外层)。
         if let Some(ann) = &stmt.type_annotation {
             self.check_box_assignable(value_expr, ann)?;
@@ -302,6 +309,19 @@ impl<'ctx> CodeGen<'ctx> {
         }
         self.pop_scope();
         Ok(())
+    }
+
+    /// 无返回值函数(`fn foo() {...}`)的调用名:值位置(`let x = foo()`,
+    /// `x = foo()`)须拒绝,语句位置(`foo()`)放行。非调用返回 None。
+    pub(super) fn unit_call_name(&self, expr: &Expr) -> Option<String> {
+        if let Expr::Call(call) = expr {
+            if let Expr::Ident(name) = &*call.callee {
+                if self.fn_no_return.get(&self.qualify_name(name)).copied().unwrap_or(false) {
+                    return Some(name.clone());
+                }
+            }
+        }
+        None
     }
 
     /// Compile a block as an expression: the block's value is the value of its

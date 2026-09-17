@@ -44,16 +44,9 @@ impl<'ctx> CodeGen<'ctx> {
         let mut args: Vec<inkwell::values::BasicMetadataValueEnum> = Vec::new();
 
         for arg in arguments.iter() {
-            // Box 与 null 不直接打印:引导打印字段(与裸 vec() 的引导策略一致)。
-            if Self::is_null_expr(arg) {
-                return Err(HuziError::new_global(
-                    "print() does not support 'null' directly; print a Box field instead",
-                ));
-            }
-            if self.is_box_expr(arg) {
-                return Err(HuziError::new_global(
-                    "print() does not support a Box<T> value directly; print its fields instead (e.g. print(b.val))",
-                ));
+            // Box 与 null 直接打印:null 输出 `null`,Box 递归展开字段。
+            if self.try_emit_box_arg(arg, &mut format_string, &mut args)? {
+                continue;
             }
             // vec 实参走运行期循环打印(先落盘待定的标量片段)。
             if self.try_emit_vec_arg(arg, &mut format_string, &mut args)? {
@@ -258,7 +251,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 落盘待定的标量片段(无换行),清空缓冲。
-    fn flush_print_chunk(
+    pub(super) fn flush_print_chunk(
         &mut self,
         format_string: &mut String,
         args: &mut Vec<BasicMetadataValueEnum<'ctx>>,
@@ -273,7 +266,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 无参数的纯文本 printf(括号/分隔符/`Name {` 等)。
-    fn emit_printf_text(&mut self, text: &str) -> Result<()> {
+    pub(super) fn emit_printf_text(&mut self, text: &str) -> Result<()> {
         self.call_printf(text, Vec::new());
         Ok(())
     }
@@ -304,7 +297,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 按名查结构体定义,无则报错(调用方已确认是结构体值)。
-    fn struct_name_by_type(&self, ty: BasicTypeEnum<'ctx>) -> Result<String> {
+    pub(super) fn struct_name_by_type(&self, ty: BasicTypeEnum<'ctx>) -> Result<String> {
         let st = match ty {
             BasicTypeEnum::StructType(st) => st,
             _ => return Err(HuziError::new_global("print() does not support this value type")),
@@ -317,7 +310,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// `Name {k1: v1, k2: v2}`:字段编译期展开,逐字段递归打印。
-    fn emit_struct_value(&mut self, value: BasicValueEnum<'ctx>) -> Result<()> {
+    pub(super) fn emit_struct_value(&mut self, value: BasicValueEnum<'ctx>) -> Result<()> {
         let ty = value.get_type();
         let name = self.struct_name_by_type(ty)?;
         let (def_st, fields) = self
@@ -343,17 +336,16 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 单个结构体字段:数组字段按编译期长度展开,其它递归通用分发。
-    fn emit_field_print(
+    pub(super) fn emit_field_print(
         &mut self,
         field_ptr: PointerValue<'ctx>,
         info: &StructFieldInfo<'ctx>,
     ) -> Result<()> {
-        // Box 字段不直接打印(指针内容无意义),引导打印其字段。
+        // Box 字段递归打印(空指针输出 `null`)。
         if Self::is_box_ast(&info.ast_ty) {
-            return Err(HuziError::new_global(
-                "print() does not support a Box<T> field directly; print its fields instead (e.g. print(p.next.val))",
-            ));
-        }        if let Type::Array(elem_ast_ty, size) = &info.ast_ty {
+            return self.emit_box_field_print(field_ptr, info);
+        }
+        if let Type::Array(elem_ast_ty, size) = &info.ast_ty {
             let elem_ty = self.type_to_llvm(elem_ast_ty)?;
             let arr_ptr = self
                 .builder

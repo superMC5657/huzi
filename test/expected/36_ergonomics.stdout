@@ -1,0 +1,6 @@
+hello,huzi
+bye
+Node {val: 1, next: Node {val: 2, next: null}}
+12
+null
+null

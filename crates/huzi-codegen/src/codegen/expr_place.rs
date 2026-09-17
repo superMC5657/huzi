@@ -9,6 +9,13 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         expr: &AssignExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        // 无返回值函数的调用值不可赋值(与 `let` 同规则)。
+        if let Some(name) = self.unit_call_name(&expr.value) {
+            return Err(HuziError::new_global(format!(
+                "Function '{}' has no return value and cannot be used as a value; call it as a statement instead",
+                name
+            )));
+        }
         let value = self.compile_expr(&expr.value)?;
 
         match &*expr.target {

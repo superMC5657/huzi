@@ -57,6 +57,7 @@ fn module_fn_statements(program: &Program) -> Vec<(FnStmt, Span)> {
 mod aggregates;
 mod args;
 mod args_utf8;
+mod box_print;
 mod boxed;
 mod builtins;
 mod builtins_math;
@@ -154,6 +155,9 @@ pub struct CodeGen<'ctx> {
     /// 各函数的形参 AST 类型(限定名 -> 参数表),供 `box`/`null` 实参与
     /// `Box<T>` 形参的精确校验(LLVM 层面两者都是指针,无法区分)。
     fn_param_ast: HashMap<String, Vec<Type>>,
+    /// 无返回值函数表(限定名 -> 是否省略返回类型):`fn foo() {...}` 仍按
+    /// i32 隐式 `return 0` 生成代码,但其调用值不可用于变量赋值等值位置。
+    fn_no_return: HashMap<String, bool>,
     /// 当前函数的 Huzi 声明返回类型,供 `return null` 的位置校验。
     current_return_ast: Option<Type>,
     /// (continue_target, break_target) for each enclosing loop.
@@ -168,6 +172,9 @@ pub struct CodeGen<'ctx> {
     >,
     /// Registered user-defined enums: name -> layout info.
     enums: HashMap<String, EnumInfo<'ctx>>,
+    /// 按结构体类型生成的运行时打印机(`huzi_print_struct_<Name>`),供
+    /// `print(box)` 的判空递归展开复用,避免编译期内联无限递归。
+    struct_printers: HashMap<String, FunctionValue<'ctx>>,
     /// Imported modules, registered via [`CodeGen::add_module`] before compile.
     modules: Vec<ModuleCode>,
     /// 正在编译的模块名;函数注册/查找按 `模块::名` 限定,主程序为 None。
@@ -190,10 +197,12 @@ impl<'ctx> CodeGen<'ctx> {
             functions: HashMap::new(),
             current_return_type: None,
             fn_param_ast: HashMap::new(),
+            fn_no_return: HashMap::new(),
             current_return_ast: None,
             loop_stack: Vec::new(),
             structs: HashMap::new(),
             enums: HashMap::new(),
+            struct_printers: HashMap::new(),
             modules: Vec::new(),
             current_module: None,
             debug: None,
@@ -386,6 +395,18 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn compile_fn_signature(&mut self, stmt: &FnStmt, span: Span) -> Result<()> {
         let qualified_name = self.qualify_name(&stmt.name);
+        // `fn main` 仍须显式 `-> i32`(C 入口约定);其它函数可省略返回类型。
+        if qualified_name == "main" {
+            let ok = match &stmt.return_type {
+                Some(t) => self.type_to_llvm(t)? == self.context.i32_type().into(),
+                None => false,
+            };
+            if !ok {
+                return Err(HuziError::new_global(
+                    "fn main must declare `-> i32` as its return type",
+                ));
+            }
+        }
         if self.functions.contains_key(&qualified_name) {
             return Err(HuziError::new_global(format!(
                 "Duplicate function definition: {}",
@@ -426,6 +447,8 @@ impl<'ctx> CodeGen<'ctx> {
         }
         self.functions
             .insert(qualified_name.clone(), (function, param_llvm_types));
+        // 无返回值标记并行记录,供值位置的调用校验(`let x = foo()` 拒绝)。
+        self.fn_no_return.insert(qualified_name.clone(), stmt.return_type.is_none());
         // 形参 AST 类型并行记录,供调用点 `box`/`null` 实参校验。
         self.fn_param_ast.insert(
             qualified_name,

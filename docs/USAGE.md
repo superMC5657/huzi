@@ -106,12 +106,19 @@ fn add(a: i32, b: i32) -> i32 {
     return a + b
 }
 
-# 无返回值
-fn greet() -> i32 {
-    print("Hello!")
+# 无返回值：可省略 `->` 类型与 `return`，调用时作语句使用
+fn greet(name: str) {
+    print("Hello,", name)
+}
+
+fn main() -> i32 {
+    greet("huzi")
     return 0
 }
 ```
+
+无返回值函数的调用值不可赋给变量（`let x = greet()` 编译报错）；
+`fn main` 仍须显式声明 `-> i32`。
 
 ### 3. 控制流
 
@@ -203,7 +210,7 @@ print(data.nums[2], len(data.nums))
 
 结构体之间不可形成直接的值循环嵌套；如需构建自引用或递归数据结构（如链表、树），需通过 `Box<T>` 间接引用（详见「Box 与自引用结构体」）。
 
-`print` 支持直接打印结构体，按 `Point { x: 3, y: 4 }` 递归展开字段输出；若结构体包含 `Box` 字段，需逐字段打印。
+`print` 支持直接打印结构体，按 `Point { x: 3, y: 4 }` 递归展开字段输出；含 `Box` 字段的结构体同样整体打印，`Box` 字段判空后递归展开，空指针打印为 `null`。
 
 ### 6. 枚举与 match
 
@@ -264,6 +271,9 @@ fn main() -> i32 {
     # Box 字段访问自动解引用
     print(head.val, head.next.val)   # 1 2
 
+    # Box 整体打印：递归展开字段，空指针打印为 null
+    print(head)   # Node {val: 1, next: Node {val: 2, next: null}}
+
     # 支持判空与指针比较
     if head.next == null {
         print("empty")
@@ -280,7 +290,7 @@ fn main() -> i32 {
 - **赋值**：`Box` 变量及字段赋值受 `let mut` 约束。
 - **比较**：支持与 `null` 进行判空（`x == null` / `x != null`）以及同类型 `Box` 之间的指针比较。
 - **字段访问**：通过点号访问 `Box` 字段时自动解引用（如 `head.next.val`）。
-- **打印**：`Box` 需逐字段打印（如 `print(b.val)`），不支持直接整体打印。
+- **打印**：`Box` 支持整体打印（`print(b)` 递归展开字段，空指针打印为 `null`）；逐字段打印（如 `print(b.val)`）仍然可用。
 - **内存管理**：无 GC；手动释放(`free_box`，详见「内存管理」)，未 free 的内存在进程退出时由 OS 统一回收。
 
 完整示例见 `test/examples/32_box_linked_list.hz`。
