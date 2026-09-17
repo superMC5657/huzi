@@ -5,7 +5,9 @@
 //! - `load_modules_result`:可恢复的磁盘版,返回 `Err` 不退出进程。
 //! - `load_modules_from_memory`:纯内存版,不读盘,多错收集。
 
+pub mod cli;
 pub mod fmt;
+pub mod pkg;
 mod modules;
 
 pub use fmt::{format_program, format_source};

@@ -37,6 +37,12 @@ impl LinkerKind {
 pub enum Command {
     /// Format Huzi source files (.hz)
     Fmt(FmtArgs),
+    /// Build project using huzi.toml manifest
+    Build(BuildArgs),
+    /// Add a dependency to huzi.toml
+    Add(AddArgs),
+    /// Fetch and vendor dependencies
+    Fetch(FetchArgs),
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -46,6 +52,46 @@ pub struct FmtArgs {
     pub check: bool,
 
     /// Target file or directory
+    pub path: String,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct BuildArgs {
+    /// Project directory containing huzi.toml (defaults to current directory)
+    #[arg(short, long, default_value = ".")]
+    pub path: String,
+
+    /// Output executable path
+    #[arg(short, long)]
+    pub output: Option<String>,
+
+    /// Linker to use
+    #[arg(short, long, value_enum, default_value_t = LinkerKind::platform_default())]
+    pub linker: LinkerKind,
+
+    /// Release mode
+    #[arg(short = 'r', long)]
+    pub release: bool,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct AddArgs {
+    /// Dependency package name
+    pub package: String,
+
+    /// Package version (e.g. 1.0.0)
+    #[arg(default_value = "0.1.0")]
+    pub version: String,
+
+    /// Local path to package
+    #[arg(long)]
+    pub path: Option<String>,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct FetchArgs {
+    /// Project directory containing huzi.toml
+    #[arg(short, long, default_value = ".")]
     pub path: String,
 }
 

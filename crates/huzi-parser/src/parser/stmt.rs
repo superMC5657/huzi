@@ -9,9 +9,9 @@ impl Parser {
     pub(super) fn parse_import_statement(&mut self) -> Result<Stmt> {
         self.advance();
         let mut name = self.expect_ident("Expected module name after 'import'")?;
-        while self.check(&Token::Dot) {
+        while self.check(&Token::Dot) || self.check(&Token::PathSep) {
             self.advance();
-            let seg = self.expect_ident("Expected identifier after '.' in import")?;
+            let seg = self.expect_ident("Expected identifier after '.' or '::' in import")?;
             name.push('.');
             name.push_str(&seg);
         }

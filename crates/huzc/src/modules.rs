@@ -298,6 +298,17 @@ fn resolve_module_file_result(import_name: &str, base_dir: &Path) -> Result<Path
             return Ok(candidate);
         }
     }
+
+    // 尝试在 vendor/ 或 ~/.huzi/packages/ 中按包解析
+    let segs: Vec<&str> = import_name.split('.').collect();
+    if !segs.is_empty() {
+        let pkg_name = segs[0];
+        let sub_segs = &segs[1..];
+        if let Some(hit) = crate::pkg::resolve_package_module(pkg_name, sub_segs, base_dir) {
+            return Ok(hit);
+        }
+    }
+
     Err(format!(
         "Cannot find module '{}': tried {} and {}",
         import_name,
@@ -306,16 +317,16 @@ fn resolve_module_file_result(import_name: &str, base_dir: &Path) -> Result<Path
     ))
 }
 
-/// 模块文件只允许定义(fn/struct/enum)与 import,不允许顶层级语句。
+/// 模块文件只允许定义(fn/struct/enum/trait/impl)与 import,不允许顶层级语句。
 /// 纯函数版:违规返回 `Err`,不退出进程。
 fn validate_module_program_result(name: &str, program: &Program) -> Result<(), String> {
     for stmt in &program.statements {
         if !matches!(
             &stmt.node,
-            Stmt::Fn(_) | Stmt::Struct(_) | Stmt::Enum(_) | Stmt::Import(_)
+            Stmt::Fn(_) | Stmt::Struct(_) | Stmt::Enum(_) | Stmt::Import(_) | Stmt::Trait(_) | Stmt::Impl(_)
         ) {
             return Err(format!(
-                "Module '{name}' may only contain fn/struct/enum definitions and imports"
+                "Module '{name}' may only contain fn/struct/enum/trait/impl definitions and imports"
             ));
         }
     }

@@ -1,9 +1,9 @@
-mod cli;
+use huzc::cli;
+use huzc::cli::Args;
 mod linker;
 mod paths;
 
 use clap::Parser;
-use cli::Args;
 use huzi_ast::Program;
 use huzi_codegen::CodeGen;
 use huzi_lexer::Lexer;
@@ -30,6 +30,18 @@ fn main() {
                 if !ok {
                     std::process::exit(1);
                 }
+                return;
+            }
+            cli::Command::Build(build_args) => {
+                huzc::pkg::run_build(&build_args);
+                return;
+            }
+            cli::Command::Add(add_args) => {
+                huzc::pkg::run_add(&add_args);
+                return;
+            }
+            cli::Command::Fetch(fetch_args) => {
+                huzc::pkg::run_fetch(&fetch_args);
                 return;
             }
         }

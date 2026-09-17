@@ -77,6 +77,43 @@ huzc fmt --check test/examples
 - **幂等性保障**：格式化后的代码再次格式化保持零 diff。
 - **注释说明**：首版格式化基于 AST 重构输出，注释会被归一化，保持源码语义与控制流完全一致。
 
+## 包管理器与项目清单 (huzi.toml)
+
+Huzc 内置轻量级包管理支持，通过 `huzi.toml` 管理项目元数据与依赖，支持本地路径与 `vendor/` 离线依赖解析：
+
+### 清单格式 (`huzi.toml`)
+```toml
+[package]
+name = "my_app"
+version = "0.1.0"
+entry = "src/main.hz" # 可选，缺省自动探测 src/main.hz, main.hz 或 my_app.hz
+
+[dependencies]
+my_math = { version = "1.0.0", path = "../fixtures/my_math" }
+```
+
+### 命令说明
+- `huzc build [--path <dir>]`: 依据 `huzi.toml` 编译项目，自动定位入口文件与链接生成可执行文件。
+- `huzc add <package> [version] [--path <local_path>]`: 向当前项目添加依赖项并自动同步至 `vendor/`。
+- `huzc fetch [--path <dir>]`: 根据清单拉取/复制所有依赖项至本地 `vendor/<pkg>/<version>/` 目录。
+
+### 模块导入与路径解析
+在源码中使用 `import pkg::mod` 或 `import pkg.mod` 语法导入：
+```python
+import my_math::calc
+
+fn main() -> i32 {
+    let s = calc::add(10, 20)
+    print(s)
+    return 0
+}
+```
+模块解析优先级：
+1. 内置模块（如 `math`）
+2. 相对路径（当前源码同级目录 / 工作目录）
+3. 项目根目录的 `vendor/<pkg>/<version>/`
+4. 用户全局缓存目录 `~/.huzi/packages/<pkg>/<version>/`
+
 ## 调试
 
 `-g`/`--debug` 生成带 DWARF 调试信息的可执行文件(强制 `-O0`):
