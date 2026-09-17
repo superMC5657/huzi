@@ -25,6 +25,11 @@ impl<'ctx> CodeGen<'ctx> {
                 self.build_arithmetic(&expr.operator, &left, &right)?
             }
             BinOp::Eq | BinOp::Neq | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
+                // Data-carrying enums compare by tag first, then by payload
+                // fields; mismatched enum types are a compile error.
+                if let Some(eq) = self.try_build_data_enum_compare(&expr.operator, &left, &right)? {
+                    return Ok(eq);
+                }
                 if left.is_pointer_value() && right.is_pointer_value() {
                     // 字符串以 `i8*` 表示;两个指针操作数按 strcmp 比较,
                     // 数组变量同样以指针装载,直接比较是无意义的,显式报错。
@@ -222,7 +227,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// 字符串比较:调用 C `strcmp` 后与 0 比较。支持全部六个比较运算符
     /// (`<` 等按字典序),结果为 `i1`。
-    fn build_string_compare(
+    pub(super) fn build_string_compare(
         &mut self,
         op: &BinOp,
         left: &inkwell::values::BasicValueEnum<'ctx>,

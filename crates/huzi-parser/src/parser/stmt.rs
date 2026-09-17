@@ -1,6 +1,5 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::HuziError;
 use huzi_error::Result;
 use huzi_lexer::Token;
 
@@ -94,25 +93,28 @@ impl Parser {
         while !self.check(&Token::RBrace) && !self.is_at_end() {
             let variant_name = self.expect_ident("Expected variant name")?;
 
-            let payload = if self.check(&Token::LParen) {
+            let payloads = if self.check(&Token::LParen) {
                 self.advance();
-                let payload_type = self.parse_type()?;
-                if self.check(&Token::Comma) {
-                    return Err(HuziError::new(
-                        "Multiple payload values per variant are not supported",
-                        self.current_line(),
-                        self.current_col(),
-                    ));
+                let mut payloads = Vec::new();
+                if !self.check(&Token::RParen) {
+                    loop {
+                        payloads.push(self.parse_type()?);
+                        if self.check(&Token::Comma) {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
                 }
-                self.expect(&Token::RParen, "Expected ')' after variant payload type")?;
-                Some(payload_type)
+                self.expect(&Token::RParen, "Expected ')' after variant payload types")?;
+                payloads
             } else {
-                None
+                Vec::new()
             };
 
             variants.push(EnumVariant {
                 name: variant_name,
-                payload,
+                payloads,
             });
 
             if self.check(&Token::Comma) {

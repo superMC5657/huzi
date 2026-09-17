@@ -184,6 +184,98 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
+    /// `for x in v`:循环变量逐轮绑定当前元素值;进入前一次性读取长度。
+    pub(super) fn compile_for_vec(
+        &mut self,
+        stmt: &ForStmt,
+        name: &str,
+        span: Span,
+    ) -> Result<()> {
+        let slot = self.vec_slot_of(name)?;
+        let elem_type = slot.elem.unwrap();
+        let parts = self.load_vec_parts(&slot)?;
+        let (data, len) = (parts.data, parts.len);
+
+        let function = self.current_function()?;
+        let i_type = self.context.i32_type();
+        let loop_block = self.context.append_basic_block(function, "vec_for_loop");
+        let body_block = self.context.append_basic_block(function, "vec_for_body");
+        let after_block = self.context.append_basic_block(function, "vec_for_after");
+        self.loop_stack.push((loop_block, after_block));
+
+        let idx_alloca = self.build_alloca(i_type.into(), "vec_for_idx")?;
+        self.builder
+            .build_store(idx_alloca, i_type.const_int(0, false))
+            .unwrap();
+        let var_alloca = self.build_alloca(elem_type, &stmt.var_name)?;
+        self.declare_local(&stmt.var_name, var_alloca, elem_type, span);
+
+        self.builder
+            .build_unconditional_branch(loop_block)
+            .unwrap();
+
+        self.builder.position_at_end(loop_block);
+        let idx = self
+            .builder
+            .build_load(i_type, idx_alloca, "vec_for_i")
+            .unwrap()
+            .into_int_value();
+        let cond = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::ULT, idx, len, "vec_for_cond")
+            .unwrap();
+        self.builder
+            .build_conditional_branch(cond, body_block, after_block)
+            .unwrap();
+
+        self.builder.position_at_end(body_block);
+        let idx = self
+            .builder
+            .build_load(i_type, idx_alloca, "vec_for_i")
+            .unwrap()
+            .into_int_value();
+        let elem_ptr = unsafe {
+            self.builder
+                .build_gep(elem_type, data, &[idx], "vec_for_elem_ptr")
+                .unwrap()
+        };
+        let elem = self
+            .builder
+            .build_load(elem_type, elem_ptr, "vec_for_elem")
+            .unwrap();
+        self.builder.build_store(var_alloca, elem).unwrap();
+        self.push_scope();
+        self.scope_insert(
+            stmt.var_name.clone(),
+            VarSlot {
+                ptr: var_alloca,
+                ty: elem_type,
+                elem: None,
+                array_len: None,
+                mutable: true,
+            },
+        );
+        self.compile_block(&stmt.body)?;
+        self.pop_scope();
+        let idx = self
+            .builder
+            .build_load(i_type, idx_alloca, "vec_for_i")
+            .unwrap()
+            .into_int_value();
+        let next = self
+            .builder
+            .build_int_add(idx, i_type.const_int(1, false), "vec_for_next")
+            .unwrap();
+        self.builder.build_store(idx_alloca, next).unwrap();
+        self.builder
+            .build_unconditional_branch(loop_block)
+            .unwrap();
+
+        self.loop_stack.pop();
+        self.builder.position_at_end(after_block);
+        Ok(())
+    }
+
     /// Emit the loop-header block that re-checks `i < end` every iteration.
     fn emit_for_condition(
         &mut self,

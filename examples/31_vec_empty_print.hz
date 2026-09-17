@@ -1,0 +1,80 @@
+# 31_vec_empty_print.hz — 空 vec 构造与 vec/struct 打印
+# vec<T>() 零长构造(首次 push 分配初始容量);print(v) 输出 [1, 2, 3];
+# print(struct) 输出 Point {x: 1, y: 2};嵌套(vec 存结构体/结构体嵌套)可用。
+# 字符串元素按 print(str) 原样输出(无引号)。
+
+struct Point {
+    x: i32,
+    y: i32
+}
+
+struct Rect {
+    origin: Point,
+    w: i32,
+    h: i32
+}
+
+struct Data {
+    nums: [i32; 3],
+    total: i32
+}
+
+fn main() -> i32 {
+    # 空 vec:初值 [] / len 0,三次 push(首 push 从 0 扩容)
+    let mut v = vec<i32>()
+    print(v)
+    print(len(v))
+    push(v, 1)
+    push(v, 2)
+    push(v, 3)
+    print(v)
+    print(len(v))
+
+    # 下标改写后整体打印
+    v[1] = 20
+    print(v)
+
+    # for-in 求和:1 + 20 + 3 = 24
+    let mut total = 0
+    for x in v {
+        total = total + x
+    }
+    print("total =", total)
+
+    # 结构体打印与嵌套
+    let p = Point { x: 3, y: 4 }
+    print(p)
+    let r = Rect { origin: p, w: 100, h: 50 }
+    print(r)
+    print(r.origin)
+
+    # 数组字段的结构体
+    let data = Data { nums: [1, 2, 3], total: 6 }
+    print(data)
+
+    # vec 存结构体(嵌套)
+    let mut ps = vec<Point>()
+    push(ps, p)
+    push(ps, Point { x: 1, y: 2 })
+    print(ps)
+
+    # 字符串 vec(元素无引号,与 print(str) 一致)
+    let mut s = vec<str>()
+    push(s, "foo")
+    push(s, "bar")
+    print(s)
+
+    # 浮点与布尔空 vec
+    let mut f = vec<f64>()
+    push(f, 1.5)
+    push(f, 2.0)
+    print(f)
+    let mut b = vec<bool>()
+    push(b, true)
+    push(b, false)
+    print(b)
+
+    # 多参数混排(标量 + vec)
+    print("v =", v)
+    0
+}

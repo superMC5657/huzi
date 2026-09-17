@@ -143,8 +143,9 @@ pub struct EnumDef {
 #[derive(Debug, Clone)]
 pub struct EnumVariant {
     pub name: String,
-    /// Optional payload type: `Ok(i32)` has one, `Red` has none.
-    pub payload: Option<Type>,
+    /// Payload types: `Red` has none, `Ok(i32)` has one,
+    /// `Pair(i32, str)` has several.
+    pub payloads: Vec<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -203,6 +204,8 @@ pub enum Expr {
     ArrayIndex(ArrayIndexExpr),
     ArrayLiteral(Vec<Expr>),
     TupleLiteral(Vec<Expr>),
+    /// 空 vec 构造:`vec<T>()`(元素类型由尖括号显式指定,零长)。
+    VecEmpty(Type),
     If(IfExpr),
     FieldAccess(FieldAccessExpr),
     StructLiteral(StructLiteralExpr),
@@ -233,12 +236,12 @@ pub struct MatchArm {
 
 #[derive(Debug, Clone)]
 pub enum Pattern {
-    /// `Enum::Variant` or `Enum::Variant(binding)` — binds the payload to a
-    /// variable inside the arm body.
+    /// `Enum::Variant`, `Enum::Variant(x)` or `Enum::Variant(x, y)` — binds
+    /// the payload fields to variables inside the arm body.
     Variant {
         enum_name: String,
         variant: String,
-        binding: Option<String>,
+        bindings: Vec<String>,
     },
     /// `_` — matches anything.
     Wildcard,

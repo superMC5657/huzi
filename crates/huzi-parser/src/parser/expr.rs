@@ -270,6 +270,14 @@ impl Parser {
             }
             Token::Ident(name) => {
                 self.advance();
+                // `vec<T>()` — 空 vec 构造(零长,元素类型由尖括号指定)。
+                // 仅当 `<` 后能完整解析为 `Type>()` 时才提交,避免把
+                // `vec < x` 比较误解析为泛型构造。
+                if name == "vec" && self.check(&Token::Less) {
+                    if let Some(expr) = self.try_parse_vec_empty()? {
+                        return Ok(expr);
+                    }
+                }
                 // `Enum::Variant` / `Enum::Variant(args)` — variant construction.
                 if self.check(&Token::PathSep) {
                     self.advance();
@@ -441,5 +449,41 @@ impl Parser {
         Block {
             statements: vec![Spanned::new(Stmt::Expr(ExprStmt { expr }), line, col)],
         }
+    }
+
+    /// 尝试解析 `vec` 后的 `<T>()`(调用时 `<` 尚未消费)。
+    /// 完整匹配 `Type>()` 才返回 `Some`,否则回退调用点并返回
+    /// `None`(外层按普通 `vec` 标识继续解析,不误伤 `vec < x` 比较)。
+    fn try_parse_vec_empty(&mut self) -> Result<Option<Expr>> {
+        let saved = self.pos;
+        // `<` 已由调用方确认存在。
+        self.advance();
+        let elem_ty = match self.parse_type() {
+            Ok(t) => t,
+            Err(_) => {
+                self.pos = saved;
+                return Ok(None);
+            }
+        };
+        if !self.check(&Token::Greater) {
+            self.pos = saved;
+            return Ok(None);
+        }
+        self.advance();
+        if !self.check(&Token::LParen) {
+            self.pos = saved;
+            return Ok(None);
+        }
+        self.advance();
+        if !self.check(&Token::RParen) {
+            // `vec<T>(args)` 暂不支持:空 vec 必须无参(位置停在 `(` 处)。
+            return Err(HuziError::new(
+                "vec<T>() takes no arguments (empty vec has no elements)",
+                self.current_line(),
+                self.current_col(),
+            ));
+        }
+        self.advance();
+        Ok(Some(Expr::VecEmpty(elem_ty)))
     }
 }

@@ -131,8 +131,8 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// Build `{ i32 tag, payload union }` for a data-carrying enum variant:
-    /// check arity, store the discriminant, store the payload, and load the
-    /// finished value.
+    /// check arity, store the discriminant, store the payload fields, and
+    /// load the finished value.
     fn build_data_enum_value(
         &mut self,
         expr: &EnumConstructExpr,
@@ -140,21 +140,27 @@ impl<'ctx> CodeGen<'ctx> {
         vinfo: &EnumVariantInfo<'ctx>,
         enum_st: inkwell::types::StructType<'ctx>,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        match (&vinfo.payload, expr.args.len()) {
-            (None, 0) => {}
-            (Some(_), 1) => {}
-            (None, _) => {
+        let expected = vinfo.ast_payloads.len();
+        if expr.args.len() != expected {
+            if expected == 0 {
                 return Err(HuziError::new_global(format!(
                     "Unit variant '{}::{}' takes no arguments",
                     expr.enum_name, expr.variant
-                )))
+                )));
             }
-            (Some(_), _) => {
+            if expected == 1 {
                 return Err(HuziError::new_global(format!(
                     "Variant '{}::{}' expects exactly 1 argument",
                     expr.enum_name, expr.variant
-                )))
+                )));
             }
+            return Err(HuziError::new_global(format!(
+                "Variant '{}::{}' expects {} arguments, got {}",
+                expr.enum_name,
+                expr.variant,
+                expected,
+                expr.args.len()
+            )));
         }
 
         let payload_union = info.payload_union.unwrap();
@@ -173,9 +179,9 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap();
 
         // Store the payload into the variant's slot of the union in field 1.
+        // Single-payload variants keep the bare value; multi-payload ones
+        // fill the anonymous field struct member by member.
         if let Some(payload_ty) = vinfo.payload {
-            let arg = self.compile_expr(&expr.args[0])?;
-            let arg = self.coerce_value(payload_ty, arg)?;
             let union_ptr = self
                 .builder
                 .build_struct_gep(enum_st, tmp, 1, "enum_payload_ptr")
@@ -189,7 +195,13 @@ impl<'ctx> CodeGen<'ctx> {
                     "enum_slot_ptr",
                 )
                 .unwrap();
-            self.builder.build_store(slot_ptr, arg).unwrap();
+            if vinfo.ast_payloads.len() == 1 {
+                let arg = self.compile_expr(&expr.args[0])?;
+                let arg = self.coerce_value(payload_ty, arg)?;
+                self.builder.build_store(slot_ptr, arg).unwrap();
+            } else {
+                self.store_multi_payload_fields(payload_ty, slot_ptr, &expr.args)?;
+            }
         }
 
         let loaded = self
@@ -197,6 +209,28 @@ impl<'ctx> CodeGen<'ctx> {
             .build_load(enum_st, tmp, "enum_load")
             .unwrap();
         Ok(loaded)
+    }
+
+    /// Store each constructor argument into its field of a multi-payload
+    /// variant's anonymous field struct (`slot_ptr` points at the struct).
+    fn store_multi_payload_fields(
+        &mut self,
+        payload_ty: inkwell::types::BasicTypeEnum<'ctx>,
+        slot_ptr: inkwell::values::PointerValue<'ctx>,
+        args: &[Expr],
+    ) -> Result<()> {
+        let field_st = payload_ty.into_struct_type();
+        for (i, arg_expr) in args.iter().enumerate() {
+            let field_ty = field_st.get_field_type_at_index(i as u32).unwrap();
+            let arg = self.compile_expr(arg_expr)?;
+            let arg = self.coerce_value(field_ty, arg)?;
+            let field_ptr = self
+                .builder
+                .build_struct_gep(field_st, slot_ptr, i as u32, "enum_field_ptr")
+                .unwrap();
+            self.builder.build_store(field_ptr, arg).unwrap();
+        }
+        Ok(())
     }
 
     pub(super) fn compile_array_index(

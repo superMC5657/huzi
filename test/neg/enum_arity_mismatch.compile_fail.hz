@@ -1,0 +1,10 @@
+# 负例：多 payload 变体构造时实参数量不匹配，编译必须失败。
+enum Pair {
+    Two(i32, i32),
+    Empty
+}
+fn main() -> i32 {
+    let p = Pair::Two(1)
+    print(p == Pair::Empty)
+    0
+}

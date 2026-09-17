@@ -41,7 +41,7 @@ impl Parser {
         }))
     }
 
-    /// `Enum::Variant`, `Enum::Variant(binding)`, or `_`.
+    /// `Enum::Variant`, `Enum::Variant(x)`, `Enum::Variant(x, y)`, or `_`.
     fn parse_pattern(&mut self) -> Result<Pattern> {
         // Note: `check` matches any Ident against Token::Ident, so the
         // wildcard must be detected by comparing the actual name.
@@ -57,19 +57,29 @@ impl Parser {
         self.expect(&Token::PathSep, "Expected '::' after enum name in pattern")?;
         let variant = self.expect_ident("Expected variant name after '::'")?;
 
-        let binding = if self.check(&Token::LParen) {
+        let bindings = if self.check(&Token::LParen) {
             self.advance();
-            let binding = self.expect_ident("Expected binding name in pattern")?;
-            self.expect(&Token::RParen, "Expected ')' after pattern binding")?;
-            Some(binding)
+            let mut bindings = Vec::new();
+            if !self.check(&Token::RParen) {
+                loop {
+                    bindings.push(self.expect_ident("Expected binding name in pattern")?);
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+            }
+            self.expect(&Token::RParen, "Expected ')' after pattern bindings")?;
+            bindings
         } else {
-            None
+            Vec::new()
         };
 
         Ok(Pattern::Variant {
             enum_name,
             variant,
-            binding,
+            bindings,
         })
     }
 }

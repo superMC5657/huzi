@@ -22,6 +22,7 @@ impl<'ctx> CodeGen<'ctx> {
             Expr::Assign(assign_expr) => self.compile_assign(assign_expr),
             Expr::ArrayIndex(idx_expr) => self.compile_array_index(idx_expr),
             Expr::ArrayLiteral(elements) => self.compile_array_literal(elements),
+            Expr::VecEmpty(elem_ty) => self.compile_vec_empty_value(elem_ty),
             Expr::TupleLiteral(elements) => self.compile_tuple_literal(elements),
             Expr::If(if_expr) => self.compile_if_expr(if_expr),
             Expr::FieldAccess(fa) => self.compile_field_access(fa),

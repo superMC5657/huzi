@@ -78,7 +78,7 @@ impl<'ctx> CodeGen<'ctx> {
             let payload_types: Vec<&str> = def
                 .variants
                 .iter()
-                .filter_map(|v| v.payload.as_ref())
+                .flat_map(|v| v.payloads.iter())
                 .filter_map(|t| match t {
                     Type::Named(n) if names.contains(&n.as_str()) => Some(n.as_str()),
                     _ => None,
@@ -126,7 +126,7 @@ impl<'ctx> CodeGen<'ctx> {
                 )));
             }
 
-            let is_data = def.variants.iter().any(|v| v.payload.is_some());
+            let is_data = def.variants.iter().any(|v| !v.payloads.is_empty());
             let (llvm, payload_union) = if is_data {
                 let union_st = self.context.opaque_struct_type(&format!("{}.payload", def.name));
                 let enum_st = self.context.opaque_struct_type(&def.name);
@@ -161,21 +161,31 @@ impl<'ctx> CodeGen<'ctx> {
                     )));
                 }
 
-                let (payload, ast_payload, slot) = match &v.payload {
-                    Some(t) => {
-                        let ty = self.type_to_llvm(t)?;
-                        let slot = payload_slot;
-                        payload_slot += 1;
-                        (Some(ty), Some(t.clone()), Some(slot))
+                let (payload, ast_payloads, slot) = if v.payloads.is_empty() {
+                    (None, Vec::new(), None)
+                } else if v.payloads.len() == 1 {
+                    let ty = self.type_to_llvm(&v.payloads[0])?;
+                    let slot = payload_slot;
+                    payload_slot += 1;
+                    (Some(ty), vec![v.payloads[0].clone()], Some(slot))
+                } else {
+                    // Multi-payload variants store an anonymous field struct
+                    // as their single union member.
+                    let mut field_types = Vec::with_capacity(v.payloads.len());
+                    for t in &v.payloads {
+                        field_types.push(self.type_to_llvm(t)?);
                     }
-                    None => (None, None, None),
+                    let field_st = self.context.struct_type(&field_types, false);
+                    let slot = payload_slot;
+                    payload_slot += 1;
+                    (Some(field_st.into()), v.payloads.clone(), Some(slot))
                 };
 
                 variants.push(EnumVariantInfo {
                     name: v.name.clone(),
                     tag: variants.len() as u32,
                     payload,
-                    ast_payload,
+                    ast_payloads,
                     payload_slot: slot,
                 });
             }

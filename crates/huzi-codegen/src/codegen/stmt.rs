@@ -41,6 +41,7 @@ impl<'ctx> CodeGen<'ctx> {
             Some(Expr::Call(call)) if Self::is_vec_ctor(call) => {
                 self.compile_let_vec(stmt, &call.arguments, span)
             }
+            Some(Expr::VecEmpty(elem_ty)) => self.compile_let_vec_empty(stmt, elem_ty, span),
             Some(value_expr) => self.compile_let_with_value(stmt, value_expr, span),
             None => self.compile_let_uninitialized(stmt, span),
         }

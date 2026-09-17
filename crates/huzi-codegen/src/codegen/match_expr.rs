@@ -94,16 +94,16 @@ impl<'ctx> CodeGen<'ctx> {
         match &arm.pattern {
             Pattern::Wildcard => self.compile_block_value(&arm.body),
             Pattern::Variant {
-                variant, binding, ..
+                variant, bindings, ..
             } => {
                 let info = info.ok_or_else(|| {
                     HuziError::new_global("Cannot match variants without a known enum type")
                 })?;
                 let vinfo = find_variant(info, variant)?;
                 if rest.is_empty() {
-                    return self.compile_last_variant_arm(tag, data, info, vinfo, binding, &arm.body);
+                    return self.compile_last_variant_arm(tag, data, info, vinfo, bindings, &arm.body);
                 }
-                self.compile_variant_arm(tag, data, info, vinfo, binding, &arm.body, rest)
+                self.compile_variant_arm(tag, data, info, vinfo, bindings, &arm.body, rest)
             }
         }
     }
@@ -119,7 +119,7 @@ impl<'ctx> CodeGen<'ctx> {
         )>,
         info: &EnumInfo<'ctx>,
         vinfo: &EnumVariantInfo<'ctx>,
-        binding: &Option<String>,
+        bindings: &[String],
         body: &Block,
         rest: &[MatchArm],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
@@ -127,7 +127,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         // Matching arm: optionally bind the payload, evaluate the body.
         self.builder.position_at_end(then_bb);
-        let then_val = self.compile_match_arm_body(data, info, vinfo, binding, body)?;
+        let then_val = self.compile_match_arm_body(data, info, vinfo, bindings, body)?;
 
         let result_ty = then_val.get_type();
         let result_ptr = self.build_alloca(result_ty, "match_val")?;
@@ -164,12 +164,12 @@ impl<'ctx> CodeGen<'ctx> {
         )>,
         info: &EnumInfo<'ctx>,
         vinfo: &EnumVariantInfo<'ctx>,
-        binding: &Option<String>,
+        bindings: &[String],
         body: &Block,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         let (then_bb, else_bb, merge_bb) = self.emit_match_branch(tag, vinfo.tag)?;
         self.builder.position_at_end(then_bb);
-        let then_val = self.compile_match_arm_body(data, info, vinfo, binding, body)?;
+        let then_val = self.compile_match_arm_body(data, info, vinfo, bindings, body)?;
 
         let result_ty = then_val.get_type();
         let result_ptr = self.build_alloca(result_ty, "match_val")?;
@@ -281,8 +281,8 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Bind the payload (if the pattern has a binding) and evaluate the arm
-    /// body on the matching branch.
+    /// Bind the payload fields (if the pattern names bindings) and evaluate
+    /// the arm body on the matching branch.
     fn compile_match_arm_body(
         &mut self,
         data: Option<(
@@ -291,26 +291,27 @@ impl<'ctx> CodeGen<'ctx> {
         )>,
         info: &EnumInfo<'ctx>,
         vinfo: &EnumVariantInfo<'ctx>,
-        binding: &Option<String>,
+        bindings: &[String],
         body: &Block,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if let Some(bname) = binding {
-            self.bind_match_payload(data, info, vinfo, bname)?;
+        if !bindings.is_empty() {
+            self.bind_match_payload(data, info, vinfo, bindings)?;
         }
         let value = self.compile_block_value(body)?;
-        if binding.is_some() {
+        if !bindings.is_empty() {
             self.pop_scope();
         }
         Ok(value)
     }
 
-    /// Enter a scope with the pattern binding bound to the variant's payload.
+    /// Enter a scope with the pattern bindings bound to the variant's
+    /// payload fields, in declaration order.
     pub(super) fn bind_match_payload(
         &mut self,
         data: Option<(inkwell::types::StructType<'ctx>, PointerValue<'ctx>)>,
         info: &EnumInfo<'ctx>,
         vinfo: &EnumVariantInfo<'ctx>,
-        binding: &str,
+        bindings: &[String],
     ) -> Result<()> {
         let (enum_st, scrut_addr) = data.ok_or_else(|| {
             HuziError::new_global(format!(
@@ -318,12 +319,21 @@ impl<'ctx> CodeGen<'ctx> {
                 info.name, vinfo.name
             ))
         })?;
-        let payload_ty = vinfo.payload.ok_or_else(|| {
-            HuziError::new_global(format!(
+        if vinfo.ast_payloads.is_empty() {
+            return Err(HuziError::new_global(format!(
                 "Variant '{}::{}' has no payload to bind",
                 info.name, vinfo.name
-            ))
-        })?;
+            )));
+        }
+        if bindings.len() != vinfo.ast_payloads.len() {
+            return Err(HuziError::new_global(format!(
+                "Variant '{}::{}' has {} payload field(s), but the pattern binds {}",
+                info.name,
+                vinfo.name,
+                vinfo.ast_payloads.len(),
+                bindings.len()
+            )));
+        }
 
         let union_st = info.payload_union.unwrap();
         let union_ptr = self
@@ -340,18 +350,33 @@ impl<'ctx> CodeGen<'ctx> {
             )
             .unwrap();
 
-        // Arrays decay to pointers; keep the element type for indexing.
-        let elem = match &vinfo.ast_payload {
-            Some(Type::Array(elem_ty, _)) => Some(self.type_to_llvm(elem_ty)?),
-            Some(Type::Str) => Some(self.context.i8_type().into()),
-            _ => None,
-        };
-        let array_len = match &vinfo.ast_payload {
-            Some(Type::Array(_, size)) => Some(*size as u32),
-            _ => None,
-        };
-
         self.push_scope();
+        if vinfo.ast_payloads.len() == 1 {
+            self.bind_single_payload(&vinfo.ast_payloads[0], vinfo.payload.unwrap(), slot_ptr, &bindings[0])?;
+        } else {
+            self.bind_multi_payload_fields(vinfo.payload.unwrap(), slot_ptr, &vinfo.ast_payloads, bindings)?;
+        }
+        Ok(())
+    }
+
+    /// Bind one name to a single-payload variant's slot.
+    fn bind_single_payload(
+        &mut self,
+        ast_ty: &Type,
+        payload_ty: inkwell::types::BasicTypeEnum<'ctx>,
+        slot_ptr: PointerValue<'ctx>,
+        binding: &str,
+    ) -> Result<()> {
+        // Arrays decay to pointers; keep the element type for indexing.
+        let elem = match ast_ty {
+            Type::Array(elem_ty, _) => Some(self.type_to_llvm(elem_ty)?),
+            Type::Str => Some(self.context.i8_type().into()),
+            _ => None,
+        };
+        let array_len = match ast_ty {
+            Type::Array(_, size) => Some(*size as u32),
+            _ => None,
+        };
         self.scope_insert(
             binding.to_string(),
             VarSlot {
@@ -362,6 +387,44 @@ impl<'ctx> CodeGen<'ctx> {
                 mutable: false,
             },
         );
+        Ok(())
+    }
+
+    /// Bind each name to its field of a multi-payload variant's field struct.
+    fn bind_multi_payload_fields(
+        &mut self,
+        payload_ty: inkwell::types::BasicTypeEnum<'ctx>,
+        slot_ptr: PointerValue<'ctx>,
+        ast_payloads: &[Type],
+        bindings: &[String],
+    ) -> Result<()> {
+        let field_st = payload_ty.into_struct_type();
+        for (i, (ast_ty, binding)) in ast_payloads.iter().zip(bindings.iter()).enumerate() {
+            let field_ty = field_st.get_field_type_at_index(i as u32).unwrap();
+            let field_ptr = self
+                .builder
+                .build_struct_gep(field_st, slot_ptr, i as u32, "bind_field_ptr")
+                .unwrap();
+            let elem = match ast_ty {
+                Type::Array(elem_ty, _) => Some(self.type_to_llvm(elem_ty)?),
+                Type::Str => Some(self.context.i8_type().into()),
+                _ => None,
+            };
+            let array_len = match ast_ty {
+                Type::Array(_, size) => Some(*size as u32),
+                _ => None,
+            };
+            self.scope_insert(
+                binding.to_string(),
+                VarSlot {
+                    ptr: field_ptr,
+                    ty: field_ty,
+                    elem,
+                    array_len,
+                    mutable: false,
+                },
+            );
+        }
         Ok(())
     }
 }

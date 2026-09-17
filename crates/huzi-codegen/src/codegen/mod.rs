@@ -64,6 +64,7 @@ mod builtins_string;
 mod builtins_io;
 mod builtins_sys;
 mod debuginfo;
+mod enum_eq;
 mod expr;
 mod expr_binary;
 mod expr_place;
@@ -106,10 +107,11 @@ struct EnumVariantInfo<'ctx> {
     name: String,
     /// Discriminant value, equal to the variant's declaration index.
     tag: u32,
-    /// LLVM type of the payload; None for unit variants.
+    /// LLVM type of the payload (a field struct for multi-payload variants);
+    /// None for unit variants.
     payload: Option<inkwell::types::BasicTypeEnum<'ctx>>,
-    /// AST payload type (retains array element types, like StructFieldInfo).
-    ast_payload: Option<Type>,
+    /// AST payload types (retains array element types, like StructFieldInfo).
+    ast_payloads: Vec<Type>,
     /// Index of this variant's payload inside the payload-union struct.
     payload_slot: Option<u32>,
 }
