@@ -121,6 +121,7 @@ fn classify(token: &Token, prev: Option<&Token>) -> Option<(u32, u32)> {
         Token::Import => Some((KIND_KEYWORD, 6)),
         Token::Break => Some((KIND_KEYWORD, 5)),
         Token::Continue => Some((KIND_KEYWORD, 8)),
+        Token::Defer => Some((KIND_KEYWORD, 5)),
         Token::True => Some((KIND_KEYWORD, 4)),
         Token::False => Some((KIND_KEYWORD, 5)),
         _ => None,

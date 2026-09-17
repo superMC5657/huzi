@@ -1,0 +1,20 @@
+multiple: start
+multiple: end
+multiple: defer 3
+multiple: defer 2
+multiple: defer 1
+---
+early: start
+early: branch taken
+early: cleanup 1
+early ret:42
+---
+early: start
+early: normal end
+early: cleanup 2
+early: cleanup 1
+normal ret:100
+---
+loop: start
+loop: after while
+loop: deferred from while

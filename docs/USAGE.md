@@ -148,6 +148,27 @@ while x > 0 {
 }
 ```
 
+### 3.1 延迟执行 (defer)
+
+`defer <stmt>` 用于在当前函数退出（无论是通过显式 `return` 还是正常执行落出）前执行语句，常用于资源清理与善后：
+
+- **LIFO 逆序执行**：同一个函数内注册的多条 `defer` 语句，按照“后注册、先执行”（LIFO 栈）的顺序逆序调用。
+- **作用域限制**：`defer` 仅允许在函数体内使用，顶层使用将在编译期报错。循环体内部声明的 `defer` 同样统一延迟至包含它的整个函数退出时执行。
+- **不捕获返回值**：`defer` 在计算完 `return` 表达式后执行，无法篡改已求值的返回值。
+- **与 exit/panic 的交互**：调用内置函数 `exit()` 或因越界/除零发生 `panic` 运行时错误时，进程直接终止退出，**不会**触发 `defer` 栈的执行。
+
+```python
+fn process_file(path: str) -> i32 {
+    let content = read_file(path)
+    defer print("process_file cleanup")
+    if len(content) == 0 {
+        return 0
+    }
+    # 处理文件内容...
+    return 1
+}
+```
+
 ### 4. 内置函数
 
 ```python

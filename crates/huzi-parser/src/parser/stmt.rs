@@ -1,6 +1,6 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::Result;
+use huzi_error::{HuziError, Result};
 use huzi_lexer::Token;
 
 impl Parser {
@@ -161,7 +161,11 @@ impl Parser {
             None
         };
 
-        let body = self.parse_block()?;
+        let prev_in_fn = self.in_function;
+        self.in_function = true;
+        let body_res = self.parse_block();
+        self.in_function = prev_in_fn;
+        let body = body_res?;
 
         Ok(Stmt::Fn(FnStmt {
             name,
@@ -181,6 +185,21 @@ impl Parser {
         };
 
         Ok(Stmt::Return(ReturnStmt { value }))
+    }
+
+    pub(super) fn parse_defer_statement(&mut self) -> Result<Stmt> {
+        let line = self.current_line();
+        let col = self.current_col();
+        if !self.in_function {
+            return Err(HuziError::new(
+                "defer is only allowed inside a function",
+                line,
+                col,
+            ));
+        }
+        self.advance(); // consume 'defer'
+        let inner = self.parse_statement()?;
+        Ok(Stmt::Defer(Box::new(inner)))
     }
 
     pub(super) fn parse_if_statement(&mut self) -> Result<Stmt> {

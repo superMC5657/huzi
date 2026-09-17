@@ -1,0 +1,44 @@
+# 39_defer.hz - defer 语句延迟执行测试
+
+fn test_multiple_defers() {
+    print("multiple: start")
+    defer print("multiple: defer 1")
+    defer print("multiple: defer 2")
+    defer print("multiple: defer 3")
+    print("multiple: end")
+}
+
+fn test_early_return(flag: bool) -> i32 {
+    print("early: start")
+    defer print("early: cleanup 1")
+    if flag {
+        print("early: branch taken")
+        return 42
+    }
+    defer print("early: cleanup 2")
+    print("early: normal end")
+    return 100
+}
+
+fn test_loop_defer() {
+    print("loop: start")
+    let mut i = 0
+    while i < 1 {
+        defer print("loop: deferred from while")
+        i = i + 1
+    }
+    print("loop: after while")
+}
+
+fn main() -> i32 {
+    test_multiple_defers()
+    print("---")
+    let ret1 = test_early_return(true)
+    print("early ret:", ret1)
+    print("---")
+    let ret2 = test_early_return(false)
+    print("normal ret:", ret2)
+    print("---")
+    test_loop_defer()
+    return 0
+}

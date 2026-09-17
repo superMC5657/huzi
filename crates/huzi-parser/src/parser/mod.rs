@@ -13,6 +13,7 @@ use huzi_lexer::Token;
 pub struct Parser {
     tokens: Vec<SpannedToken>,
     pos: usize,
+    in_function: bool,
 }
 
 /// 单次 `parse_recoverable` 最多收集的错误数(防级联误报刷屏)。
@@ -20,7 +21,11 @@ const MAX_RECOVERY_ERRORS: usize = 32;
 
 impl Parser {
     pub fn new(tokens: Vec<SpannedToken>) -> Self {
-        Self { tokens, pos: 0 }
+        Self {
+            tokens,
+            pos: 0,
+            in_function: false,
+        }
     }
 
     /// 语句级错误恢复入口:单条语句失败则记错并同步到下一
@@ -133,6 +138,8 @@ impl Parser {
             self.parse_for_statement()
         } else if self.check_keyword(&[Token::While]) {
             self.parse_while_statement()
+        } else if self.check_keyword(&[Token::Defer]) {
+            self.parse_defer_statement()
         } else if self.check(&Token::LBrace) {
             Ok(Stmt::Block(self.parse_block()?))
         } else {

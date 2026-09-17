@@ -27,6 +27,7 @@ impl Lexer {
             "return" => Token::Return,
             "break" => Token::Break,
             "continue" => Token::Continue,
+            "defer" => Token::Defer,
             "true" => Token::True,
             "false" => Token::False,
             "import" => Token::Import,

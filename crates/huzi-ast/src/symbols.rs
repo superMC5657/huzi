@@ -73,7 +73,7 @@ fn collect_top_level(stmt: &crate::ast::Spanned<Stmt>, out: &mut Vec<Symbol>) {
             collect_block(&f.body, out);
         }
         Stmt::While(w) => collect_block(&w.body, out),
-        Stmt::Expr(_) | Stmt::Return(_) | Stmt::Break | Stmt::Continue => {}
+        Stmt::Expr(_) | Stmt::Return(_) | Stmt::Break | Stmt::Continue | Stmt::Defer(_) => {}
     }
 }
 
@@ -165,6 +165,12 @@ fn collect_block(block: &Block, out: &mut Vec<Symbol>) {
                 span: stmt.span,
                 detail: format!("import {}", i.name),
             }),
+            Stmt::Defer(inner) => {
+                let synthetic_block = Block {
+                    statements: vec![(**inner).clone()],
+                };
+                collect_block(&synthetic_block, out);
+            }
             Stmt::Expr(_) | Stmt::Return(_) | Stmt::Break | Stmt::Continue => {}
         }
     }

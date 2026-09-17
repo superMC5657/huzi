@@ -172,6 +172,7 @@ pub enum Stmt {
     If(IfStmt),
     For(ForStmt),
     While(WhileStmt),
+    Defer(Box<Spanned<Stmt>>),
 }
 
 #[derive(Debug, Clone)]

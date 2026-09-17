@@ -19,6 +19,7 @@ pub enum Token {
     Import,
     Break,
     Continue,
+    Defer,
     True,
     False,
 

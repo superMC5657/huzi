@@ -69,6 +69,7 @@ mod builtins_io;
 mod builtins_file_check;
 mod builtins_sys;
 mod debuginfo;
+mod defer;
 mod enum_eq;
 mod expr;
 mod expr_binary;
@@ -187,6 +188,8 @@ pub struct CodeGen<'ctx> {
     debug: Option<debuginfo::DebugState<'ctx>>,
     /// 当前函数的 DISubprogram,作为语句行号与变量的 DI scope。
     current_subprogram: Option<inkwell::debug_info::DISubprogram<'ctx>>,
+    /// 当前函数延迟执行栈。
+    defer_stack: Vec<defer::DeferEntry<'ctx>>,
 }
 impl<'ctx> CodeGen<'ctx> {
     pub fn new(context: &'ctx Context, name: &str) -> Self {
@@ -211,6 +214,7 @@ impl<'ctx> CodeGen<'ctx> {
             current_module: None,
             debug: None,
             current_subprogram: None,
+            defer_stack: Vec::new(),
         }
     }
 

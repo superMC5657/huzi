@@ -31,6 +31,7 @@ impl<'ctx> CodeGen<'ctx> {
             Stmt::If(if_stmt) => self.compile_if(if_stmt, span),
             Stmt::For(for_stmt) => self.compile_for(for_stmt, span),
             Stmt::While(while_stmt) => self.compile_while(while_stmt),
+            Stmt::Defer(inner) => self.compile_defer(inner),
         }
     }
 
@@ -228,6 +229,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.current_return_type = Some(return_type);
         self.current_return_ast = stmt.return_type.clone();
         self.scopes = vec![HashMap::new()];
+        self.defer_stack.clear();
 
         for (i, param) in stmt.params.iter().enumerate() {
             let arg = function.get_nth_param(i as u32).unwrap();
@@ -270,6 +272,7 @@ impl<'ctx> CodeGen<'ctx> {
         // Functions without an explicit return fall through with a zero value
         // of the declared return type.
         if self.at_open_end() {
+            self.emit_defers()?;
             self.builder
                 .build_return(Some(&return_type.const_zero()))
                 .unwrap();
@@ -294,9 +297,11 @@ impl<'ctx> CodeGen<'ctx> {
                 }
                 let value = self.compile_expr(value)?;
                 let value = self.coerce_value(ret_type, value)?;
+                self.emit_defers()?;
                 self.builder.build_return(Some(&value)).unwrap();
             }
             None => {
+                self.emit_defers()?;
                 self.builder
                     .build_return(Some(&ret_type.const_zero()))
                     .unwrap();
