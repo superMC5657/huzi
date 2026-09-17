@@ -144,12 +144,14 @@ while x > 0 {
 ### 4. 内置函数
 
 ```python
-# 打印 - 支持所有基本类型
+# 打印 - 支持所有基本类型、vec 与结构体
 print("Hello")           # 字符串
 print(42)                # 整数
 print(3.14)              # 浮点数
 print(true)              # 布尔值
 print("x =", x)          # 多参数
+print(v)                 # vec:[1, 2, 3](空 vec 为 [])
+print(p)                 # 结构体:Point {x: 3, y: 4}(嵌套递归)
 ```
 
 ### 5. 结构体
@@ -199,7 +201,7 @@ let data = Data { nums: [1, 2, 3], total: 6 }
 print(data.nums[2], len(data.nums))
 ```
 
-限制：结构体不支持自引用/相互嵌套的值循环（`struct A { b: B }` + `struct B { a: A }` 会报编译错误）；`print` 不直接支持整个结构体，需要逐字段打印。
+限制：结构体不支持自引用/相互嵌套的值循环（`struct A { b: B }` + `struct B { a: A }` 会报编译错误）；`print` 支持整个结构体，按 `Point {x: 3, y: 4}` 格式输出（字段编译期展开，嵌套结构体/数组字段递归打印）。
 
 ### 6. 枚举与 match
 
@@ -211,31 +213,37 @@ enum Color {
     Blue,
 }
 
-# 带数据的枚举（每个变体至多一个 payload）
+# 带数据的枚举（每个变体可带零个、一个或多个 payload）
 enum Shape {
     Circle(f64),
-    Rect(f64),
+    Rect(f64, f64),
+    Label(str, i32),
     Point2D,
 }
 
-# 构造变体：Enum::Variant 或 Enum::Variant(payload)
+# 构造变体：Enum::Variant 或 Enum::Variant(v1, v2, ...)
 let c = Color::Green
 let s = Shape::Circle(2.0)
+let r = Shape::Rect(3.0, 4.0)
 
 # match 作为表达式，每个分支产出值（全覆盖时可省略 `_`）
 fn area(s: Shape) -> f64 {
     return match s {
         Shape::Circle(r) => 3.14159 * r * r,   # r 绑定 payload
-        Shape::Rect(w) => w * w,
+        Shape::Rect(w, h) => w * h,            # 多字段按序绑定多个变量
+        Shape::Label(name, n) => n * 1.0,
         Shape::Point2D => 0.0,
     }
 }
 
-print(area(s))          # 12.56636
-print(c == Color::Red)  # false
+print(area(s))                # 12.56636
+print(c == Color::Red)        # false
+print(r == Shape::Rect(3.0, 4.0))  # true（带数据枚举支持 ==/!=）
 ```
 
-限制：每个变体至多一个 payload；match 做穷尽性检查（覆盖全变体即可省略 `_`，缺变体且无 `_` 时编译报错并列出缺失变体名；`_` 兜底仍兼容）；带数据的枚举不支持 `==` 比较；`print` 简单枚举输出的是判别码整数。
+带数据枚举的 `==` 先比判别码再逐字段比：整数/浮点/bool/char 按值比，`str` 按内容比（`strcmp`），嵌套结构体按字段递归比；变体不同则直接不等，`!=` 取反。比较两个不同枚举类型是编译错误。
+
+限制：match 做穷尽性检查（覆盖全变体即可省略 `_`，缺变体且无 `_` 时编译报错并列出缺失变体名；`_` 兜底仍兼容）；`print` 简单枚举输出的是判别码整数。
 
 ## 示例程序
 
@@ -274,16 +282,22 @@ fn main() -> i32 {
 
 ```python
 fn main() -> i32 {
-    # 构造:元素类型由首元素推导,至少 1 个元素
+    # 构造:非空时元素类型由首元素推导,至少 1 个元素;
+    # 空 vec 用 vec<T>() 显式指定元素类型(支持 i32/i64/f32/f64/bool/str/char/结构体)
     let mut v = vec(1, 2, 3)
+    let mut e = vec<i32>()
 
     # 下标读写(越界报运行时错误)
     print(v[0])
     v[1] = 20
 
-    # 追加:满时容量自动翻倍(需 let mut)
+    # 追加:满时容量自动翻倍(空 vec 首 push 分配初始容量,需 let mut)
     push(v, 4)
+    push(e, 1)
     print("len =", len(v))
+
+    # 整体打印:[1, 20, 3, 4](空 vec 为 [];字符串元素无引号,与 print(str) 一致)
+    print(v)
 
     # for-in 遍历
     for x in v {
@@ -293,7 +307,7 @@ fn main() -> i32 {
 }
 ```
 
-约束:`vec()` 至少 1 个元素(空 vec 暂不支持);vec 整体不可 `print`(请打印 `len(v)` 或元素);
+约束:裸 `vec()` 无元素可推导类型，编译报错并引导写 `vec<T>()`；`print(v)` 按 `[e1, e2, ...]` 输出（运行时按 len 循环，元素复用自身打印逻辑，嵌套结构体可用）；
 `for x in v` 进入前一次性读取长度(循环内 push 新增的元素不保证被遍历)。
 
 ### 阶乘计算
@@ -396,7 +410,7 @@ fn main() -> i32 {
 | `str` | 字符串 | `let x: str = "hello"` |
 | `char` | 字符 | `let x: char = 'a'` |
 | `[T; N]` | 数组 | `let arr: [i32; 5] = [1, 2, 3, 4, 5]` |
-| `vec(T)` | 动态数组(类型由首元素推导) | `let mut v = vec(1, 2, 3)` + `push(v, 4)` |
+| `vec(T)` | 动态数组(非空由首元素推导,空 vec 用 `vec<T>()`) | `let mut v = vec(1, 2, 3)` / `let mut e = vec<i32>()` + `push(v, 4)` + `print(v)` → `[1, 2, 3, 4]` |
 
 ## 运算符
 
