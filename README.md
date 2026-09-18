@@ -28,7 +28,14 @@ huzi-src/
 │   └── json.hz        # 平面 JSON 序列化与解析 (仅 ASCII)
 └── test/              # 库单元与集成自测试
     ├── core_test.hz
-    └── ...
+    ├── vec_algo_test.hz
+    ├── stringx_test.hz
+    ├── fsx_test.hz
+    ├── timex_test.hz
+    ├── env_cli_test.hz
+    ├── csv_test.hz
+    ├── json_test.hz
+    └── framing_test.hz
 ```
 
 ## 架构边界说明
