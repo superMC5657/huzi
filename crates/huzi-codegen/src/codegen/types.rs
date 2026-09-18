@@ -447,5 +447,12 @@ impl<'ctx> CodeGen<'ctx> {
 
     // ==================== Standard Library Functions ====================
 
-
+    /// 判定是否为句柄传递的容器类型 (Map 或 vec<T>)。
+    pub(super) fn is_container_handle_type(ty: &Type) -> bool {
+        match ty {
+            Type::Named(n) if n == "Map" || n == "HashMap" || n == "map" => true,
+            Type::Applied(n, _) if n == "vec" || n == "Map" || n == "HashMap" || n == "map" => true,
+            _ => false,
+        }
+    }
 }

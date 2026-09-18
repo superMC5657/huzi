@@ -195,7 +195,13 @@ impl<'ctx> CodeGen<'ctx> {
         let param_llvm_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = stmt
             .params
             .iter()
-            .map(|p| self.type_to_llvm(&p.param_type))
+            .map(|p| {
+                if Self::is_container_handle_type(&p.param_type) {
+                    Ok(self.context.ptr_type(AddressSpace::default()).into())
+                } else {
+                    self.type_to_llvm(&p.param_type)
+                }
+            })
             .collect::<Result<Vec<_>>>()?;
         // The entry point is compiled with the C `main(argc, argv)` signature
         // so the arg builtins can capture them; Huzi-level `fn main()` stays

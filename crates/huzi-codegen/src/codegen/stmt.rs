@@ -333,18 +333,22 @@ impl<'ctx> CodeGen<'ctx> {
             let arg_type = arg.get_type();
             let box_inner = self.box_nest_of_ast(&param.param_type)?;
 
-            let alloca = if box_inner.is_some() {
+            let (alloca, slot_ty) = if Self::is_container_handle_type(&param.param_type) {
+                (arg.into_pointer_value(), self.vec_struct_type().into())
+            } else if box_inner.is_some() {
                 let a = self.build_box_alloca(arg_type, &param.name)?;
                 self.box_slots.push((a, arg_type));
                 if arg.is_pointer_value() {
                     self.emit_retain_box(arg.into_pointer_value())?;
                 }
-                a
+                self.builder.build_store(a, arg).unwrap();
+                (a, arg_type)
             } else {
-                self.build_alloca(arg_type, &param.name)?
+                let a = self.build_alloca(arg_type, &param.name)?;
+                self.builder.build_store(a, arg).unwrap();
+                (a, arg_type)
             };
-            self.builder.build_store(alloca, arg).unwrap();
-            self.declare_param(&param.name, alloca, arg_type, i as u32 + 1, span.start_line() as u32);
+            self.declare_param(&param.name, alloca, slot_ty, i as u32 + 1, span.start_line() as u32);
 
             // Arrays decay to pointers; remember the element type for indexing.
             let (vec_elem, map_mark) = self.elem_and_mark_from_ast(&param.param_type)?;
@@ -367,7 +371,7 @@ impl<'ctx> CodeGen<'ctx> {
                 param.name.clone(),
                 VarSlot {
                     ptr: alloca,
-                    ty: arg_type,
+                    ty: slot_ty,
                     elem,
                     array_len,
                     mutable: true,

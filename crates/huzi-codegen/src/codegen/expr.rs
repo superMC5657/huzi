@@ -242,10 +242,37 @@ impl<'ctx> CodeGen<'ctx> {
                 self.check_box_assignable(arg_expr, expected)?;
             }
         }
-        for (arg_expr, param_type) in expr.arguments.iter().zip(param_types.iter()) {
-            let value = self.compile_expr(arg_expr)?;
-            let value = self.coerce_value(*param_type, value)?;
-            args.push(value.into());
+        let ast_params_opt = self.fn_param_ast.get(&lookup_key).cloned();
+        for (idx, (arg_expr, param_type)) in expr.arguments.iter().zip(param_types.iter()).enumerate() {
+            let is_container = ast_params_opt.as_ref().map_or(false, |ast_p| {
+                idx < ast_p.len() && Self::is_container_handle_type(&ast_p[idx])
+            });
+            if is_container {
+                let ptr_val = match arg_expr {
+                    Expr::Ident(name) => {
+                        let slot = self
+                            .scope_lookup(name)
+                            .ok_or_else(|| self.unknown_variable_error(name))?;
+                        slot.ptr
+                    }
+                    Expr::FieldAccess(fa) => {
+                        let (base_ptr, base_ty) = self.compile_addr_deref(&fa.base)?;
+                        let (field_ptr, _) = self.gep_field(base_ptr, base_ty, &fa.field)?;
+                        field_ptr
+                    }
+                    _ => {
+                        let val = self.compile_expr(arg_expr)?;
+                        let tmp = self.build_alloca(self.vec_struct_type().into(), "tmp_container_arg")?;
+                        self.builder.build_store(tmp, val).unwrap();
+                        tmp
+                    }
+                };
+                args.push(ptr_val.into());
+            } else {
+                let value = self.compile_expr(arg_expr)?;
+                let value = self.coerce_value(*param_type, value)?;
+                args.push(value.into());
+            }
         }
 
         let call = self.builder.build_call(function, &args, "call").unwrap();
