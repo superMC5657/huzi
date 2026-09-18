@@ -1,0 +1,14 @@
+fn main() -> i32 {
+    let s = localtime(0)
+    print("len0: ", len(s))
+    print("dash1_ok: ", substring(s, 4, 5) == "-")
+    print("dash2_ok: ", substring(s, 7, 8) == "-")
+    print("space_ok: ", substring(s, 10, 11) == " ")
+    print("colon1_ok: ", substring(s, 13, 14) == ":")
+    print("colon2_ok: ", substring(s, 16, 17) == ":")
+    let cur = localtime(time())
+    print("cur_len: ", len(cur))
+    let invalid = localtime(-1)
+    print("invalid_len: ", len(invalid))
+    return 0
+}

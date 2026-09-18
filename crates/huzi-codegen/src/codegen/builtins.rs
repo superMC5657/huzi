@@ -124,6 +124,24 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("getenv", getenv_fn, None);
 
+        // localtime and strftime for timestamp formatting
+        let localtime_fn = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        self.module.add_function("localtime", localtime_fn, None);
+
+        let strftime_fn = self.context.i64_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.i64_type().into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+        self.module.add_function("strftime", strftime_fn, None);
+
         // exit for runtime error aborts (division by zero, out-of-bounds, ...)
         let exit_fn = self.context.void_type().fn_type(
             &[self.context.i32_type().into()],

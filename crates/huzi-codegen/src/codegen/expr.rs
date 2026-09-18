@@ -180,6 +180,7 @@ impl<'ctx> CodeGen<'ctx> {
             "rand" => return self.compile_rand(),
             "srand" => return self.compile_srand(&expr.arguments),
             "time" => return self.compile_time(),
+            "localtime" => return self.compile_localtime(&expr.arguments),
             "exit" => return self.compile_exit(&expr.arguments),
             "panic" => return self.compile_panic(&expr.arguments),
             "sleep_ms" => return self.compile_sleep_ms(&expr.arguments),

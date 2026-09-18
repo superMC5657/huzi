@@ -163,4 +163,70 @@ impl<'ctx> CodeGen<'ctx> {
 
         Ok(self.builder.build_load(tup_ty, tup_alloca, "env_get_res").unwrap())
     }
+
+    /// `localtime(ts: i64) -> str`: 格式化时间戳为 `YYYY-MM-DD hh:mm:ss`。
+    pub(super) fn compile_localtime(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
+        if arguments.len() != 1 {
+            return Err(HuziError::new_global("localtime() requires exactly 1 argument (timestamp)"));
+        }
+        let ts_val = self.compile_expr(&arguments[0])?;
+        let i64_t = self.context.i64_type();
+        let ts_i64 = match self.coerce_value(i64_t.into(), ts_val)? {
+            BasicValueEnum::IntValue(iv) => iv,
+            _ => return Err(HuziError::new_global("localtime() argument must be an i64 timestamp")),
+        };
+
+        let ptr_t = self.context.ptr_type(AddressSpace::default());
+        let ts_alloca = self.build_alloca(i64_t.into(), "localtime_ts")?;
+        self.builder.build_store(ts_alloca, ts_i64).unwrap();
+
+        let malloc_fn = self.module.get_function("malloc").unwrap();
+        let i32_t = self.context.i32_type();
+        let malloc_size = i32_t.const_int(32, false);
+        let buf_size = i64_t.const_int(32, false);
+        let buf = self
+            .builder
+            .build_call(malloc_fn, &[malloc_size.into()], "localtime_buf")
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_pointer_value();
+
+        let localtime_fn = self.module.get_function("localtime").unwrap();
+        let tm_ptr = self
+            .builder
+            .build_call(localtime_fn, &[ts_alloca.into()], "localtime_call")
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_pointer_value();
+
+        let function = self.current_function()?;
+        let format_bb = self.context.append_basic_block(function, "localtm_format");
+        let fail_bb = self.context.append_basic_block(function, "localtm_fail");
+        let done_bb = self.context.append_basic_block(function, "localtm_done");
+
+        let is_null = self.builder.build_is_null(tm_ptr, "tm_null").unwrap();
+        self.builder.build_conditional_branch(is_null, fail_bb, format_bb).unwrap();
+
+        self.builder.position_at_end(format_bb);
+        let strftime_fn = self.module.get_function("strftime").unwrap();
+        let fmt_str = self.builder.build_global_string_ptr("%Y-%m-%d %H:%M:%S", "tm_fmt").unwrap().as_pointer_value();
+        self.builder.build_call(strftime_fn, &[buf.into(), buf_size.into(), fmt_str.into(), tm_ptr.into()], "strftime_call").unwrap();
+        self.builder.build_unconditional_branch(done_bb).unwrap();
+
+        self.builder.position_at_end(fail_bb);
+        let fallback_str = self.builder.build_global_string_ptr("1970-01-01 00:00:00", "tm_fallback").unwrap().as_pointer_value();
+        let strcpy_fn = self.module.get_function("strcpy").unwrap_or_else(|| {
+            let fn_t = ptr_t.fn_type(&[ptr_t.into(), ptr_t.into()], false);
+            self.module.add_function("strcpy", fn_t, None)
+        });
+        self.builder.build_call(strcpy_fn, &[buf.into(), fallback_str.into()], "strcpy_call").unwrap();
+        self.builder.build_unconditional_branch(done_bb).unwrap();
+
+        self.builder.position_at_end(done_bb);
+        Ok(buf.into())
+    }
 }
