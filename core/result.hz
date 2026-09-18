@@ -1,0 +1,23 @@
+fn ok_i32(val: i32) -> (bool, i32, str) {
+    return (true, val, "")
+}
+
+fn err_i32(err: str) -> (bool, i32, str) {
+    return (false, 0, err)
+}
+
+fn is_ok(ok: bool) -> bool {
+    return ok
+}
+
+fn is_err(ok: bool) -> bool {
+    return !ok
+}
+
+fn unwrap_or_i32(ok: bool, val: i32, dflt: i32) -> i32 {
+    if ok {
+        return val
+    } else {
+        return dflt
+    }
+}

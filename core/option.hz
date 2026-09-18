@@ -1,0 +1,31 @@
+fn some_i32(val: i32) -> (bool, i32) {
+    return (true, val)
+}
+
+fn none_i32() -> (bool, i32) {
+    return (false, 0)
+}
+
+fn some_str(val: str) -> (bool, str) {
+    return (true, val)
+}
+
+fn none_str() -> (bool, str) {
+    return (false, "")
+}
+
+fn unwrap_or_i32(has: bool, val: i32, dflt: i32) -> i32 {
+    if has {
+        return val
+    } else {
+        return dflt
+    }
+}
+
+fn unwrap_or_str(has: bool, val: str, dflt: str) -> str {
+    if has {
+        return val
+    } else {
+        return dflt
+    }
+}
