@@ -40,6 +40,20 @@ fn main() -> i32 {
     assert::assert_eq_i32(len(back_v), 2)
     assert::assert_eq_str(back_v[0].val, "huzi")
     assert::assert_eq_str(back_v[1].val, "great \"language\"\nfast")
+    let auto_s = json::stringify_i32_map(m2)
+    let auto_m = json::parse_i32_map(auto_s)
+    assert::assert_true(auto_m.0)
+    let m_auto: Map = auto_m.1
+    assert::assert_eq_i32(map_get(m_auto, "k1").1, 100)
+    assert::assert_eq_i32(map_get(m_auto, "k2").1, 200)
+    let bad_tail1 = json::parse_i32_map("{\"apple\": 10} extra")
+    assert::assert_true(!bad_tail1.0)
+    let bad_tail2 = json::parse_i32_map("{} garbage")
+    assert::assert_true(!bad_tail2.0)
+    let bad_tail3 = json::parse_str_fields("{\"k\": \"v\"} trailing")
+    assert::assert_true(!bad_tail3.0)
+    let bad_tail4 = json::parse_str_fields("{} trailing")
+    assert::assert_true(!bad_tail4.0)
     print("json_test: ok")
     return 0
 }

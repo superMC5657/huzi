@@ -98,6 +98,11 @@ fn parse_json_string(s: str, start: i32) -> (bool, str, i32) {
     return (false, "", start)
 }
 
+fn check_tail_end(s: str, close_idx: i32) -> bool {
+    let tail = skip_ws(s, close_idx + 1)
+    return tail == len(s)
+}
+
 fn stringify_map(m: Map, keys: vec<str>) -> str {
     let n = len(keys)
     let mut res = "{"
@@ -117,6 +122,11 @@ fn stringify_map(m: Map, keys: vec<str>) -> str {
     return concat(res, "}")
 }
 
+fn stringify_i32_map(m: Map) -> str {
+    let keys = map_keys(m)
+    return stringify_map(m, keys)
+}
+
 fn parse_i32_map(s: str) -> (bool, Map) {
     let mut res_map = map_new()
     let n = len(s)
@@ -130,7 +140,10 @@ fn parse_i32_map(s: str) -> (bool, Map) {
     i = skip_ws(s, i + 1)
     if i < n {
         if substring(s, i, i + 1) == "}" {
-            return (true, res_map)
+            if check_tail_end(s, i) {
+                return (true, res_map)
+            }
+            return (false, res_map)
         }
     }
     while i < n {
@@ -175,7 +188,10 @@ fn parse_i32_map(s: str) -> (bool, Map) {
         if next_tok == "," {
             i = skip_ws(s, i + 1)
         } elif next_tok == "}" {
-            return (true, res_map)
+            if check_tail_end(s, i) {
+                return (true, res_map)
+            }
+            return (false, res_map)
         } else {
             return (false, res_map)
         }
@@ -213,7 +229,10 @@ fn parse_str_fields(s: str) -> (bool, vec<JsonField>) {
     i = skip_ws(s, i + 1)
     if i < n {
         if substring(s, i, i + 1) == "}" {
-            return (true, fields)
+            if check_tail_end(s, i) {
+                return (true, fields)
+            }
+            return (false, fields)
         }
     }
     while i < n {
@@ -243,7 +262,10 @@ fn parse_str_fields(s: str) -> (bool, vec<JsonField>) {
         if next_tok == "," {
             i = skip_ws(s, i + 1)
         } elif next_tok == "}" {
-            return (true, fields)
+            if check_tail_end(s, i) {
+                return (true, fields)
+            }
+            return (false, fields)
         } else {
             return (false, fields)
         }
