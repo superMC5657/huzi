@@ -1,0 +1,15 @@
+import alloc.vec_algo
+import alloc.stringx
+
+fn main() -> i32 {
+    let mut numbers = vec(42, 17, 99, 8, 23)
+    vec_algo::vec_sort_i32(numbers)
+    print("sorted min: ", numbers[0])
+    print("sorted max: ", numbers[4])
+    let words = vec("huzi", "standard", "library")
+    let sentence = stringx::join(words, " ")
+    print(sentence)
+    let repeated = stringx::repeat("hz-", 3)
+    print(repeated)
+    return 0
+}

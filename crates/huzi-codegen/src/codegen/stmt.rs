@@ -229,6 +229,12 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
         }
+        if let Expr::EnumConstruct(ec) = value_expr {
+            let key = format!("{}::{}", ec.enum_name, ec.variant);
+            if let Some(ret_ty) = self.fn_return_ast.get(&key) {
+                return self.elem_and_mark_from_ast(ret_ty);
+            }
+        }
         Ok((None, None))
     }
 
