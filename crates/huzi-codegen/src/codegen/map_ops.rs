@@ -197,7 +197,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.map_grow(slot, parts, vec_ty)?;
         self.builder.build_unconditional_branch(done_bb).unwrap();
         self.builder.position_at_end(done_bb);
-        Ok(self.load_vec_parts(slot)?)
+        self.load_vec_parts(slot)
     }
 
     /// 分配新表、清零、重哈希、回写槽。

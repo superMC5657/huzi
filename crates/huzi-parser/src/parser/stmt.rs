@@ -185,10 +185,7 @@ impl Parser {
             let mut params = Vec::new();
 
             if !self.check(&Token::RParen) {
-                let is_self = match self.peek() {
-                    Token::Ident(pname) if pname == "self" => true,
-                    _ => false,
-                };
+                let is_self = matches!(self.peek(), Token::Ident(pname) if pname == "self");
                 if is_self {
                     self.advance();
                     has_self = true;
@@ -256,10 +253,7 @@ impl Parser {
 
             let mut params = Vec::new();
             if !self.check(&Token::RParen) {
-                let is_self = match self.peek() {
-                    Token::Ident(pname) if pname == "self" => true,
-                    _ => false,
-                };
+                let is_self = matches!(self.peek(), Token::Ident(pname) if pname == "self");
                 if is_self {
                     self.advance();
                     let self_type = if self.check(&Token::Colon) {

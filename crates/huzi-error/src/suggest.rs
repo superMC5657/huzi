@@ -39,7 +39,7 @@ where
         if distance > MAX_DISTANCE {
             continue;
         }
-        if best.map_or(true, |(best_distance, _)| distance < best_distance) {
+        if best.is_none_or(|(best_distance, _)| distance < best_distance) {
             best = Some((distance, candidate));
         }
     }

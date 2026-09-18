@@ -41,11 +41,10 @@ impl<'ctx> CodeGen<'ctx> {
                 .build_load(slot.ty, slot.ptr, "rc_old")
                 .unwrap()
                 .into_pointer_value();
-            if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
-                if value.is_pointer_value() {
+            if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
+                && value.is_pointer_value() {
                     self.emit_retain_box(value.into_pointer_value())?;
                 }
-            }
             self.emit_release_box(old_ptr)?;
         }
 
@@ -73,11 +72,10 @@ impl<'ctx> CodeGen<'ctx> {
                 .build_load(field_ty, field_ptr, "rc_old_field")
                 .unwrap()
                 .into_pointer_value();
-            if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
-                if value.is_pointer_value() {
+            if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
+                && value.is_pointer_value() {
                     self.emit_retain_box(value.into_pointer_value())?;
                 }
-            }
             self.emit_release_box(old_ptr)?;
         }
         let value = self.coerce_value(field_ty, value)?;

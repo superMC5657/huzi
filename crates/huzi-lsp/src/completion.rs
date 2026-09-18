@@ -291,9 +291,7 @@ fn utf16_to_char_col(chars: &[char], target: usize) -> Option<usize> {
         }
         used += c.len_utf16();
     }
-    if used == target {
-        Some(chars.len())
-    } else if target > used {
+    if target >= used {
         Some(chars.len())
     } else {
         None

@@ -43,7 +43,7 @@ impl<'ctx> CodeGen<'ctx> {
                                 .builder
                                 .build_extract_value(vec_val.into_struct_value(), 1, "vec_field_len")
                                 .unwrap();
-                            return Ok(len.into());
+                            return Ok(len);
                         }
                     }
                 }
@@ -184,7 +184,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
         }
 
-        let (format_ptr, value) = self.to_string_format(arg)?;
+        let (format_ptr, value) = self.pick_printf_format(arg)?;
 
         // Allocate buffer (large enough for any double formatting)
         let buffer = self.alloc_str_buffer(320)?;
@@ -203,7 +203,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// Pick the printf-style format string for `arg` and promote the value
     /// to match C varargs conventions (chars to i32, floats to double).
-    fn to_string_format(
+    fn pick_printf_format(
         &mut self,
         arg: inkwell::values::BasicValueEnum<'ctx>,
     ) -> Result<(PointerValue<'ctx>, inkwell::values::BasicValueEnum<'ctx>)> {
@@ -242,7 +242,7 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
             _ => {
-                return Err(HuziError::new_global(
+                Err(HuziError::new_global(
                     "to_string() requires a numeric argument",
                 ))
             }
@@ -330,9 +330,9 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(self.builder.build_load(self.vec_struct_type(), result, "split_val").unwrap())
     }
 
-    /// 空分隔符分支:整体拷贝为唯一一段。
-    /// 正常分支:先计数分配指针数组,再逐段拷贝填充。
-    /// (实现见 builtins_string_util.rs 的同名助手,保持本文件在 500 行内。)
+    // 空分隔符分支:整体拷贝为唯一一段。
+    // 正常分支:先计数分配指针数组,再逐段拷贝填充。
+    // (实现见 builtins_string_util.rs 的同名助手,保持本文件在 500 行内。)
 
     /// `substring(s, start, end)` — 字节区间 `[start, end)` 拷贝;
     /// 越界(含负数)报运行时错误。仍按字节语义,不做字符语义。

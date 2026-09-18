@@ -260,7 +260,7 @@ impl<'ctx> CodeGen<'ctx> {
             return Ok(());
         }
         let taken: Vec<BasicMetadataValueEnum<'ctx>> = std::mem::take(args);
-        let format = std::mem::replace(format_string, String::new());
+        let format = std::mem::take(format_string);
         self.call_printf(&format, taken);
         Ok(())
     }

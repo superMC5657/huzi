@@ -85,7 +85,7 @@ impl<'ctx> CodeGen<'ctx> {
             .try_as_basic_value()
             .unwrap_left()
             .into_pointer_value();
-        self.store_vec_parts(&slot, vec_ty, &VecParts {
+        self.store_vec_parts(slot, vec_ty, &VecParts {
             data: new_data,
             len: parts.len,
             cap: new_cap,
@@ -93,7 +93,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_unconditional_branch(done_block).unwrap();
 
         self.builder.position_at_end(done_block);
-        Ok(self.load_vec_parts(slot)?)
+        self.load_vec_parts(slot)
     }
 
     /// 左移:`data[i-1] = data[i]`,i in `from..len`(`from == len` 时零次)。

@@ -363,7 +363,7 @@ pub fn run_fmt(path: &str, check: bool) -> bool {
 
 fn collect_hz_files(path: &Path, out: &mut Vec<PathBuf>) {
     if path.is_file() {
-        if path.extension().map_or(false, |ext| ext == "hz") {
+        if path.extension().is_some_and(|ext| ext == "hz") {
             out.push(path.to_path_buf());
         }
         return;

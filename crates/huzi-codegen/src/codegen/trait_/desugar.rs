@@ -79,7 +79,7 @@ impl TraitDesugarer {
                 for p in &f.params {
                     fn_env.insert(p.name.clone(), p.param_type.clone());
                 }
-                self.resolve_block(&mut f.body, &mut fn_env)?;
+                self.resolve_block(&mut f.body, &fn_env)?;
             }
             _ => {}
         }
@@ -138,7 +138,7 @@ impl TraitDesugarer {
 
                 let mangled_callee = format!("{}__{}", type_name, mc.method);
                 let mut args = vec![*mc.receiver.clone()];
-                args.extend(mc.arguments.drain(..));
+                args.append(&mut mc.arguments);
 
                 *expr = Expr::Call(CallExpr {
                     callee: Box::new(Expr::Ident(mangled_callee)),

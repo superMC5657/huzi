@@ -344,7 +344,7 @@ impl Parser {
             }
             Token::LParen => {
                 self.advance();
-                return self.parse_paren_or_tuple();
+                self.parse_paren_or_tuple()
             }
             Token::LBracket => {
                 // Array literal: [1, 2, 3]

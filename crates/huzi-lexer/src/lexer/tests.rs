@@ -24,8 +24,8 @@ fn keywords_identifiers_and_integers() {
 
 #[test]
 fn float_string_and_char_literals() {
-    let tokens = tokenize("3.14 \"hi\" 'a'");
-    assert_eq!(tokens[0].token, Token::Float(3.14));
+    let tokens = tokenize("2.5 \"hi\" 'a'");
+    assert_eq!(tokens[0].token, Token::Float(2.5));
     assert_eq!(tokens[1].token, Token::String("hi".to_string()));
     assert_eq!(tokens[2].token, Token::Char('a'));
 }

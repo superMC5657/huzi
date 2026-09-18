@@ -151,13 +151,11 @@ impl<'ctx> CodeGen<'ctx> {
         };
         self.builder.build_store(alloca, value).unwrap();
 
-        if box_inner.is_some() {
-            if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
-                if value.is_pointer_value() {
+        if box_inner.is_some()
+            && !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
+                && value.is_pointer_value() {
                     self.emit_retain_box(value.into_pointer_value())?;
                 }
-            }
-        }
 
         self.scope_insert(
             stmt.name.clone(),
@@ -416,17 +414,16 @@ impl<'ctx> CodeGen<'ctx> {
                 let is_ret_box = self
                     .current_return_ast
                     .as_ref()
-                    .map(|t| Self::is_box_ast(t))
+                    .map(Self::is_box_ast)
                     .unwrap_or(false);
                 let ret_slot_ptr = if is_ret_box {
                     if let Expr::Ident(name) = value_expr {
                         self.scope_lookup(name).map(|s| s.ptr)
                     } else {
-                        if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
-                            if value.is_pointer_value() {
+                        if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
+                            && value.is_pointer_value() {
                                 self.emit_retain_box(value.into_pointer_value())?;
                             }
-                        }
                         None
                     }
                 } else {

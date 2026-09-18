@@ -60,7 +60,7 @@ impl<'ctx> CodeGen<'ctx> {
                     let key = self.qualify_name(name);
                     self.fn_return_ast
                         .get(&key)
-                        .map(|t| Self::is_box_ast(t))
+                        .map(Self::is_box_ast)
                         .unwrap_or(false)
                 } else {
                     false

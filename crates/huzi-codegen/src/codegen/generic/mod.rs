@@ -213,7 +213,7 @@ impl Monomorphizer {
                         self.instantiated_fns
                             .insert(mangled.clone(), (spec, span));
                     }
-                    c.callee = Box::new(Expr::Ident(mangled));
+                    *c.callee = Expr::Ident(mangled);
                     c.type_args.clear();
                 }
             }

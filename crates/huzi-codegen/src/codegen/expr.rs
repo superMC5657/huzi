@@ -244,7 +244,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
         let ast_params_opt = self.fn_param_ast.get(&lookup_key).cloned();
         for (idx, (arg_expr, param_type)) in expr.arguments.iter().zip(param_types.iter()).enumerate() {
-            let is_container = ast_params_opt.as_ref().map_or(false, |ast_p| {
+            let is_container = ast_params_opt.as_ref().is_some_and(|ast_p| {
                 idx < ast_p.len() && Self::is_container_handle_type(&ast_p[idx])
             });
             if is_container {
