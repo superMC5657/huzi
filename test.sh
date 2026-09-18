@@ -30,6 +30,8 @@ fail=0
 # 24_pipe_read 从 stdin 逐行读取,无重定向会阻塞等键盘输入,需要喂管道数据。
 printf 'a\nb\n' > test/out/pipe_input.txt
 
+export HUZI_TEST_ENV="huzi_env_ok"
+
 # 10_guess_number_game 是交互式示例(等待键盘猜数),回归中跳过。
 for f in test/examples/*.hz; do
   name=$(basename "$f" .hz)

@@ -117,6 +117,13 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strtod", strtod_fn, None);
 
+        // getenv for env_get
+        let getenv_fn = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        self.module.add_function("getenv", getenv_fn, None);
+
         // exit for runtime error aborts (division by zero, out-of-bounds, ...)
         let exit_fn = self.context.void_type().fn_type(
             &[self.context.i32_type().into()],

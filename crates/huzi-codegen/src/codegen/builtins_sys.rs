@@ -6,6 +6,7 @@
 
 use huzi_ast::Expr;
 use huzi_error::{HuziError, Result};
+use inkwell::AddressSpace;
 use inkwell::values::{BasicValueEnum, IntValue};
 
 use super::CodeGen;
@@ -122,5 +123,44 @@ impl<'ctx> CodeGen<'ctx> {
                 name
             ))),
         }
+    }
+
+    /// `env_get(k)`: 读取环境变量,返回 `(bool, str)`。缺键返回 `(false, "")`。
+    pub(super) fn compile_env_get(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
+        if arguments.len() != 1 {
+            return Err(HuziError::new_global("env_get() requires exactly 1 argument (key)"));
+        }
+        let key = match self.compile_expr(&arguments[0])? {
+            BasicValueEnum::PointerValue(p) => p,
+            _ => return Err(HuziError::new_global("env_get() argument must be a string")),
+        };
+
+        let ptr_t = self.context.ptr_type(AddressSpace::default());
+        let bool_t = self.context.bool_type();
+        let getenv_fn = self.module.get_function("getenv").unwrap();
+
+        let raw = self
+            .builder
+            .build_call(getenv_fn, &[key.into()], "getenv_call")
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap()
+            .into_pointer_value();
+
+        let is_null = self.builder.build_is_null(raw, "env_is_null").unwrap();
+        let found = self.builder.build_not(is_null, "env_found").unwrap();
+
+        let empty_str = self.builder.build_global_string_ptr("", "empty_str").unwrap().as_pointer_value();
+        let val_ptr = self.builder.build_select(found, raw, empty_str, "env_str").unwrap().into_pointer_value();
+
+        let tup_ty = self.context.struct_type(&[bool_t.into(), ptr_t.into()], false);
+        let tup_alloca = self.build_alloca(tup_ty.into(), "env_get_tup")?;
+        let f0 = self.builder.build_struct_gep(tup_ty, tup_alloca, 0, "env_f0").unwrap();
+        self.builder.build_store(f0, found).unwrap();
+        let f1 = self.builder.build_struct_gep(tup_ty, tup_alloca, 1, "env_f1").unwrap();
+        self.builder.build_store(f1, val_ptr).unwrap();
+
+        Ok(self.builder.build_load(tup_ty, tup_alloca, "env_get_res").unwrap())
     }
 }
