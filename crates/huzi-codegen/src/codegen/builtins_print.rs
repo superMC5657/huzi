@@ -165,7 +165,9 @@ impl<'ctx> CodeGen<'ctx> {
                         args.push(c.into());
                     }
                     64 => {
-                        format_string.push_str("%ld");
+                        // Windows 为 LLP64（long=32 位），%ld 会截断 i64；
+                        // %lld（long long）在 Windows/Linux/macOS 均为 64 位。
+                        format_string.push_str("%lld");
                         args.push(iv.into());
                     }
                     _ => {

@@ -28,6 +28,10 @@ fn get_pair_key<K, V>(p: Pair<K, V>) -> K {
     return p.key
 }
 
+fn make_i64() -> i64 {
+    return 5000000000
+}
+
 fn main() -> i32 {
     let a = id(42)
     print(a)
@@ -46,5 +50,9 @@ fn main() -> i32 {
     print(pk)
     let st = id(Status::Ok)
     print(st)
+    let wide = make_i64()
+    print(id(wide))
+    let fl = 2.5
+    print(id(fl))
     return 0
 }

@@ -210,7 +210,8 @@ impl<'ctx> CodeGen<'ctx> {
         match arg {
             inkwell::values::BasicValueEnum::IntValue(iv) => {
                 if iv.get_type().get_bit_width() == 64 {
-                    let fmt = unsafe { self.builder.build_global_string("%ld", "fmt_i64").unwrap() };
+                    // %lld 跨平台均为 64 位；Windows LLP64 下 %ld 仅 32 位会截断 i64。
+                    let fmt = unsafe { self.builder.build_global_string("%lld", "fmt_i64").unwrap() };
                     Ok((fmt.as_pointer_value(), inkwell::values::BasicValueEnum::IntValue(iv)))
                 } else if iv.get_type().get_bit_width() == 8 {
                     let fmt = unsafe { self.builder.build_global_string("%c", "fmt_c").unwrap() };
