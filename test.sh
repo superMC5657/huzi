@@ -86,4 +86,10 @@ done
 
 echo "-----------------------------"
 echo "$pass passed, $fail failed"
-[ $fail -eq 0 ]
+[ $fail -eq 0 ] || exit 1
+
+if [ "${RUN_BENCH:-0}" = "1" ] || [ "${1:-}" = "--bench" ]; then
+  echo "==> 运行性能回归门禁 (bench_compare.py)..."
+  python test/bench_compare.py || { echo "FAIL: 性能回归门禁未通过"; exit 1; }
+fi
+

@@ -84,6 +84,11 @@ jobs:
         shell: bash
         run: cargo build --workspace --release
 
+      - name: Benchmark regression gate
+        shell: bash
+        run: python test/bench_compare.py
+
+
       - name: Stage release artifact
         shell: bash
         run: |
