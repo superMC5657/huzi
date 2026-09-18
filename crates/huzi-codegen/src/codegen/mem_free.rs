@@ -1,6 +1,8 @@
 //! 手动内存释放:`free_str(s)` / `free_vec(v)` / `free_box(b)`。
 //!
-//! 约定:不引入 GC/RC,进程退出由 OS 统一回收;不调用 free 也能正常运行。
+//! 约定：str/vec 不做 GC/RC，手动 free 或进程退出时由 OS 统一回收；Box 走引用计数
+//! （RC），`free_box` 即 release，计数归零才真正释放（见 runtime.rs）。不调用 free
+//! 也能正常运行。
 //! free 后槽位置空安全态:str 指向空串(全局 `""`),vec 置 `{ null, 0, 0 }`,
 //! Box 置 `null`。二次 free 为 no-op:str 空串跳过,vec 对 `free(null)`
 //! (libc 语义即 no-op),Box 判空跳过。vec free 后可继续 `push` 复用

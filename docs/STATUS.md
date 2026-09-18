@@ -54,7 +54,7 @@
 
 ## 3. 明确不做（非缺失，是取舍）
 
-* 无精确 GC（只有 RC，循环引用支持手动打破）
+* 无精确 GC：Box 走引用计数（RC），str/vec 为手动 free + 进程退出 OS 回收；RC 循环引用需手动 free_box 打破
 * 泛型无 `where` 约束、无特化、无泛型枚举穷尽
 * 包管理无中心仓库、无 semver 求解、无 lock 传递合并
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
