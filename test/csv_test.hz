@@ -1,0 +1,36 @@
+import core.assert
+import std.csv
+
+fn main() -> i32 {
+    let p1 = csv::parse_line("apple,banana,cherry")
+    assert::assert_eq_i32(len(p1), 3)
+    assert::assert_eq_str(p1[0], "apple")
+    assert::assert_eq_str(p1[1], "banana")
+    assert::assert_eq_str(p1[2], "cherry")
+    let p2 = csv::parse_line("101,\"Beijing, China\",88")
+    assert::assert_eq_i32(len(p2), 3)
+    assert::assert_eq_str(p2[0], "101")
+    assert::assert_eq_str(p2[1], "Beijing, China")
+    assert::assert_eq_str(p2[2], "88")
+    let p3 = csv::parse_line("\"he said \"\"hello\"\"\",ok")
+    assert::assert_eq_i32(len(p3), 2)
+    assert::assert_eq_str(p3[0], "he said \"hello\"")
+    assert::assert_eq_str(p3[1], "ok")
+    let p4 = csv::parse_line(",,")
+    assert::assert_eq_i32(len(p4), 3)
+    assert::assert_eq_str(p4[0], "")
+    assert::assert_eq_str(p4[1], "")
+    assert::assert_eq_str(p4[2], "")
+    let mut row = vec<str>()
+    push(row, "alpha")
+    push(row, "beta, gamma")
+    push(row, "quote \"test\" here")
+    let s = csv::stringify(row)
+    let back = csv::parse_line(s)
+    assert::assert_eq_i32(len(back), 3)
+    assert::assert_eq_str(back[0], "alpha")
+    assert::assert_eq_str(back[1], "beta, gamma")
+    assert::assert_eq_str(back[2], "quote \"test\" here")
+    print("csv_test: ok")
+    return 0
+}
