@@ -1,0 +1,17 @@
+// Huzi 语言高级标准库示例模块
+
+fn max_i32(a: i32, b: i32) -> i32 {
+    if a >= b {
+        return a
+    } else {
+        return b
+    }
+}
+
+fn min_i32(a: i32, b: i32) -> i32 {
+    if a <= b {
+        return a
+    } else {
+        return b
+    }
+}
