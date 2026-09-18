@@ -2,12 +2,14 @@
 //!
 //! 流程:
 //! 1. 收集泛型函数与结构体模板,校验类型变量合法性;
-//! 2. 遍历 AST,遇到显式实参调用/构造/类型注解时触发按需单态化;
+//! 2. 遍历 AST,遇到显式实参调用/构造/类型注解或推导调用时触发按需单态化;
 //! 3. 深拷贝模板 AST 并替换类型实参,修饰名称(如 `id__i32`, `Pair__i32_str`);
 //! 4. 消除所有模板定义,将特化后的具体定义追加到 AST 中供后续管线编译。
 
+mod infer;
 pub mod mangle;
 pub mod subst;
+mod validate;
 
 pub use mangle::mangle_name;
 pub use subst::{substitute_block, substitute_type};
@@ -24,6 +26,7 @@ struct Monomorphizer {
     known_types: HashSet<String>,
     instantiated_structs: HashMap<String, StructDef>,
     instantiated_fns: HashMap<String, (FnStmt, Span)>,
+    inferrer: infer::TypeInferrer,
 }
 
 impl Monomorphizer {
@@ -40,6 +43,7 @@ impl Monomorphizer {
             known_types,
             instantiated_structs: HashMap::new(),
             instantiated_fns: HashMap::new(),
+            inferrer: infer::TypeInferrer::new(),
         }
     }
 
@@ -48,6 +52,9 @@ impl Monomorphizer {
             match &s.node {
                 Stmt::Struct(d) => {
                     self.known_types.insert(d.name.clone());
+                    self.inferrer
+                        .struct_defs
+                        .insert(d.name.clone(), d.clone());
                     if !d.type_params.is_empty() {
                         self.validate_struct_template(d)?;
                         self.struct_templates.insert(d.name.clone(), d.clone());
@@ -59,87 +66,20 @@ impl Monomorphizer {
                 Stmt::Fn(f) => {
                     if !f.type_params.is_empty() {
                         self.validate_fn_template(f)?;
-                        self.fn_templates.insert(f.name.clone(), (f.clone(), s.span));
+                        self.fn_templates
+                            .insert(f.name.clone(), (f.clone(), s.span));
+                    } else {
+                        self.inferrer.fn_signatures.insert(
+                            f.name.clone(),
+                            (
+                                f.params.iter().map(|p| p.param_type.clone()).collect(),
+                                f.return_type.clone(),
+                            ),
+                        );
                     }
                 }
                 _ => {}
             }
-        }
-        Ok(())
-    }
-
-    fn validate_struct_template(&self, d: &StructDef) -> Result<()> {
-        for field in &d.fields {
-            self.validate_type_params(&field.field_type, &d.type_params, &d.name)?;
-        }
-        Ok(())
-    }
-
-    fn validate_fn_template(&self, f: &FnStmt) -> Result<()> {
-        for p in &f.params {
-            self.validate_type_params(&p.param_type, &f.type_params, &f.name)?;
-        }
-        if let Some(ret) = &f.return_type {
-            self.validate_type_params(ret, &f.type_params, &f.name)?;
-        }
-        Ok(())
-    }
-
-    fn validate_type_params(&self, ty: &Type, in_scope: &[String], def_name: &str) -> Result<()> {
-        match ty {
-            Type::Generic(n) | Type::Named(n) => {
-                if !in_scope.contains(n) && !self.known_types.contains(n) {
-                    let candidates = in_scope.iter().map(|s| s.as_str()).chain(self.known_types.iter().map(|s| s.as_str()));
-                    let hint = did_you_mean(n, candidates);
-                    let msg = match hint {
-                        Some(h) => format!("Undefined type variable '{}' in '{}', did you mean '{}'?", n, def_name, h),
-                        None => format!("Undefined type variable '{}' in '{}'", n, def_name),
-                    };
-                    return Err(HuziError::new_global(msg));
-                }
-            }
-            Type::Box(inner) => self.validate_type_params(inner, in_scope, def_name)?,
-            Type::Applied(_, args) => {
-                for arg in args {
-                    self.validate_type_params(arg, in_scope, def_name)?;
-                }
-            }
-            Type::Array(elem, _) => self.validate_type_params(elem, in_scope, def_name)?,
-            Type::Tuple(elems) => {
-                for elem in elems {
-                    self.validate_type_params(elem, in_scope, def_name)?;
-                }
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn validate_type_arg(&self, ty: &Type) -> Result<()> {
-        match ty {
-            Type::Named(n) => {
-                if !self.known_types.contains(n) && !self.instantiated_structs.contains_key(n) {
-                    let hint = did_you_mean(n, self.known_types.iter().map(|s| s.as_str()));
-                    let msg = match hint {
-                        Some(h) => format!("Unknown type '{}', did you mean '{}'?", n, h),
-                        None => format!("Unknown type '{}'", n),
-                    };
-                    return Err(HuziError::new_global(msg));
-                }
-            }
-            Type::Box(inner) => self.validate_type_arg(inner)?,
-            Type::Applied(_, args) => {
-                for a in args {
-                    self.validate_type_arg(a)?;
-                }
-            }
-            Type::Array(elem, _) => self.validate_type_arg(elem)?,
-            Type::Tuple(elems) => {
-                for elem in elems {
-                    self.validate_type_arg(elem)?;
-                }
-            }
-            _ => {}
         }
         Ok(())
     }
@@ -156,7 +96,10 @@ impl Monomorphizer {
                 let template = self.struct_templates.get(name).cloned().ok_or_else(|| {
                     let hint = did_you_mean(name, self.struct_templates.keys().map(|s| s.as_str()));
                     match hint {
-                        Some(h) => HuziError::new_global(format!("Unknown generic struct '{}', did you mean '{}'?", name, h)),
+                        Some(h) => HuziError::new_global(format!(
+                            "Unknown generic struct '{}', did you mean '{}'?",
+                            name, h
+                        )),
                         None => HuziError::new_global(format!("Unknown generic struct '{}'", name)),
                     }
                 })?;
@@ -185,11 +128,14 @@ impl Monomorphizer {
                     for field in &mut spec.fields {
                         field.field_type = substitute_type(&field.field_type, &mapping);
                     }
-                    self.instantiated_structs.insert(mangled.clone(), spec.clone());
+                    self.instantiated_structs
+                        .insert(mangled.clone(), spec.clone());
                     for field in &mut spec.fields {
                         self.monomorphize_type(&mut field.field_type)?;
                     }
-                    self.instantiated_structs.insert(mangled.clone(), spec);
+                    self.instantiated_structs
+                        .insert(mangled.clone(), spec.clone());
+                    self.inferrer.struct_defs.insert(mangled.clone(), spec);
                 }
                 *ty = Type::Named(mangled);
             }
@@ -215,18 +161,41 @@ impl Monomorphizer {
                 for targ in &mut c.type_args {
                     self.monomorphize_type(targ)?;
                 }
+                // 实参类型推导：未提供显式类型实参时尝试推导
+                if c.type_args.is_empty() {
+                    if let Expr::Ident(callee_name) = &*c.callee {
+                        if let Some((template, _)) = self.fn_templates.get(callee_name) {
+                            let inferred = self.inferrer.infer_call_type_args(
+                                callee_name,
+                                template,
+                                &c.arguments,
+                            )?;
+                            c.type_args = inferred;
+                        }
+                    }
+                }
                 if !c.type_args.is_empty() {
                     let callee_name = match &*c.callee {
                         Expr::Ident(n) => n.clone(),
                         _ => return Ok(()),
                     };
-                    let (template, span) = self.fn_templates.get(&callee_name).cloned().ok_or_else(|| {
-                        let hint = did_you_mean(&callee_name, self.fn_templates.keys().map(|s| s.as_str()));
-                        match hint {
-                            Some(h) => HuziError::new_global(format!("Unknown generic function '{}', did you mean '{}'?", callee_name, h)),
-                            None => HuziError::new_global(format!("Unknown generic function '{}'", callee_name)),
-                        }
-                    })?;
+                    let (template, span) =
+                        self.fn_templates.get(&callee_name).cloned().ok_or_else(|| {
+                            let hint = did_you_mean(
+                                &callee_name,
+                                self.fn_templates.keys().map(|s| s.as_str()),
+                            );
+                            match hint {
+                                Some(h) => HuziError::new_global(format!(
+                                    "Unknown generic function '{}', did you mean '{}'?",
+                                    callee_name, h
+                                )),
+                                None => HuziError::new_global(format!(
+                                    "Unknown generic function '{}'",
+                                    callee_name
+                                )),
+                            }
+                        })?;
                     if c.type_args.len() != template.type_params.len() {
                         return Err(HuziError::new_global(format!(
                             "Generic function '{}' expects {} type argument(s), got {}",
@@ -258,9 +227,23 @@ impl Monomorphizer {
                             self.monomorphize_type(ret)?;
                         }
                         substitute_block(&mut spec.body, &mapping);
-                        self.instantiated_fns.insert(mangled.clone(), (spec.clone(), span));
+                        self.instantiated_fns
+                            .insert(mangled.clone(), (spec.clone(), span));
+                        self.inferrer.fn_signatures.insert(
+                            mangled.clone(),
+                            (
+                                spec.params.iter().map(|p| p.param_type.clone()).collect(),
+                                spec.return_type.clone(),
+                            ),
+                        );
+                        self.inferrer.enter_scope();
+                        for p in &spec.params {
+                            self.inferrer.insert_var(&p.name, p.param_type.clone());
+                        }
                         self.monomorphize_block(&mut spec.body)?;
-                        self.instantiated_fns.insert(mangled.clone(), (spec, span));
+                        self.inferrer.leave_scope();
+                        self.instantiated_fns
+                            .insert(mangled.clone(), (spec, span));
                     }
                     c.callee = Box::new(Expr::Ident(mangled));
                     c.type_args.clear();
@@ -335,9 +318,15 @@ impl Monomorphizer {
             Stmt::Let(l) => {
                 if let Some(ann) = &mut l.type_annotation {
                     self.monomorphize_type(ann)?;
+                    self.inferrer.insert_var(&l.name, ann.clone());
                 }
                 if let Some(val) = &mut l.value {
                     self.monomorphize_expr(val)?;
+                    if l.type_annotation.is_none() {
+                        if let Some(ty) = self.inferrer.infer_expr_type(val) {
+                            self.inferrer.insert_var(&l.name, ty);
+                        }
+                    }
                 }
             }
             Stmt::Expr(e) => self.monomorphize_expr(&mut e.expr)?,
@@ -346,7 +335,11 @@ impl Monomorphizer {
                     self.monomorphize_expr(v)?;
                 }
             }
-            Stmt::Block(b) => self.monomorphize_block(b)?,
+            Stmt::Block(b) => {
+                self.inferrer.enter_scope();
+                self.monomorphize_block(b)?;
+                self.inferrer.leave_scope();
+            }
             Stmt::If(i) => {
                 self.monomorphize_expr(&mut i.condition)?;
                 self.monomorphize_block(&mut i.then_branch)?;
@@ -359,14 +352,39 @@ impl Monomorphizer {
                 }
             }
             Stmt::For(f) => {
+                self.inferrer.enter_scope();
                 match &mut f.source {
                     ForSource::Range { start, end } => {
                         self.monomorphize_expr(start)?;
                         self.monomorphize_expr(end)?;
+                        self.inferrer
+                            .insert_var(&f.var_name, Type::Named("i32".to_string()));
                     }
-                    ForSource::Array(arr) => self.monomorphize_expr(arr)?,
+                    ForSource::Array(arr) => {
+                        self.monomorphize_expr(arr)?;
+                        if let Some(arr_ty) = self.inferrer.infer_expr_type(arr) {
+                            match arr_ty {
+                                Type::Array(elem, _) => {
+                                    self.inferrer.insert_var(&f.var_name, *elem);
+                                }
+                                Type::Applied(name, args) if name == "vec" => {
+                                    if let Some(elem) = args.first() {
+                                        self.inferrer.insert_var(&f.var_name, elem.clone());
+                                    }
+                                }
+                                Type::Named(s) if s == "str" => {
+                                    self.inferrer.insert_var(
+                                        &f.var_name,
+                                        Type::Named("char".to_string()),
+                                    );
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
                 self.monomorphize_block(&mut f.body)?;
+                self.inferrer.leave_scope();
             }
             Stmt::While(w) => {
                 self.monomorphize_expr(&mut w.condition)?;
@@ -418,7 +436,12 @@ pub(super) fn monomorphize_all(
                         if let Some(ret) = &mut f.return_type {
                             mono.monomorphize_type(ret)?;
                         }
+                        mono.inferrer.enter_scope();
+                        for p in &f.params {
+                            mono.inferrer.insert_var(&p.name, p.param_type.clone());
+                        }
                         mono.monomorphize_block(&mut f.body)?;
+                        mono.inferrer.leave_scope();
                     }
                 } else {
                     mono.monomorphize_stmt(&mut s.node)?;
@@ -438,7 +461,12 @@ pub(super) fn monomorphize_all(
                 if let Some(ret) = &mut f.return_type {
                     mono.monomorphize_type(ret)?;
                 }
+                mono.inferrer.enter_scope();
+                for p in &f.params {
+                    mono.inferrer.insert_var(&p.name, p.param_type.clone());
+                }
                 mono.monomorphize_block(&mut f.body)?;
+                mono.inferrer.leave_scope();
             }
         } else {
             mono.monomorphize_stmt(&mut s.node)?;
