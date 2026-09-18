@@ -7,18 +7,18 @@
 
 * 核心语言 + 编译器后端 + 工具链已闭环，可构建、可发版。
 * `TODO §3` 全部 7 项已完成：`defer` / `fmt` / `RC` / `泛型` / `Trait` / `包管理` / `网络并发`。
-* 当前在收尾打磨期：最近 3 笔提交为 bug 修复与拆分还债，无新功能在途。
+* `Roadmap Q0 / Q1 / Q2` 全部达成：CI 全量门禁、性能基准门禁、边界负例补齐、泛型实参自动推导、循环引用打破示例、vec/map 参数与字段支持、生态目录去误导与手册拆分。
 
 ## 2. 已完成清单
 
 ### 语言核心
 
 - [x] 基本类型：`i32/i64/f32/f64/bool/char/str`
-- [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec`、`Box<T>`（含嵌套 `Box<Box<T>>`）
-- [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查）、`defer`
+- [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec<T>`、`Map`（支持作为函数形参与结构体字段）、`Box<T>`（含嵌套 `Box<Box<T>>`）
+- [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查）、`defer`（防止嵌套 return/defer）
 - [x] 模块：`import` 相对路径、去重、循环拦截、`mod::fn()` 调用
-- [x] 泛型函数 + 泛型结构体（显式实参）
-- [x] Trait + impl（静态分发）
+- [x] 泛型函数 + 泛型结构体（支持调用点实参自动推导与显式标注）
+- [x] Trait + impl（静态分发与签名类型完备性校验）
 
 ### 标准库内置
 
@@ -28,8 +28,8 @@
 - [x] 数学：`abs/sqrt/pow/sin/cos/tan/floor/ceil/round`（含 `math::` 前缀）
 - [x] 系统：`rand/srand/time/exit/panic/sleep_ms`
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
-- [x] 内存：`free_str/free_vec/free_box/ref_count`
-- [x] HashMap（`str->i32` 特化）：`map_new/put/get/has/remove/len`
+- [x] 内存：`free_str/free_vec/free_box/ref_count`（支持手动打破循环引用）
+- [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len`
 - [x] TCP：`tcp_connect/send/recv/close/listen/accept`
 - [x] 线程：`spawn/join`
 
@@ -38,22 +38,23 @@
 - [x] 五阶段流水线：Lexer → Parser → CodeGen(LLVM IR) → Verify → Linker
 - [x] IR 优化：`--release` / `--opt-level 0-3`
 - [x] 调试：`-g/--debug` DWARF，GDB/LLDB 按源码行调试
-- [x] 格式化：`huzc fmt [--check]`
+- [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
 - [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）
 - [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲
 - [x] 跨平台：Windows(`lld-link/msvc/mingw`)、Linux/macOS(`clang`)
 
 ### 测试与质量
 
-- [x] 单元测试：全 Workspace 覆盖
-- [x] 回归：`bash test.sh`（48 示例 + 29 负例 + 47 输出快照，交互示例跳过）
-- [x] 构建产物：`target/debug/huzc.exe` 存在
+- [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
+- [x] 集成回归：`bash test.sh`（49 示例 + 44 负例测试全部通过，交互示例跳过）
+- [x] 性能门禁：`test/bench_compare.py`（huzi release / Rust -O <= 2.0x）
+- [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
 
 ## 3. 明确不做（非缺失，是取舍）
 
-* 无精确 GC（只有 RC，循环引用会漏）
-* 泛型无推导、无泛型枚举穷尽、无 `where` 约束、无特化
+* 无精确 GC（只有 RC，循环引用支持手动打破）
+* 泛型无 `where` 约束、无特化、无泛型枚举穷尽
 * 包管理无中心仓库、无 semver 求解、无 lock 传递合并
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
 
