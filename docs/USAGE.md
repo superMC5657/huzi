@@ -96,6 +96,10 @@ my_math = { version = "1.0.0", path = "../fixtures/my_math" }
 - `huzc add <package> [version] [--path <local_path>]`: 添加依赖并自动同步至本地 `vendor/`。
 - `huzc fetch [--path <dir>]`: 拉取/同步所有依赖至本地 `vendor/<pkg>/<version>/` 目录。
 
+> **标准库开箱即用说明**：
+> Huzi 官方自举标准库（`huzi-src`）由编译器默认提供并解析，在源码中可直接通过 `import std.*` / `import alloc.*` / `import core.*` 全路径导入，**无需在 `huzi.toml` 的 `[dependencies]` 中额外声明**。
+> 完整的工程化多模块、特性组合与标准库调用示例，请参阅根目录下的 [`examples/`](../../examples/README.md)。
+
 ---
 
 ## 7. 源码级调试 (-g)

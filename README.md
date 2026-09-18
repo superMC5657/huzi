@@ -20,6 +20,9 @@ huzi/
 ├── editors/            # 编辑器支持与插件
 │   ├── README.md       # 编辑器支持矩阵与不支持清单说明
 │   └── vscode/         # VS Code 官方语法与 LSP 插件工程
+├── examples/           # 综合业务示例工程（基于 huzi.toml 编排与标准库调用）
+│   ├── huzi.toml       # 示例工程清单
+│   └── src/            # 领域模型与调度流水线实现
 └── huzi-src/           # Huzi 自举标准库源码（core/alloc/std + test 自测）
     └── README.md       # 标准库分层架构与版本索引
 ```
@@ -52,5 +55,6 @@ bash test.sh
 - **用户指南与语法速查**：[`docs/USAGE.md`](docs/USAGE.md)
 - **技术架构与设计文档**：[`docs/dev/开发文档.md`](docs/dev/开发文档.md)
 - **项目完成状态**：[`docs/STATUS.md`](docs/STATUS.md)
+- **综合业务示例工程**：[`../examples/README.md`](../examples/README.md)
 - **编辑器支持清单**：[`../editors/README.md`](../editors/README.md)
 - **标准库分层架构**：[`../huzi-src/README.md`](../huzi-src/README.md)
