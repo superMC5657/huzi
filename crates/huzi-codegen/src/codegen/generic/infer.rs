@@ -176,6 +176,10 @@ impl TypeInferrer {
             "contains" | "is_eof" | "arg_ok" | "read_file_ok" | "map_has" => {
                 Some(Type::Named("bool".to_string()))
             }
+            "map_keys" => Some(Type::Applied(
+                "vec".to_string(),
+                vec![Type::Named("str".to_string())],
+            )),
             _ => None,
         }
     }

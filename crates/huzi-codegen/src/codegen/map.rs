@@ -255,7 +255,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 读条目 state 字段。
-    fn map_entry_state(
+    pub(super) fn map_entry_state(
         &self,
         entry_ty: inkwell::types::StructType<'ctx>,
         data: PointerValue<'ctx>,

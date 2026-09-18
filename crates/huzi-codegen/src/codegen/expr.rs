@@ -195,6 +195,7 @@ impl<'ctx> CodeGen<'ctx> {
             "map_has" => return self.compile_map_has(&expr.arguments),
             "map_remove" => return self.compile_map_remove(&expr.arguments),
             "map_len" => return self.compile_map_len(&expr.arguments),
+            "map_keys" => return self.compile_map_keys(&expr.arguments),
             "push" => return self.compile_vec_push(&expr.arguments),
             "pop" => return self.compile_vec_pop(&expr.arguments),
             "remove" => return self.compile_vec_remove(&expr.arguments),

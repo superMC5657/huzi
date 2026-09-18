@@ -197,7 +197,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 零长组装 `{ null, 0, 0 }`(data 从不解引用,len 为 0 时循环零次)。
-    fn vec_assemble_empty(
+    pub(super) fn vec_assemble_empty(
         &mut self,
         _elem_type: inkwell::types::BasicTypeEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>> {

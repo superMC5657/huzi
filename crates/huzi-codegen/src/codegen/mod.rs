@@ -37,6 +37,7 @@ mod expr_binary;
 mod expr_place;
 mod map;
 mod map_ops;
+mod map_keys;
 mod match_expr;
 mod mem_free;
 mod runtime;

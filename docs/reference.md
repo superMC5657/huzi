@@ -108,6 +108,7 @@
 - `map_has(m: Map, k: str) -> bool`: 检查键是否存在。
 - `map_remove(m: Map, k: str) -> bool`: 删除指定键。
 - `map_len(m: Map) -> i32`: 当前键值对数量。
+- `map_keys(m: Map) -> vec<str>`: 提取哈希表全部非空键名列表。
 
 ### 4.8 网络通信 (TCP)
 - `tcp_connect(host: str, port: i32) -> i32`: 连接服务器，返回套接字描述符（失败返回 `-1`）。

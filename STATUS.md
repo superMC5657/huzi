@@ -29,7 +29,7 @@
 - [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms`
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
 - [x] 内存：`free_str/free_vec/free_box/ref_count`（支持手动打破循环引用）
-- [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len`
+- [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len/map_keys`
 - [x] TCP：`tcp_connect/send/recv/close/listen/accept`
 - [x] 线程：`spawn/join`
 

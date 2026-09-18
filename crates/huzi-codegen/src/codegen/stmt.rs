@@ -46,6 +46,9 @@ impl<'ctx> CodeGen<'ctx> {
             Some(Expr::Call(call)) if Self::is_split_ctor(call) => {
                 self.compile_let_split(stmt, &call.arguments, span)
             }
+            Some(Expr::Call(call)) if Self::is_map_keys_ctor(call) => {
+                self.compile_let_map_keys(stmt, &call.arguments, span)
+            }
             Some(Expr::Call(call)) if Self::is_map_ctor(call) => {
                 self.compile_let_map(stmt, &call.arguments, span)
             }
@@ -223,6 +226,12 @@ impl<'ctx> CodeGen<'ctx> {
         }
         if let Expr::Call(c) = value_expr {
             if let Expr::Ident(fname) = &*c.callee {
+                if fname == "map_keys" {
+                    return Ok((
+                        Some(self.context.ptr_type(inkwell::AddressSpace::default()).into()),
+                        None,
+                    ));
+                }
                 let key = self.qualify_name(fname);
                 if let Some(ret_ty) = self.fn_return_ast.get(&key) {
                     return self.elem_and_mark_from_ast(ret_ty);
