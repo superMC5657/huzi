@@ -48,9 +48,15 @@ fn recv_prefixed(fd: i32) -> (bool, str) {
     if expected <= 0 {
         return (true, "")
     }
-    let data = tcp_recv(fd, expected)
-    if len(data) != expected {
-        return (false, "")
+    let mut data = ""
+    let mut remaining = expected
+    while remaining > 0 {
+        let chunk = tcp_recv(fd, remaining)
+        if len(chunk) == 0 {
+            return (false, "")
+        }
+        data = concat(data, chunk)
+        remaining = remaining - len(chunk)
     }
     return (true, data)
 }
