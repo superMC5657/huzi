@@ -2,7 +2,7 @@
 
 本文档为 Huzi 语言的核心学习教程，按照由浅入深的顺序介绍语言语法、面向对象抽象、泛型与内存管理模式。
 
-查阅编译器 CLI 工具链选项请参考 [`USAGE.md`](USAGE.md)；查阅全量标准库 API 与类型规范请参考 [`reference.md`](reference.md)。
+查阅编译器 CLI 工具链选项请参考 [`USAGE.md`](../USAGE.md)；查阅全量标准库 API 与类型规范请参考 [`reference.md`](reference.md)。
 
 ---
 

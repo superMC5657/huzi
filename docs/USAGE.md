@@ -72,7 +72,7 @@ huzc fmt --check test/examples
 
 > **注释保留与归一化范围说明**：
 > 当前 `huzc fmt` 为基于 AST 的代码美化器，保证 4 空格缩进、括号与操作符间距的严格归一化与幂等性（二次格式化零 diff）。
-> 由于当前 AST 未捕获行级注释，格式化操作会剥除源码中的注释。若需完整保留注释，建议手动排版或查阅 [`reference.md`](reference.md) 了解详情。
+> 由于当前 AST 未捕获行级注释，格式化操作会剥除源码中的注释。若需完整保留注释，建议手动排版或查阅 [`guides/reference.md`](guides/reference.md) 了解详情。
 
 ---
 
@@ -115,10 +115,10 @@ gdb ./main
 
 ## 8. 文档导航与指引
 
-- **新手与语言教程**：请参阅 [`tutorial.md`](tutorial.md)，涵盖变量、控制流、函数、结构体、枚举匹配、堆指针 Box、泛型及 Trait 接口。
-- **全量规范与标准库参考**：请参阅 [`reference.md`](reference.md)，涵盖类型系统、关键字、运算符及全量内置函数（I/O、字符串、数学、文件、网络、多线程并发等）。
-- **技术架构与编译器实现**：请参阅 [`开发文档.md`](开发文档.md)，涵盖 LLVM CodeGen、AST、词法语法设计与链接编排。
-- **项目状态快照**：请参阅根目录 [`../STATUS.md`](../STATUS.md)。
+- **新手与语言教程**：请参阅 [`guides/tutorial.md`](guides/tutorial.md)，涵盖变量、控制流、函数、结构体、枚举匹配、堆指针 Box、泛型及 Trait 接口。
+- **全量规范与标准库参考**：请参阅 [`guides/reference.md`](guides/reference.md)，涵盖类型系统、关键字、运算符及全量内置函数（I/O、字符串、数学、文件、网络、多线程并发等）。
+- **技术架构与编译器实现**：请参阅 [`dev/开发文档.md`](dev/开发文档.md)，涵盖 LLVM CodeGen、AST、词法语法设计与链接编排。
+- **项目状态快照**：请参阅同目录 [`STATUS.md`](STATUS.md)。
 
 ---
 

@@ -2,7 +2,7 @@
 
 本文档为 Huzi 编程语言的规范与内置标准库函数速查参考。
 
-快速入门与编译器选项请参阅 [`USAGE.md`](USAGE.md)；循序渐进的语言教程请参阅 [`tutorial.md`](tutorial.md)。
+快速入门与编译器选项请参阅 [`USAGE.md`](../USAGE.md)；循序渐进的语言教程请参阅 [`tutorial.md`](tutorial.md)。
 
 ---
 
