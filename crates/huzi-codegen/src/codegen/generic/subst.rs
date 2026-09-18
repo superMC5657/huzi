@@ -137,7 +137,7 @@ pub fn substitute_stmt(stmt: &mut Stmt, mapping: &HashMap<String, Type>) {
             substitute_block(&mut w.body, mapping);
         }
         Stmt::Defer(d) => substitute_stmt(&mut d.node, mapping),
-        Stmt::Struct(_) | Stmt::Enum(_) | Stmt::Fn(_) | Stmt::Import(_) | Stmt::Trait(_) | Stmt::Impl(_) | Stmt::Break | Stmt::Continue => {}
+        Stmt::Struct(_) | Stmt::Enum(_) | Stmt::Fn(_) | Stmt::Import(_) | Stmt::Export(_) | Stmt::Trait(_) | Stmt::Impl(_) | Stmt::Break | Stmt::Continue => {}
     }
 }
 

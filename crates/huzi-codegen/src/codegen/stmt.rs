@@ -18,8 +18,8 @@ impl<'ctx> CodeGen<'ctx> {
                 "Enum definitions are only allowed at the top level",
             )),
             Stmt::Fn(fn_stmt) => self.compile_fn(fn_stmt, span),
-            // import 在加载阶段已处理,编译期不再出现
-            Stmt::Import(_) => Ok(()),
+            // import/export 在加载阶段已处理或由模块重导出处理,此处跳过
+            Stmt::Import(_) | Stmt::Export(_) => Ok(()),
             Stmt::Expr(expr_stmt) => {
                 self.compile_expr(&expr_stmt.expr)?;
                 Ok(())

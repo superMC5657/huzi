@@ -13,6 +13,7 @@ mod program_compile;
 use program_compile::*;
 
 mod aggregates;
+mod exports;
 mod args;
 mod args_utf8;
 mod box_nest;
@@ -229,6 +230,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
         }
         self.current_module = None;
+        self.apply_module_export_signatures(&modules)?;
 
         let fn_stmts = self.register_program_types(program)?;
         self.declare_fn_signatures(&fn_stmts)?;
@@ -245,6 +247,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
         }
         self.use_debug_file(None);
+        self.apply_module_export_functions(&modules)?;
 
         for (fn_stmt, span) in &fn_stmts {
             self.compile_fn(fn_stmt, *span)?;
