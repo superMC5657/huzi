@@ -1,0 +1,61 @@
+import alloc.mapx
+import alloc.stringx
+
+fn get_sys_args() -> vec<str> {
+    let mut v = vec<str>()
+    let n = arg_count()
+    let mut i = 1
+    while i < n {
+        push(v, arg(i))
+        i = i + 1
+    }
+    return v
+}
+
+fn env_or(key: str, dflt: str) -> str {
+    let res = env_get(key)
+    if res.0 {
+        return res.1
+    }
+    return dflt
+}
+
+fn env_has(key: str) -> bool {
+    let res = env_get(key)
+    return res.0
+}
+
+fn parse_args_vec(args: vec<str>) -> (str, Map, vec<str>) {
+    let mut flags = map_new()
+    let mut positionals = vec<str>()
+    let mut subcmd = ""
+    let n = len(args)
+    let mut i = 0
+    while i < n {
+        let item = args[i]
+        if stringx::starts_with(item, "--") {
+            let flag_name = substring(item, 2, len(item))
+            map_put(flags, flag_name, 1)
+        } elif stringx::starts_with(item, "-") {
+            let flag_name = substring(item, 1, len(item))
+            map_put(flags, flag_name, 1)
+        } else {
+            if len(subcmd) == 0 {
+                subcmd = item
+            } else {
+                push(positionals, item)
+            }
+        }
+        i = i + 1
+    }
+    return (subcmd, flags, positionals)
+}
+
+fn has_flag(flags: Map, name: str) -> bool {
+    return mapx::map_contains_key(flags, name)
+}
+
+fn parse_sys_cli() -> (str, Map, vec<str>) {
+    let args = get_sys_args()
+    return parse_args_vec(args)
+}

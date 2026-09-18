@@ -4,6 +4,7 @@ set -u
 cd "$(dirname "$0")" || exit 1
 
 mkdir -p test/out
+export HUZI_TEST_ENV="huzi_env_ok"
 
 EXE_SUFFIX=""
 case "$(uname -s 2>/dev/null)" in
