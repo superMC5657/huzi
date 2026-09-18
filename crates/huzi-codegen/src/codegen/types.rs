@@ -300,6 +300,7 @@ impl<'ctx> CodeGen<'ctx> {
                 "bool" => Ok(self.context.bool_type().into()),
                 "char" => Ok(self.context.i8_type().into()),
                 "str" => Ok(self.context.ptr_type(AddressSpace::default()).into()),
+                "map" | "Map" | "HashMap" => Ok(self.vec_struct_type().into()),
                 other => {
                     if let Some((st, _)) = self.structs.get(other) {
                         return Ok((*st).into());
@@ -320,7 +321,7 @@ impl<'ctx> CodeGen<'ctx> {
                 g
             ))),
             Type::Applied(name, args) => {
-                if name == "vec" {
+                if name == "vec" || name == "map" || name == "Map" || name == "HashMap" {
                     return Ok(self.vec_struct_type().into());
                 }
                 let mangled = crate::codegen::generic::mangle_name(name, args);

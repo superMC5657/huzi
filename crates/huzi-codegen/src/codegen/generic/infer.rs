@@ -162,6 +162,7 @@ impl TypeInferrer {
                 let inner_ty = self.infer_expr_type(first)?;
                 Some(Type::Box(Box::new(inner_ty)))
             }
+            "map_new" => Some(Type::Named("Map".to_string())),
             _ => None,
         }
     }

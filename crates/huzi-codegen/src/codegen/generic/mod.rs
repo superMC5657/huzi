@@ -34,6 +34,7 @@ impl Monomorphizer {
         let mut known_types = HashSet::new();
         for s in &[
             "i32", "i64", "u32", "u64", "f32", "f64", "bool", "str", "char", "unit", "vec", "Box",
+            "map", "Map", "HashMap",
         ] {
             known_types.insert(s.to_string());
         }

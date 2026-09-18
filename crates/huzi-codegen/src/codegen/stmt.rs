@@ -132,14 +132,12 @@ impl<'ctx> CodeGen<'ctx> {
             Some(ann) => self.box_nest_of_ast(ann)?,
             None => self.box_nest_of_expr(value_expr),
         };
-        let elem = if box_inner.is_some() {
-            None
-        } else if var_type.is_pointer_type() {
-            // Pointers to strings support char indexing.
-            Some(self.context.i8_type().into())
-        } else {
-            None
-        };
+        let (elem, array_len) = self.resolve_let_elem_and_mark(
+            stmt,
+            value_expr,
+            var_type,
+            box_inner.is_some(),
+        )?;
 
         let alloca = if box_inner.is_some() {
             let a = self.build_box_alloca(var_type, &stmt.name)?;
@@ -164,13 +162,74 @@ impl<'ctx> CodeGen<'ctx> {
                 ptr: alloca,
                 ty: var_type,
                 elem,
-                array_len: None,
+                array_len,
                 mutable: stmt.mutable,
                 box_inner,
             },
         );
         self.declare_local(&stmt.name, alloca, var_type, span);
         Ok(())
+    }
+
+    fn elem_and_mark_from_ast(
+        &self,
+        ty: &Type,
+    ) -> Result<(Option<inkwell::types::BasicTypeEnum<'ctx>>, Option<u32>)> {
+        match ty {
+            Type::Applied(name, args) if name == "vec" => {
+                let elem = match args.first() {
+                    Some(first) => Some(self.type_to_llvm(first)?),
+                    None => None,
+                };
+                Ok((elem, None))
+            }
+            Type::Named(n) | Type::Applied(n, _) if n == "map" || n == "Map" || n == "HashMap" => {
+                Ok((None, Some(crate::codegen::map::MAP_MARK)))
+            }
+            _ => Ok((None, None)),
+        }
+    }
+
+    fn resolve_let_elem_and_mark(
+        &self,
+        stmt: &LetStmt,
+        value_expr: &Expr,
+        var_type: inkwell::types::BasicTypeEnum<'ctx>,
+        box_inner: bool,
+    ) -> Result<(Option<inkwell::types::BasicTypeEnum<'ctx>>, Option<u32>)> {
+        if box_inner {
+            return Ok((None, None));
+        }
+        if var_type.is_pointer_type() {
+            return Ok((Some(self.context.i8_type().into()), None));
+        }
+        if let Some(ann) = &stmt.type_annotation {
+            return self.elem_and_mark_from_ast(ann);
+        }
+        if let Expr::Ident(id) = value_expr {
+            if let Some(slot) = self.scope_lookup(id) {
+                if Self::is_vec_slot(&slot) {
+                    return Ok((slot.elem, None));
+                }
+                if Self::is_map_slot(&slot) {
+                    return Ok((None, Some(crate::codegen::map::MAP_MARK)));
+                }
+            }
+        }
+        if let Expr::FieldAccess(fa) = value_expr {
+            if let Some(field_ty) = self.field_ast_type(&fa.base, &fa.field) {
+                return self.elem_and_mark_from_ast(&field_ty);
+            }
+        }
+        if let Expr::Call(c) = value_expr {
+            if let Expr::Ident(fname) = &*c.callee {
+                let key = self.qualify_name(fname);
+                if let Some(ret_ty) = self.fn_return_ast.get(&key) {
+                    return self.elem_and_mark_from_ast(ret_ty);
+                }
+            }
+        }
+        Ok((None, None))
     }
 
     /// `let name: T;` — declaration without initializer, zero-initialized.
@@ -273,13 +332,20 @@ impl<'ctx> CodeGen<'ctx> {
             self.declare_param(&param.name, alloca, arg_type, i as u32 + 1, span.start_line() as u32);
 
             // Arrays decay to pointers; remember the element type for indexing.
+            let (vec_elem, map_mark) = self.elem_and_mark_from_ast(&param.param_type)?;
             let elem = match &param.param_type {
                 Type::Array(elem_ty, _) => Some(self.type_to_llvm(elem_ty)?),
                 // `s: str` parses as Named("str") (parse_type keeps builtin
                 // names as Named), so both forms need char-index metadata.
-                Type::Str => Some(self.context.i8_type().into()),
-                Type::Named(n) if n == "str" => Some(self.context.i8_type().into()),
-                _ => None,
+                Type::Str | Type::Named(_) if param.param_type == Type::Named("str".to_string()) => {
+                    Some(self.context.i8_type().into())
+                }
+                _ => vec_elem,
+            };
+
+            let array_len = match &param.param_type {
+                Type::Array(_, size) => Some(*size as u32),
+                _ => map_mark,
             };
 
             self.scopes.last_mut().unwrap().insert(
@@ -288,10 +354,7 @@ impl<'ctx> CodeGen<'ctx> {
                     ptr: alloca,
                     ty: arg_type,
                     elem,
-                    array_len: match &param.param_type {
-                        Type::Array(_, size) => Some(*size as u32),
-                        _ => None,
-                    },
+                    array_len,
                     mutable: true,
                     box_inner,
                 },

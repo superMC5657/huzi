@@ -1,0 +1,9 @@
+fn takes_vec(v: vec<i32>) -> i32 {
+    return len(v)
+}
+
+fn main() -> i32 {
+    let x = 42
+    takes_vec(x)
+    return 0
+}
