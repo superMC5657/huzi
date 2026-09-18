@@ -12,7 +12,7 @@ fn main() -> i32 {
     assert::assert_eq_str(fsx::ext_name("dir.sub/file"), "")
     assert::assert_eq_str(fsx::ext_name("no_ext"), "")
     assert::assert_eq_str(fsx::ext_name("trailing."), "")
-    assert::assert_true(fsx::exists("sample.hz"))
+    assert::assert_true(fsx::exists("README.md"))
     assert::assert_true(!fsx::exists("test/out/non_existent_file_12345.xyz"))
     let path = "test/out/fsx_tmp.txt"
     let mut lines = vec<str>()
