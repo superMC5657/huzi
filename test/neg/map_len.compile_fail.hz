@@ -1,0 +1,5 @@
+fn main() -> i32 {
+    let mut m = map_new()
+    let l = len(m)
+    return 0
+}

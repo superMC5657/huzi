@@ -1,0 +1,6 @@
+# 负例: vec remove 越界下标必须报运行时错误 (exit != 0)
+fn main() -> i32 {
+    let mut v = vec(1, 2, 3)
+    remove(v, 99)
+    return 0
+}
