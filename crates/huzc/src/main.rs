@@ -131,7 +131,8 @@ fn main() {
     let _ = fs::remove_file(&paths.obj_path);
 
     if !quiet {
-        println!("✓ {} generated successfully!", paths.exe_path.display());
+        // 纯 ASCII 前缀:避免 Windows 控制台 GBK/CP936 代码页下 `✓` 显示为乱码。
+        println!("[ok] {} generated successfully!", paths.exe_path.display());
     }
 }
 
