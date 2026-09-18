@@ -75,6 +75,12 @@ fn collect_top_level(stmt: &crate::ast::Spanned<Stmt>, out: &mut Vec<Symbol>) {
             span: stmt.span,
             detail: format!("import {}", i.name),
         }),
+        Stmt::Export(e) => out.push(Symbol {
+            name: e.path.clone(),
+            kind: SymbolKind::Module,
+            span: stmt.span,
+            detail: format!("export {}", if e.is_wildcard { format!("{}::*", e.path) } else { e.path.clone() }),
+        }),
         Stmt::Block(b) => collect_block(b, out),
         Stmt::If(i) => {
             collect_block(&i.then_branch, out);
@@ -191,6 +197,12 @@ fn collect_block(block: &Block, out: &mut Vec<Symbol>) {
                 kind: SymbolKind::Module,
                 span: stmt.span,
                 detail: format!("import {}", i.name),
+            }),
+            Stmt::Export(e) => out.push(Symbol {
+                name: e.path.clone(),
+                kind: SymbolKind::Module,
+                span: stmt.span,
+                detail: format!("export {}", if e.is_wildcard { format!("{}::*", e.path) } else { e.path.clone() }),
             }),
             Stmt::Defer(inner) => {
                 let synthetic_block = Block {

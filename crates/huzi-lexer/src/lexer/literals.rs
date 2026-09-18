@@ -33,6 +33,7 @@ impl Lexer {
             "true" => Token::True,
             "false" => Token::False,
             "import" => Token::Import,
+            "export" => Token::Export,
             _ => Token::Ident(ident),
         };
 

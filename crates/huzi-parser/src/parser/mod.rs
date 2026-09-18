@@ -147,6 +147,8 @@ impl Parser {
             self.parse_fn_statement()
         } else if self.check_keyword(&[Token::Import]) {
             self.parse_import_statement()
+        } else if self.check_keyword(&[Token::Export]) {
+            self.parse_export_statement()
         } else if self.check_keyword(&[Token::Return]) {
             self.parse_return_statement()
         } else if self.check_keyword(&[Token::Break]) {
@@ -202,7 +204,7 @@ impl Parser {
             Token::Ident(name) => {
                 let mut name = name.clone();
                 self.advance();
-                if self.check(&Token::PathSep) {
+                while self.check(&Token::PathSep) {
                     self.advance();
                     let sub = self.expect_ident("Expected type name after '::'")?;
                     name = format!("{}::{}", name, sub);

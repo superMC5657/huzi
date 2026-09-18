@@ -75,6 +75,24 @@ fn import_parses_dotted_name() {
 }
 
 #[test]
+fn export_parses_module_wildcard_and_item() {
+    let p1 = parse("export calc");
+    let Stmt::Export(exp1) = &p1.statements[0].node else { panic!("expected export"); };
+    assert_eq!(exp1.path, "calc");
+    assert!(!exp1.is_wildcard);
+
+    let p2 = parse("export calc::*");
+    let Stmt::Export(exp2) = &p2.statements[0].node else { panic!("expected export"); };
+    assert_eq!(exp2.path, "calc");
+    assert!(exp2.is_wildcard);
+
+    let p3 = parse("export calc::add");
+    let Stmt::Export(exp3) = &p3.statements[0].node else { panic!("expected export"); };
+    assert_eq!(exp3.path, "calc::add");
+    assert!(!exp3.is_wildcard);
+}
+
+#[test]
 fn parse_error_reports_real_position() {
     let tokens = Lexer::new("let x = ;".to_string())
         .tokenize()

@@ -177,6 +177,7 @@ pub enum Stmt {
     Enum(EnumDef),
     Fn(FnStmt),
     Import(ImportStmt),
+    Export(ExportStmt),
     Expr(ExprStmt),
     Return(ReturnStmt),
     Break,
@@ -219,6 +220,13 @@ pub struct FnParam {
 #[derive(Debug, Clone)]
 pub struct ImportStmt {
     pub name: String,
+}
+
+/// `export calc`, `export calc::*`, `export calc::add`
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExportStmt {
+    pub path: String,
+    pub is_wildcard: bool,
 }
 
 #[derive(Debug, Clone)]

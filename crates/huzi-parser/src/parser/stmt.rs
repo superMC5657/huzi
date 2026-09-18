@@ -18,6 +18,28 @@ impl Parser {
         Ok(Stmt::Import(ImportStmt { name }))
     }
 
+    /// `export calc`, `export calc::*`, `export calc::add`
+    pub(super) fn parse_export_statement(&mut self) -> Result<Stmt> {
+        self.advance();
+        let mut path = self.expect_ident("Expected identifier or module name after 'export'")?;
+        let mut is_wildcard = false;
+        while self.check(&Token::Dot) || self.check(&Token::PathSep) {
+            self.advance();
+            if self.check(&Token::Star) {
+                self.advance();
+                is_wildcard = true;
+                break;
+            }
+            let seg = self.expect_ident("Expected identifier or '*' after '.' or '::' in export")?;
+            path.push_str("::");
+            path.push_str(&seg);
+        }
+        if self.check(&Token::Semi) {
+            self.advance();
+        }
+        Ok(Stmt::Export(ExportStmt { path, is_wildcard }))
+    }
+
     pub(super) fn parse_let_statement(&mut self) -> Result<Stmt> {
         self.advance();
 

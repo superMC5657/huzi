@@ -311,10 +311,16 @@ impl Parser {
                         return Ok(expr);
                     }
                 }
-                // `Enum::Variant` / `Enum::Variant(args)` — variant construction.
+                // `Enum::Variant` / `Enum::Variant(args)` / `pkg::sub::fn(args)`
                 if self.check(&Token::PathSep) {
                     self.advance();
-                    let variant = self.expect_ident("Expected variant name after '::'")?;
+                    let mut variant = self.expect_ident("Expected variant or symbol name after '::'")?;
+                    while self.check(&Token::PathSep) {
+                        self.advance();
+                        let seg = self.expect_ident("Expected identifier after '::'")?;
+                        variant.push_str("::");
+                        variant.push_str(&seg);
+                    }
                     let args = if self.check(&Token::LParen) {
                         self.advance();
                         let mut args = Vec::new();
