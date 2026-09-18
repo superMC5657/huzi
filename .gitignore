@@ -1,0 +1,7 @@
+# Test outputs
+test/out/
+*.out
+*.exe
+*.obj
+*.ll
+*.bc
