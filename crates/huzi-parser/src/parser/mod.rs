@@ -16,6 +16,7 @@ pub struct Parser {
     tokens: Vec<SpannedToken>,
     pos: usize,
     in_function: bool,
+    in_defer: bool,
     type_params_in_scope: Vec<String>,
 }
 
@@ -28,6 +29,7 @@ impl Parser {
             tokens,
             pos: 0,
             in_function: false,
+            in_defer: false,
             type_params_in_scope: Vec::new(),
         }
     }

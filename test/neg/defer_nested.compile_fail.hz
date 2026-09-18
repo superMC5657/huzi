@@ -1,0 +1,8 @@
+fn foo() {
+    defer defer print("bad")
+}
+
+fn main() -> i32 {
+    foo()
+    return 0
+}

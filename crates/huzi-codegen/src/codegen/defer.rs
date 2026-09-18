@@ -33,6 +33,9 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// 注册一条 `defer` 语句:在入口块分配标志位,在当前位置置 1,压入 defer 栈。
     pub(super) fn compile_defer(&mut self, inner: &Spanned<Stmt>) -> Result<()> {
+        if matches!(inner.node, Stmt::Return(_) | Stmt::Defer(_)) {
+            return Err(HuziError::new_global("Invalid statement inside defer"));
+        }
         let flag_ptr = self.build_defer_flag()?;
         let ty = self.context.bool_type();
         self.builder

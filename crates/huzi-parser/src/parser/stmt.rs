@@ -375,6 +375,15 @@ impl Parser {
     }
 
     pub(super) fn parse_return_statement(&mut self) -> Result<Stmt> {
+        let line = self.current_line();
+        let col = self.current_col();
+        if self.in_defer {
+            return Err(HuziError::new(
+                "return is not allowed inside defer",
+                line,
+                col,
+            ));
+        }
         self.advance();
 
         let value = if self.is_expr_start() {
@@ -396,8 +405,18 @@ impl Parser {
                 col,
             ));
         }
+        if self.in_defer {
+            return Err(HuziError::new(
+                "nested defer is not allowed",
+                line,
+                col,
+            ));
+        }
         self.advance(); // consume 'defer'
-        let inner = self.parse_statement()?;
+        self.in_defer = true;
+        let inner = self.parse_statement();
+        self.in_defer = false;
+        let inner = inner?;
         Ok(Stmt::Defer(Box::new(inner)))
     }
 
