@@ -299,6 +299,11 @@ fn resolve_module_file_result(import_name: &str, base_dir: &Path) -> Result<Path
         }
     }
 
+    // 标准库根解析 (HUZI_LIB -> 可执行文件旁 ../huzi-src -> 相对路径 -> ~/.huzi)
+    if let Some(hit) = resolve_std_module(&file, base_dir) {
+        return Ok(hit);
+    }
+
     // 尝试在 vendor/ 或 ~/.huzi/packages/ 中按包解析
     let segs: Vec<&str> = import_name.split('.').collect();
     if !segs.is_empty() {
@@ -315,6 +320,44 @@ fn resolve_module_file_result(import_name: &str, base_dir: &Path) -> Result<Path
         base_dir.join(&file).display(),
         Path::new(".").join(&file).display()
     ))
+}
+
+/// 探查标准库模块文件:
+/// 优先级: HUZI_LIB 环境变量 -> 可执行文件相对路径 -> base_dir/工作目录相对路径 -> ~/.huzi/
+fn resolve_std_module(file: &Path, base_dir: &Path) -> Option<PathBuf> {
+    if let Ok(lib) = std::env::var("HUZI_LIB") {
+        let p = PathBuf::from(lib).join(file);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            for sub in ["../huzi-src", "../../huzi-src", "../../../huzi-src", "../lib/huzi-src", "huzi-src"] {
+                let p = exe_dir.join(sub).join(file);
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+    for parent in [base_dir, Path::new(".")] {
+        for sub in ["huzi-src", "../huzi-src", "../../huzi-src", "../../../huzi-src"] {
+            let p = parent.join(sub).join(file);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+        for sub in ["huzi-src", "std"] {
+            let p = PathBuf::from(&home).join(".huzi").join(sub).join(file);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    None
 }
 
 /// 模块文件只允许定义(fn/struct/enum/trait/impl)与 import,不允许顶层级语句。
@@ -428,5 +471,13 @@ mod tests {
     #[test]
     fn memory_builtin_table_matches_codegen() {
         assert_eq!(MEMORY_BUILTIN_MODULES, BUILTIN_MODULES);
+    }
+
+    #[test]
+    fn std_module_resolution_works() {
+        let mut program = parse_program("import core.result\nfn main() -> i32 {\n return 0\n}\n");
+        let dir = unique_dir("std_test");
+        let modules = load_modules_result(&mut program, &dir).expect("std core.result must resolve");
+        assert!(modules.iter().any(|m| m.name == "result"));
     }
 }

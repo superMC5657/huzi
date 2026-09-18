@@ -84,6 +84,26 @@ pub fn resolve_import_uri(
     if let Ok(cwd) = std::env::current_dir() {
         dirs.push(cwd);
     }
+    if let Ok(lib) = std::env::var("HUZI_LIB") {
+        dirs.push(PathBuf::from(lib));
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            for sub in ["../huzi-src", "../../huzi-src", "../../../huzi-src", "../lib/huzi-src", "huzi-src"] {
+                dirs.push(exe_dir.join(sub));
+            }
+        }
+    }
+    let snapshot = dirs.clone();
+    for d in snapshot {
+        for sub in ["huzi-src", "../huzi-src", "../../huzi-src", "../../../huzi-src"] {
+            dirs.push(d.join(sub));
+        }
+    }
+    if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
+        dirs.push(PathBuf::from(&home).join(".huzi").join("huzi-src"));
+        dirs.push(PathBuf::from(&home).join(".huzi").join("std"));
+    }
     dirs.into_iter()
         .map(|dir| dir.join(&rel))
         .find(|candidate| candidate.is_file())

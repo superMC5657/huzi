@@ -73,6 +73,13 @@ jobs:
         shell: bash
         run: bash test.sh
 
+      - name: Standard library tests
+        shell: bash
+        run: |
+          if [ -f ../huzi-src/test.sh ]; then
+            bash ../huzi-src/test.sh
+          fi
+
       - name: Code formatting check
         shell: bash
         run: |
