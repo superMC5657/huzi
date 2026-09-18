@@ -1,0 +1,77 @@
+import core
+import alloc
+import std
+
+fn main() -> i32 {
+    // 1. core 测试: 通配重导出 (core::*) 与子模块重导出 (core::assert::*)
+    core::assert_true(true)
+    core::assert_eq_i32(100, 100)
+    core::assert_eq_str("huzi", "huzi")
+    core::assert::assert_true(true)
+    core::assert::assert_eq_i32(42, 42)
+
+    let r_ok = core::ok_i32(10)
+    core::assert_true(core::is_ok(r_ok.0))
+    core::assert_eq_i32(core::unwrap_or_i32(r_ok.0, r_ok.1, 999), 10)
+    core::assert_eq_i32(core::result::unwrap_or_i32(r_ok.0, r_ok.1, 999), 10)
+
+    let opt = core::some_i32(77)
+    core::assert_eq_i32(core::option::unwrap_or_i32(opt.0, opt.1, 0), 77)
+
+    // 2. alloc 测试: 通配重导出 (alloc::*) 与子模块重导出 (alloc::vec_algo::*)
+    let mut v = vec(3, 1, 2)
+    alloc::vec_sort_i32(v)
+    core::assert_eq_i32(v[0], 1)
+    core::assert_eq_i32(v[1], 2)
+    core::assert_eq_i32(v[2], 3)
+    core::assert_eq_i32(alloc::vec_algo::vec_binary_search_i32(v, 2), 1)
+
+    let parts = alloc::lines("a\nb\nc")
+    core::assert_eq_i32(len(parts), 3)
+    core::assert_eq_str(parts[0], "a")
+    core::assert_eq_str(parts[1], "b")
+    core::assert_eq_str(parts[2], "c")
+    core::assert_eq_str(alloc::stringx::join(parts, "-"), "a-b-c")
+
+    let mut m = map_new()
+    map_put(m, "score", 95)
+    core::assert_eq_i32(alloc::map_get_or(m, "score", 0), 95)
+    core::assert_eq_i32(alloc::mapx::map_get_or(m, "missing", 10), 10)
+
+    let mut q = vec(10)
+    alloc::queue_push(q, 20)
+    let popped = alloc::queue::queue_pop(q)
+    core::assert_eq_i32(popped.1, 10)
+
+    // 3. std 测试: 通配重导出与子模块重导出
+    let escaped = std::escape_quotes("hello")
+    core::assert_eq_str(escaped, "hello")
+    let mut row = vec<str>()
+    push(row, "x")
+    push(row, "y")
+    let csv_row = std::csv::stringify(row)
+    core::assert_eq_str(csv_row, "x,y")
+
+    let joined = std::path_join("foo", "bar.txt")
+    core::assert_eq_str(joined, "foo/bar.txt")
+    core::assert_eq_str(std::fsx::ext_name("foo/bar.txt"), "txt")
+
+    let record = std::log::format_record("INFO", "2026", "ok")
+    core::assert_eq_str(record, "[INFO] 2026 - ok")
+
+    let now = std::now_ts()
+    core::assert_true(now > 0)
+    let elapsed = std::timex::elapsed_ms(now)
+    core::assert_true(elapsed >= 0)
+
+    let mut jm = map_new()
+    map_put(jm, "k1", 123)
+    let json_str = std::json::stringify_i32_map(jm)
+    let parse_res = std::parse_i32_map(json_str)
+    core::assert_true(parse_res.0)
+    let parsed_map: Map = parse_res.1
+    core::assert_eq_i32(map_get(parsed_map, "k1").1, 123)
+
+    print("package_entry_test passed")
+    return 0
+}
