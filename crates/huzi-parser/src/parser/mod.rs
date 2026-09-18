@@ -200,8 +200,13 @@ impl Parser {
 
         let ty = match self.peek() {
             Token::Ident(name) => {
-                let name = name.clone();
+                let mut name = name.clone();
                 self.advance();
+                if self.check(&Token::PathSep) {
+                    self.advance();
+                    let sub = self.expect_ident("Expected type name after '::'")?;
+                    name = format!("{}::{}", name, sub);
+                }
                 if self.check(&Token::Less) {
                     if name == "Box" {
                         return self.parse_box_type();
