@@ -248,25 +248,8 @@ impl<'ctx> CodeGen<'ctx> {
                 idx < ast_p.len() && Self::is_container_handle_type(&ast_p[idx])
             });
             if is_container {
-                let ptr_val = match arg_expr {
-                    Expr::Ident(name) => {
-                        let slot = self
-                            .scope_lookup(name)
-                            .ok_or_else(|| self.unknown_variable_error(name))?;
-                        slot.ptr
-                    }
-                    Expr::FieldAccess(fa) => {
-                        let (base_ptr, base_ty) = self.compile_addr_deref(&fa.base)?;
-                        let (field_ptr, _) = self.gep_field(base_ptr, base_ty, &fa.field)?;
-                        field_ptr
-                    }
-                    _ => {
-                        let val = self.compile_expr(arg_expr)?;
-                        let tmp = self.build_alloca(self.vec_struct_type().into(), "tmp_container_arg")?;
-                        self.builder.build_store(tmp, val).unwrap();
-                        tmp
-                    }
-                };
+                let expected_ast = &ast_params_opt.as_ref().unwrap()[idx];
+                let ptr_val = self.compile_container_arg_ptr(arg_expr, expected_ast)?;
                 args.push(ptr_val.into());
             } else {
                 let value = self.compile_expr(arg_expr)?;
@@ -278,5 +261,66 @@ impl<'ctx> CodeGen<'ctx> {
         let call = self.builder.build_call(function, &args, "call").unwrap();
 
         Ok(call.try_as_basic_value().unwrap_left())
+    }
+
+    /// 编译并校验传给容器句柄形参的指针实参。
+    fn compile_container_arg_ptr(
+        &mut self,
+        arg_expr: &Expr,
+        expected_ty: &Type,
+    ) -> Result<inkwell::values::PointerValue<'ctx>> {
+        let is_map = matches!(expected_ty, Type::Named(ref n) | Type::Applied(ref n, _) if n == "Map" || n == "HashMap" || n == "map");
+        match arg_expr {
+            Expr::Ident(name) => {
+                let slot = self
+                    .scope_lookup(name)
+                    .ok_or_else(|| self.unknown_variable_error(name))?;
+                if is_map {
+                    if !Self::is_map_slot(&slot) {
+                        return Err(HuziError::new_global(format!(
+                            "Type mismatch: expected Map, found '{}'",
+                            name
+                        )));
+                    }
+                } else {
+                    if !Self::is_vec_slot(&slot) {
+                        return Err(HuziError::new_global(format!(
+                            "Type mismatch: expected vec, found '{}'",
+                            name
+                        )));
+                    }
+                    if let Type::Applied(_, ref type_args) = expected_ty {
+                        if let Some(expected_elem_ast) = type_args.first() {
+                            let expected_elem_ty = self.type_to_llvm(expected_elem_ast)?;
+                            if slot.elem != Some(expected_elem_ty) {
+                                return Err(HuziError::new_global(
+                                    "Type mismatch: vec element type does not match",
+                                ));
+                            }
+                        }
+                    }
+                }
+                Ok(slot.ptr)
+            }
+            Expr::FieldAccess(fa) => {
+                let (base_ptr, base_ty) = self.compile_addr_deref(&fa.base)?;
+                let (field_ptr, field_ty) = self.gep_field(base_ptr, base_ty, &fa.field)?;
+                if field_ty != self.vec_struct_type().into() {
+                    return Err(HuziError::new_global(
+                        "Type mismatch: field is not a container",
+                    ));
+                }
+                Ok(field_ptr)
+            }
+            _ => {
+                let val = self.compile_expr(arg_expr)?;
+                if !val.is_struct_value() {
+                    return Err(HuziError::new_global("Type mismatch: expected container value"));
+                }
+                let tmp = self.build_alloca(self.vec_struct_type().into(), "tmp_container_arg")?;
+                self.builder.build_store(tmp, val).unwrap();
+                Ok(tmp)
+            }
+        }
     }
 }
