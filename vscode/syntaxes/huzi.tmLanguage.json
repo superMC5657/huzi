@@ -1,0 +1,157 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Huzi",
+  "scopeName": "source.huzi",
+  "fileTypes": ["hz"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#chars" },
+    { "include": "#keywords" },
+    { "include": "#constants" },
+    { "include": "#types" },
+    { "include": "#numbers" },
+    { "include": "#definitions" },
+    { "include": "#builtins" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.huzi",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.line.number-sign.huzi",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.huzi",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.huzi",
+              "match": "\\\\(n|t|r|\\\\|\"|0)"
+            }
+          ]
+        }
+      ]
+    },
+    "chars": {
+      "patterns": [
+        {
+          "name": "string.quoted.single.huzi",
+          "match": "'(\\\\(n|t|r|\\\\|'|0)|[^\\\\'])'"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.huzi",
+          "match": "\\b(fn|let|mut|if|elif|else|for|in|while|return|break|continue|import|match|struct|enum)\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.huzi",
+          "match": "\\b(true|false|null)\\b"
+        }
+      ]
+    },
+    "types": {
+      "patterns": [
+        {
+          "name": "storage.type.huzi",
+          "match": "\\b(i32|i64|u32|u64|f32|f64|bool|str|char|Box)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.float.huzi",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.huzi",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "definitions": {
+      "patterns": [
+        {
+          "name": "meta.function.huzi",
+          "begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.huzi" },
+            "2": { "name": "entity.name.function.huzi" }
+          },
+          "end": "(?=\\()",
+          "patterns": [{ "include": "#types" }]
+        },
+        {
+          "name": "meta.struct.huzi",
+          "begin": "\\b(struct)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.huzi" },
+            "2": { "name": "entity.name.type.huzi" }
+          },
+          "end": "(?=\\{)",
+          "patterns": [{ "include": "#types" }]
+        },
+        {
+          "name": "meta.enum.huzi",
+          "begin": "\\b(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.huzi" },
+            "2": { "name": "entity.name.type.huzi" }
+          },
+          "end": "(?=\\{)",
+          "patterns": [{ "include": "#types" }]
+        },
+        {
+          "name": "entity.name.function.call.huzi",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.stdlib.huzi",
+          "match": "\\b(print|vec|push|box|len|concat|to_string|abs|sqrt|pow|sin|cos|tan|floor|ceil|round|srand|rand|time|exit|sleep_ms|read_line|read_int|read_float|is_eof|arg_count|arg|read_file|write_file)\\b"
+        },
+        {
+          "name": "support.module.stdlib.huzi",
+          "match": "\\b(math)(?=\\s*::)"
+        },
+        {
+          "name": "constant.other.module.huzi",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(?=\\s*::)"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.huzi",
+          "match": "(&&|\\|\\||==|!=|<=|>=|->|=>|::|\\.\\.|[+\\-*/%=<>!&|])"
+        },
+        {
+          "name": "punctuation.huzi",
+          "match": "([{}()\\[\\];,:.])"
+        }
+      ]
+    }
+  }
+}
