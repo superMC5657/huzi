@@ -14,25 +14,7 @@ fn read_lines(path: str) -> (bool, vec<str>) {
         let mut empty = vec<str>()
         return (true, empty)
     }
-    let raw = stringx::split_lines(content)
-    let n = len(raw)
-    let mut clean = vec<str>()
-    let mut i = 0
-    while i < n {
-        let line = raw[i]
-        let l = len(line)
-        if l > 0 {
-            if substring(line, l - 1, l) == "\r" {
-                push(clean, substring(line, 0, l - 1))
-            } else {
-                push(clean, line)
-            }
-        } else {
-            push(clean, "")
-        }
-        i = i + 1
-    }
-    return (true, clean)
+    return (true, stringx::lines(content))
 }
 
 fn write_lines(path: str, lines: vec<str>) -> bool {

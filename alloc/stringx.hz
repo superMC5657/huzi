@@ -51,8 +51,30 @@ fn ends_with(s: str, p: str) -> bool {
     return sub == p
 }
 
+fn lines(s: str) -> vec<str> {
+    let raw = split(s, "\n")
+    let n = len(raw)
+    let mut clean = vec<str>()
+    let mut i = 0
+    while i < n {
+        let line = raw[i]
+        let l = len(line)
+        if l > 0 {
+            if substring(line, l - 1, l) == "\r" {
+                push(clean, substring(line, 0, l - 1))
+            } else {
+                push(clean, line)
+            }
+        } else {
+            push(clean, "")
+        }
+        i = i + 1
+    }
+    return clean
+}
+
 fn split_lines(s: str) -> vec<str> {
-    return split(s, "\n")
+    return lines(s)
 }
 
 fn pad_left(s: str, total_len: i32, pad_char: str) -> str {

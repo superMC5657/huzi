@@ -18,6 +18,11 @@ fn main() -> i32 {
     assert::assert_eq_str(lines[0], "a")
     assert::assert_eq_str(lines[1], "b")
     assert::assert_eq_str(lines[2], "c")
+    let crlf_lines = stringx::lines("line1\r\nline2\r\nline3")
+    assert::assert_eq_i32(len(crlf_lines), 3)
+    assert::assert_eq_str(crlf_lines[0], "line1")
+    assert::assert_eq_str(crlf_lines[1], "line2")
+    assert::assert_eq_str(crlf_lines[2], "line3")
     print("stringx_test passed")
     return 0
 }
