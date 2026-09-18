@@ -1,0 +1,103 @@
+fn quicksort_i32(v: vec<i32>, low: i32, high: i32) -> i32 {
+    if low < high {
+        let pivot = v[high]
+        let mut i = low - 1
+        let mut j = low
+        while j < high {
+            if v[j] <= pivot {
+                i = i + 1
+                let tmp = v[i]
+                v[i] = v[j]
+                v[j] = tmp
+            }
+            j = j + 1
+        }
+        let tmp2 = v[i + 1]
+        v[i + 1] = v[high]
+        v[high] = tmp2
+        let p = i + 1
+        quicksort_i32(v, low, p - 1)
+        quicksort_i32(v, p + 1, high)
+    }
+    return 0
+}
+
+fn vec_sort_i32(v: vec<i32>) -> i32 {
+    let n = len(v)
+    if n <= 1 {
+        return 0
+    }
+    quicksort_i32(v, 0, n - 1)
+    return 0
+}
+
+fn vec_binary_search_i32(v: vec<i32>, x: i32) -> i32 {
+    let mut low = 0
+    let mut high = len(v) - 1
+    while low <= high {
+        let mid = low + (high - low) / 2
+        let val = v[mid]
+        if val == x {
+            return mid
+        }
+        if val < x {
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+    return -1
+}
+
+fn vec_reverse_i32(v: vec<i32>) -> i32 {
+    let mut i = 0
+    let mut j = len(v) - 1
+    while i < j {
+        let tmp = v[i]
+        v[i] = v[j]
+        v[j] = tmp
+        i = i + 1
+        j = j - 1
+    }
+    return 0
+}
+
+fn vec_sum_i32(v: vec<i32>) -> i32 {
+    let mut s = 0
+    for x in v {
+        s = s + x
+    }
+    return s
+}
+
+fn vec_max_i32(v: vec<i32>) -> (bool, i32) {
+    let n = len(v)
+    if n == 0 {
+        return (false, 0)
+    }
+    let mut m = v[0]
+    let mut i = 1
+    while i < n {
+        if v[i] > m {
+            m = v[i]
+        }
+        i = i + 1
+    }
+    return (true, m)
+}
+
+fn vec_min_i32(v: vec<i32>) -> (bool, i32) {
+    let n = len(v)
+    if n == 0 {
+        return (false, 0)
+    }
+    let mut m = v[0]
+    let mut i = 1
+    while i < n {
+        if v[i] < m {
+            m = v[i]
+        }
+        i = i + 1
+    }
+    return (true, m)
+}

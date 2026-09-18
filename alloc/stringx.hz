@@ -1,0 +1,76 @@
+fn join(v: vec<str>, sep: str) -> str {
+    let n = len(v)
+    if n == 0 {
+        return ""
+    }
+    let mut res = v[0]
+    let mut i = 1
+    while i < n {
+        res = concat(res, sep, v[i])
+        i = i + 1
+    }
+    return res
+}
+
+fn repeat(s: str, n: i32) -> str {
+    if n <= 0 {
+        return ""
+    }
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        res = concat(res, s)
+        i = i + 1
+    }
+    return res
+}
+
+fn starts_with(s: str, p: str) -> bool {
+    let len_s = len(s)
+    let len_p = len(p)
+    if len_p == 0 {
+        return true
+    }
+    if len_s < len_p {
+        return false
+    }
+    let sub = substring(s, 0, len_p)
+    return sub == p
+}
+
+fn ends_with(s: str, p: str) -> bool {
+    let len_s = len(s)
+    let len_p = len(p)
+    if len_p == 0 {
+        return true
+    }
+    if len_s < len_p {
+        return false
+    }
+    let sub = substring(s, len_s - len_p, len_s)
+    return sub == p
+}
+
+fn split_lines(s: str) -> vec<str> {
+    return split(s, "\n")
+}
+
+fn pad_left(s: str, total_len: i32, pad_char: str) -> str {
+    let l = len(s)
+    if l >= total_len {
+        return s
+    }
+    let diff = total_len - l
+    let padding = repeat(pad_char, diff)
+    return concat(padding, s)
+}
+
+fn pad_right(s: str, total_len: i32, pad_char: str) -> str {
+    let l = len(s)
+    if l >= total_len {
+        return s
+    }
+    let diff = total_len - l
+    let padding = repeat(pad_char, diff)
+    return concat(s, padding)
+}

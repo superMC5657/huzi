@@ -1,0 +1,34 @@
+import core.assert
+import alloc.vec_algo
+
+fn main() -> i32 {
+    let mut v = vec(5, 3, 1, 4, 2)
+    vec_algo::vec_sort_i32(v)
+    assert::assert_eq_i32(v[0], 1)
+    assert::assert_eq_i32(v[1], 2)
+    assert::assert_eq_i32(v[2], 3)
+    assert::assert_eq_i32(v[3], 4)
+    assert::assert_eq_i32(v[4], 5)
+    let idx = vec_algo::vec_binary_search_i32(v, 3)
+    assert::assert_eq_i32(idx, 2)
+    let missing = vec_algo::vec_binary_search_i32(v, 99)
+    assert::assert_eq_i32(missing, -1)
+    vec_algo::vec_reverse_i32(v)
+    assert::assert_eq_i32(v[0], 5)
+    assert::assert_eq_i32(v[4], 1)
+    let s = vec_algo::vec_sum_i32(v)
+    assert::assert_eq_i32(s, 15)
+    let mut big = vec(10000)
+    clear(big)
+    let mut i = 10000
+    while i > 0 {
+        push(big, i)
+        i = i - 1
+    }
+    assert::assert_eq_i32(len(big), 10000)
+    vec_algo::vec_sort_i32(big)
+    assert::assert_eq_i32(big[0], 1)
+    assert::assert_eq_i32(big[9999], 10000)
+    print("vec_algo_test passed")
+    return 0
+}

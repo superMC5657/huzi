@@ -1,0 +1,41 @@
+fn stack_push(v: vec<i32>, x: i32) -> i32 {
+    push(v, x)
+    return 0
+}
+
+fn stack_pop(v: vec<i32>) -> (bool, i32) {
+    if len(v) == 0 {
+        return (false, 0)
+    }
+    let val = pop(v)
+    return (true, val)
+}
+
+fn stack_top(v: vec<i32>) -> (bool, i32) {
+    let n = len(v)
+    if n == 0 {
+        return (false, 0)
+    }
+    return (true, v[n - 1])
+}
+
+fn queue_push(v: vec<i32>, x: i32) -> i32 {
+    push(v, x)
+    return 0
+}
+
+fn queue_pop(v: vec<i32>) -> (bool, i32) {
+    if len(v) == 0 {
+        return (false, 0)
+    }
+    let val = v[0]
+    remove(v, 0)
+    return (true, val)
+}
+
+fn queue_front(v: vec<i32>) -> (bool, i32) {
+    if len(v) == 0 {
+        return (false, 0)
+    }
+    return (true, v[0])
+}
