@@ -31,12 +31,21 @@ fn parse_args_vec(args: vec<str>) -> (str, Map, vec<str>) {
     let mut subcmd = ""
     let n = len(args)
     let mut i = 0
+    let mut treat_as_pos = false
     while i < n {
         let item = args[i]
-        if stringx::starts_with(item, "--") {
+        if treat_as_pos {
+            if len(subcmd) == 0 {
+                subcmd = item
+            } else {
+                push(positionals, item)
+            }
+        } elif item == "--" {
+            treat_as_pos = true
+        } elif stringx::starts_with(item, "--") && len(item) > 2 {
             let flag_name = substring(item, 2, len(item))
             map_put(flags, flag_name, 1)
-        } elif stringx::starts_with(item, "-") {
+        } elif stringx::starts_with(item, "-") && len(item) > 1 {
             let flag_name = substring(item, 1, len(item))
             map_put(flags, flag_name, 1)
         } else {
@@ -49,6 +58,10 @@ fn parse_args_vec(args: vec<str>) -> (str, Map, vec<str>) {
         i = i + 1
     }
     return (subcmd, flags, positionals)
+}
+
+fn args_parse(args: vec<str>) -> (str, Map, vec<str>) {
+    return parse_args_vec(args)
 }
 
 fn has_flag(flags: Map, name: str) -> bool {

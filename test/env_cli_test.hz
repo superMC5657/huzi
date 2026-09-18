@@ -21,6 +21,20 @@ fn main() -> i32 {
     let pos: vec<str> = parsed.2
     assert::assert_eq_i32(len(pos), 1)
     assert::assert_eq_str(pos[0], "target.hz")
+    let mut args2 = vec<str>()
+    push(args2, "cat")
+    push(args2, "-")
+    push(args2, "--")
+    push(args2, "-x")
+    push(args2, "extra.txt")
+    let parsed2 = env_cli::args_parse(args2)
+    assert::assert_eq_str(parsed2.0, "cat")
+    assert::assert_true(!env_cli::has_flag(parsed2.1, "x"))
+    let pos2: vec<str> = parsed2.2
+    assert::assert_eq_i32(len(pos2), 3)
+    assert::assert_eq_str(pos2[0], "-")
+    assert::assert_eq_str(pos2[1], "-x")
+    assert::assert_eq_str(pos2[2], "extra.txt")
     print("env_cli_test: ok")
     return 0
 }
