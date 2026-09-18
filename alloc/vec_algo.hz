@@ -1,5 +1,9 @@
 fn quicksort_i32(v: vec<i32>, low: i32, high: i32) -> i32 {
     if low < high {
+        let mid = low + (high - low) / 2
+        let tmp0 = v[mid]
+        v[mid] = v[high]
+        v[high] = tmp0
         let pivot = v[high]
         let mut i = low - 1
         let mut j = low
@@ -100,4 +104,20 @@ fn vec_min_i32(v: vec<i32>) -> (bool, i32) {
         i = i + 1
     }
     return (true, m)
+}
+
+fn vec_dedup_i32(v: vec<i32>) -> i32 {
+    let n = len(v)
+    if n <= 1 {
+        return 0
+    }
+    let mut i = 1
+    while i < len(v) {
+        if v[i] == v[i - 1] {
+            remove(v, i)
+        } else {
+            i = i + 1
+        }
+    }
+    return 0
 }
