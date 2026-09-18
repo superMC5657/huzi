@@ -18,6 +18,7 @@ trait Area {
 
 trait Transform {
     fn scale(self, factor: i32) -> Point
+    fn double(self) -> Point
 }
 
 impl Printable for Point {
@@ -42,6 +43,9 @@ impl Transform for Point {
     fn scale(self: Point, factor: i32) -> Point {
         return Point { x: self.x * factor, y: self.y * factor }
     }
+    fn double(self: Point) -> Point {
+        return self.scale(2)
+    }
 }
 
 fn main() -> i32 {
@@ -50,7 +54,7 @@ fn main() -> i32 {
     print(p.show())
     print(r.show())
     print(r.area())
-    let p2 = p.scale(2)
+    let p2 = p.double()
     print(p2.show())
     print(p.scale(3).show())
     return 0

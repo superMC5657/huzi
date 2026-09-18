@@ -22,10 +22,15 @@ pub fn desugar_traits(program: &Program, modules: &mut [ModuleCode]) -> Result<P
 
     let mut new_statements = Vec::new();
 
-    // 1. 生成所有 impl 脱糖出的顶层函数
-    let generated_fns = desugarer.generate_impl_functions(program, modules)?;
-    for (f, span) in generated_fns {
-        new_statements.push(Spanned::with_span(Stmt::Fn(f), span));
+    // 1. 生成所有 impl 脱糖出的顶层函数并对其方法体执行脱糖
+    let mut generated_fns = desugarer.generate_impl_functions(program, modules)?;
+    for (f, span) in &mut generated_fns {
+        let mut fn_stmt = Stmt::Fn(f.clone());
+        desugarer.resolve_stmt(&mut fn_stmt)?;
+        if let Stmt::Fn(resolved) = fn_stmt {
+            *f = resolved;
+        }
+        new_statements.push(Spanned::with_span(Stmt::Fn(f.clone()), *span));
     }
 
     // 2. 收集模块内的 impl 方法并脱糖模块
