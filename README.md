@@ -52,14 +52,24 @@ huzi-src/
 
 ## 引用方式
 
-消费方项目在 `huzi.toml` 中通过 `path` + `version` 精确钉住版本：
+`huzi-src` 是 Huzi 语言官方自举标准库，由编译器 `huzc` 默认探测与解析（解析优先级：环境变量 `HUZI_LIB` → 编译器相邻目录 `../huzi-src` → 工作区相对路径 → `~/.huzi/huzi-src`）。
+
+因此消费方项目**无需在 `huzi.toml` 的 `[dependencies]` 中额外声明标准库**，直接在源码中使用分层全路径导入即可：
+
+```huzi
+import std.log
+import std.fsx
+import alloc.vec_algo
+import core.assert
+```
+
+消费方项目的 `huzi.toml` 保持纯净，仅在引入第三方外部扩展包时配置 `[dependencies]`：
 
 ```toml
 [package]
 name = "my_project"
 version = "0.1.0"
 entry = "src/main.hz"
-
-[dependencies]
-huzi_std = { version = "0.1.0", path = "../huzi-src" }
 ```
+
+完整的工程化参考示例请参见根目录下的 [`examples/`](../examples/README.md)。
