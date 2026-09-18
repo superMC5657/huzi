@@ -65,6 +65,10 @@ jobs:
         shell: bash
         run: RUSTFLAGS="-D warnings" cargo build --workspace
 
+      - name: Clippy (zero warnings)
+        shell: bash
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
       - name: Unit tests
         shell: bash
         run: cargo test --workspace
