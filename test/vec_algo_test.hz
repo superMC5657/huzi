@@ -35,7 +35,6 @@ fn main() -> i32 {
     let min_res = vec_algo::vec_min_i32(v)
     assert::assert_true(min_res.0)
     assert::assert_eq_i32(min_res.1, 1)
-
     let mut dup_v = vec(1, 1, 2, 3, 3, 3, 4, 5, 5)
     vec_algo::vec_dedup_i32(dup_v)
     assert::assert_eq_i32(len(dup_v), 5)
@@ -44,7 +43,6 @@ fn main() -> i32 {
     assert::assert_eq_i32(dup_v[2], 3)
     assert::assert_eq_i32(dup_v[3], 4)
     assert::assert_eq_i32(dup_v[4], 5)
-
     print("vec_algo_test passed")
     return 0
 }

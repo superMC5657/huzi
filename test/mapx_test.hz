@@ -5,28 +5,21 @@ fn main() -> i32 {
     let mut m = map_new()
     map_put(m, "alpha", 100)
     map_put(m, "beta", 200)
-
     let v1 = mapx::map_get_or(m, "alpha", 0)
     assert::assert_eq_i32(v1, 100)
-
     let v_missing = mapx::map_get_or(m, "gamma", -1)
     assert::assert_eq_i32(v_missing, -1)
-
     assert::assert_true(mapx::map_contains_key(m, "alpha"))
     assert::assert_true(!mapx::map_contains_key(m, "gamma"))
-
     let keys = mapx::map_keys_vec(m)
     assert::assert_eq_i32(len(keys), 2)
-
     let mut dst = map_new()
     map_put(dst, "delta", 300)
     mapx::map_merge(dst, m)
-
     assert::assert_eq_i32(map_len(dst), 3)
     assert::assert_eq_i32(mapx::map_get_or(dst, "alpha", 0), 100)
     assert::assert_eq_i32(mapx::map_get_or(dst, "beta", 0), 200)
     assert::assert_eq_i32(mapx::map_get_or(dst, "delta", 0), 300)
-
     print("mapx_test: ok")
     return 0
 }
