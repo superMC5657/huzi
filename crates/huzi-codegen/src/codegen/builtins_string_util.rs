@@ -397,4 +397,56 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_unconditional_branch(done_bb).unwrap();
         Ok(())
     }
+
+    /// `contains` 匹配循环:按字节向后滑动匹配子串,空串直接返回 true。
+    pub(super) fn emit_contains_loop(
+        &mut self,
+        s: PointerValue<'ctx>,
+        s_len: IntValue<'ctx>,
+        sub: PointerValue<'ctx>,
+        sub_len: IntValue<'ctx>,
+    ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let i32_type = self.context.i32_type();
+        let bool_type = self.context.bool_type();
+        let function = self.current_function()?;
+        let loop_bb = self.context.append_basic_block(function, "contains_loop");
+        let body_bb = self.context.append_basic_block(function, "contains_body");
+        let hit_bb = self.context.append_basic_block(function, "contains_hit");
+        let next_bb = self.context.append_basic_block(function, "contains_next");
+        let done_bb = self.context.append_basic_block(function, "contains_done");
+        let res = self.build_alloca(bool_type.into(), "contains_res")?;
+        let i = self.build_alloca(i32_type.into(), "contains_i")?;
+        self.builder.build_store(res, bool_type.const_int(0, false)).unwrap();
+        self.builder.build_store(i, i32_type.const_int(0, false)).unwrap();
+        // 空子串恒为 true。
+        let empty = self
+            .builder
+            .build_int_compare(
+                inkwell::IntPredicate::EQ,
+                sub_len,
+                i32_type.const_int(0, false),
+                "contains_empty",
+            )
+            .unwrap();
+        self.builder.build_conditional_branch(empty, hit_bb, loop_bb).unwrap();
+        self.builder.position_at_end(loop_bb);
+        let bound = self.builder.build_int_sub(s_len, sub_len, "contains_bound").unwrap();
+        let iv = self.builder.build_load(i32_type, i, "contains_i").unwrap().into_int_value();
+        let cond = self.builder.build_int_compare(inkwell::IntPredicate::SLE, iv, bound, "contains_c").unwrap();
+        self.builder.build_conditional_branch(cond, body_bb, done_bb).unwrap();
+        self.builder.position_at_end(body_bb);
+        let iv2 = self.builder.build_load(i32_type, i, "contains_i").unwrap().into_int_value();
+        let m = self.match_at_str(s, iv2, sub, sub_len)?;
+        self.builder.build_conditional_branch(m, hit_bb, next_bb).unwrap();
+        self.builder.position_at_end(hit_bb);
+        self.builder.build_store(res, bool_type.const_int(1, false)).unwrap();
+        self.builder.build_unconditional_branch(done_bb).unwrap();
+        self.builder.position_at_end(next_bb);
+        let iv3 = self.builder.build_load(i32_type, i, "contains_i").unwrap().into_int_value();
+        let inc = self.builder.build_int_add(iv3, i32_type.const_int(1, false), "contains_inc").unwrap();
+        self.builder.build_store(i, inc).unwrap();
+        self.builder.build_unconditional_branch(loop_bb).unwrap();
+        self.builder.position_at_end(done_bb);
+        Ok(self.builder.build_load(bool_type, res, "contains_r").unwrap())
+    }
 }
