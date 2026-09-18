@@ -2,6 +2,9 @@
 # Regression test: compile and run every example, assert exit code AND stdout.
 # Negative tests must fail: *.compile_fail.hz at compile time,
 # *.runtime_fail.hz at run time.
+# Platform: needs a Bash environment (bash/diff, optional timeout) and a writable
+# /tmp. On Windows run under Git Bash / MSYS2 / WSL, not plain PowerShell or cmd.
+# LLVM tools (llc/opt) and a platform linker must be on PATH.
 set -u
 cd "$(dirname "$0")" || exit 1
 
