@@ -22,6 +22,16 @@ pub(crate) fn die(msg: String) -> ! {
 }
 
 fn main() {
+    // 内部 panic(多为 codegen 对 inkwell builder 的 .unwrap() 在非法 IR 下失败)
+    // 统一转为清晰的“内部编译器错误”提示,避免向用户暴露裸 Rust backtrace。
+    // 消息用纯英文以规避 Windows GBK 控制台对 UTF-8 的乱码(与成功提示同理)。
+    std::panic::set_hook(Box::new(|info| {
+        eprintln!();
+        eprintln!("error: internal compiler error (a bug in huzc, not your code)");
+        eprintln!("  {}", info);
+        eprintln!("  please report it together with the .hz source that triggered it");
+    }));
+
     let args = Args::parse();
     if let Some(cmd) = args.command {
         match cmd {
