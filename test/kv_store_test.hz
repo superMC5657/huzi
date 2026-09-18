@@ -1,0 +1,140 @@
+import core.assert
+import alloc.mapx
+import alloc.stringx
+import std.fsx
+import std.framing
+import std.json
+import std.log
+import std.timex
+
+fn handle_client_cmd(cmd: str, store: Map, dump_path: str) -> (bool, str) {
+    if cmd == "SHUTDOWN" {
+        let dump_str = json::stringify_i32_map(store)
+        let mut lines = vec<str>()
+        push(lines, dump_str)
+        fsx::write_lines(dump_path, lines)
+        return (false, "BYE")
+    }
+    if stringx::starts_with(cmd, "SET:") {
+        let rest = substring(cmd, 4, len(cmd))
+        let parts = split(rest, "=")
+        if len(parts) >= 2 {
+            let p_int = parse_int(parts[1])
+            if p_int.0 {
+                map_put(store, parts[0], p_int.1)
+                return (true, "OK")
+            }
+        }
+        return (true, "ERR_INVALID_SET")
+    }
+    if stringx::starts_with(cmd, "GET:") {
+        let key = substring(cmd, 4, len(cmd))
+        let v = mapx::map_get_or(store, key, -1)
+        return (true, to_string(v))
+    }
+    if stringx::starts_with(cmd, "MERGE_JSON:") {
+        let payload = substring(cmd, 11, len(cmd))
+        let p_res = json::parse_i32_map(payload)
+        if p_res.0 {
+            mapx::map_merge(store, p_res.1)
+            return (true, "OK")
+        }
+        return (true, "ERR_BAD_JSON")
+    }
+    if cmd == "KEYS" {
+        let keys = mapx::map_keys_vec(store)
+        return (true, stringx::join(keys, ","))
+    }
+    return (true, "UNKNOWN_CMD")
+}
+
+fn server_loop(server_fd: i32) -> i32 {
+    let client_fd = tcp_accept(server_fd)
+    if client_fd < 0 {
+        return 1
+    }
+    let dump_file = "test/out/kv_store_dump.json"
+    let mut store = map_new()
+    let mut running = true
+    while running {
+        let req = framing::recv_prefixed(client_fd)
+        if !req.0 {
+            running = false
+        } else {
+            let res = handle_client_cmd(req.1, store, dump_file)
+            framing::send_prefixed(client_fd, res.1)
+            if !res.0 {
+                running = false
+            }
+        }
+    }
+    tcp_close(client_fd)
+    return 0
+}
+
+fn send_and_recv(fd: i32, msg: str) -> str {
+    let ok = framing::send_prefixed(fd, msg)
+    if !ok {
+        return "SEND_FAILED"
+    }
+    let rep = framing::recv_prefixed(fd)
+    if !rep.0 {
+        return "RECV_FAILED"
+    }
+    return rep.1
+}
+
+fn main() -> i32 {
+    let port = 28097
+    let server_fd = tcp_listen(port)
+    if server_fd < 0 {
+        print("listen failed")
+        return 1
+    }
+    let th = spawn(server_loop, server_fd)
+    sleep_ms(40)
+    let client_fd = tcp_connect("127.0.0.1", port)
+    assert::assert_true(client_fd >= 0)
+    let t0 = timex::now_ts
+    let r_set1 = send_and_recv(client_fd, "SET:alpha=100")
+    assert::assert_eq_str(r_set1, "OK")
+    let r_set2 = send_and_recv(client_fd, "SET:beta=200")
+    assert::assert_eq_str(r_set2, "OK")
+    let r_get1 = send_and_recv(client_fd, "GET:alpha")
+    assert::assert_eq_str(r_get1, "100")
+    let r_get2 = send_and_recv(client_fd, "GET:beta")
+    assert::assert_eq_str(r_get2, "200")
+    let r_get3 = send_and_recv(client_fd, "GET:gamma")
+    assert::assert_eq_str(r_get3, "-1")
+    let r_merge = send_and_recv(client_fd, "MERGE_JSON:{\"gamma\": 300, \"delta\": 400}")
+    assert::assert_eq_str(r_merge, "OK")
+    let r_get4 = send_and_recv(client_fd, "GET:gamma")
+    assert::assert_eq_str(r_get4, "300")
+    let r_get5 = send_and_recv(client_fd, "GET:delta")
+    assert::assert_eq_str(r_get5, "400")
+    let r_keys = send_and_recv(client_fd, "KEYS")
+    assert::assert_true(len(r_keys) > 0)
+    let r_bye = send_and_recv(client_fd, "SHUTDOWN")
+    assert::assert_eq_str(r_bye, "BYE")
+    tcp_close(client_fd)
+    join(th)
+    tcp_close(server_fd)
+    let dump_file = "test/out/kv_store_dump.json"
+    assert::assert_true(fsx::exists(dump_file))
+    let rd = fsx::read_lines(dump_file)
+    assert::assert_true(rd.0)
+    let lines: vec<str> = rd.1
+    assert::assert_eq_i32(len(lines), 1)
+    let parsed_dump = json::parse_i32_map(lines[0])
+    assert::assert_true(parsed_dump.0)
+    let m_dump: Map = parsed_dump.1
+    assert::assert_eq_i32(mapx::map_get_or(m_dump, "alpha", 0), 100)
+    assert::assert_eq_i32(mapx::map_get_or(m_dump, "beta", 0), 200)
+    assert::assert_eq_i32(mapx::map_get_or(m_dump, "gamma", 0), 300)
+    assert::assert_eq_i32(mapx::map_get_or(m_dump, "delta", 0), 400)
+    let elapsed = timex::elapsed_ms(t0)
+    assert::assert_true(elapsed >= 0)
+    log::info("TCP KV store end-to-end integration test passed")
+    print("kv_store_test: ok")
+    return 0
+}
