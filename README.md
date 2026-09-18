@@ -35,7 +35,11 @@ huzi-src/
     ├── env_cli_test.hz
     ├── csv_test.hz
     ├── json_test.hz
-    └── framing_test.hz
+    ├── framing_test.hz
+    ├── mapx_test.hz
+    ├── queue_test.hz
+    ├── log_test.hz
+    └── kv_store_test.hz
 ```
 
 ## 架构边界说明
