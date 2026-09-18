@@ -3,6 +3,10 @@ struct Container {
     items: vec<i32>,
 }
 
+struct Registry {
+    data: Map,
+}
+
 fn sum_vec(v: vec<i32>) -> i32 {
     let mut s = 0
     for x in v {
@@ -29,8 +33,17 @@ fn main() -> i32 {
     let v2 = append_item(v, 4)
     let s2 = sum_vec(v2)
     print("sum2: ", s2)
-    let c = Container { tag: "my_container", items: v2 }
+    let mut c = Container { tag: "my_container", items: v2 }
     print("tag: ", c.tag)
+    print("direct len: ", len(c.items))
+    print("direct elem 0: ", c.items[0])
+    c.items[0] = 99
+    print("after update 0: ", c.items[0])
+    let mut direct_sum = 0
+    for x in c.items {
+        direct_sum = direct_sum + x
+    }
+    print("direct sum: ", direct_sum)
     let c_items = c.items
     let s3 = sum_vec(c_items)
     print("sum3: ", s3)
@@ -39,5 +52,10 @@ fn main() -> i32 {
     map_put(m, "banana", 20)
     let l = inspect_map(m)
     print("map len: ", l)
+    let reg = Registry { data: m }
+    print("reg map len: ", map_len(reg.data))
+    print("reg has apple: ", map_has(reg.data, "apple"))
+    let res = map_get(reg.data, "banana")
+    print("reg get banana: ", res.0, res.1)
     return 0
 }

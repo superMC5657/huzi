@@ -9,6 +9,8 @@ pub(super) struct TypeInferrer {
     var_scopes: Vec<HashMap<String, Type>>,
     pub(super) fn_signatures: HashMap<String, (Vec<Type>, Option<Type>)>,
     pub(super) struct_defs: HashMap<String, StructDef>,
+    pub(super) instantiated_struct_types: HashMap<String, (String, Vec<Type>)>,
+    pub(super) known_enums: std::collections::HashSet<String>,
 }
 
 impl TypeInferrer {
@@ -17,6 +19,8 @@ impl TypeInferrer {
             var_scopes: vec![HashMap::new()],
             fn_signatures: HashMap::new(),
             struct_defs: HashMap::new(),
+            instantiated_struct_types: HashMap::new(),
+            known_enums: std::collections::HashSet::new(),
         }
     }
 
@@ -77,6 +81,33 @@ impl TypeInferrer {
                 Some(Type::Array(Box::new(elem_ty), elems.len()))
             }
             Expr::Call(c) => self.infer_call_expr_type(c),
+            Expr::EnumConstruct(ec) => self.infer_enum_construct_type(ec),
+            Expr::If(i) => self.infer_block_type(&i.then_branch),
+            Expr::Assign(a) => self.infer_expr_type(&a.value),
+            _ => None,
+        }
+    }
+
+    fn infer_enum_construct_type(&self, ec: &EnumConstructExpr) -> Option<Type> {
+        let full_name = format!("{}::{}", ec.enum_name, ec.variant);
+        if let Some((_, ret)) = self
+            .fn_signatures
+            .get(&full_name)
+            .or_else(|| self.fn_signatures.get(&ec.variant))
+        {
+            return ret.clone();
+        }
+        if let Some(ty) = self.infer_builtin_name_type(&ec.variant) {
+            return Some(ty);
+        }
+        Some(Type::Named(ec.enum_name.clone()))
+    }
+
+    fn infer_block_type(&self, block: &Block) -> Option<Type> {
+        let last = block.statements.last()?;
+        match &last.node {
+            Stmt::Expr(e) => self.infer_expr_type(&e.expr),
+            Stmt::Return(r) => r.value.as_ref().and_then(|v| self.infer_expr_type(v)),
             _ => None,
         }
     }
@@ -131,15 +162,8 @@ impl TypeInferrer {
         }
     }
 
-    fn infer_call_expr_type(&self, c: &CallExpr) -> Option<Type> {
-        let name = match &*c.callee {
-            Expr::Ident(n) => n,
-            _ => return None,
-        };
-        if let Some((_, ret)) = self.fn_signatures.get(name) {
-            return ret.clone();
-        }
-        match name.as_str() {
+    fn infer_builtin_name_type(&self, name: &str) -> Option<Type> {
+        match name {
             "len" | "abs" | "read_int" | "rand" | "arg_count" | "map_len" | "ref_count" => {
                 Some(Type::Named("i32".to_string()))
             }
@@ -152,6 +176,22 @@ impl TypeInferrer {
             "contains" | "is_eof" | "arg_ok" | "read_file_ok" | "map_has" => {
                 Some(Type::Named("bool".to_string()))
             }
+            _ => None,
+        }
+    }
+
+    fn infer_call_expr_type(&self, c: &CallExpr) -> Option<Type> {
+        let name = match &*c.callee {
+            Expr::Ident(n) => n,
+            _ => return None,
+        };
+        if let Some((_, ret)) = self.fn_signatures.get(name) {
+            return ret.clone();
+        }
+        if let Some(ty) = self.infer_builtin_name_type(name.as_str()) {
+            return Some(ty);
+        }
+        match name.as_str() {
             "vec" => {
                 let first = c.arguments.first()?;
                 let elem_ty = self.infer_expr_type(first)?;
@@ -193,7 +233,7 @@ impl TypeInferrer {
                     template.type_params.join(", ")
                 ))
             })?;
-            Self::unify_type(
+            self.unify_type(
                 &param.param_type,
                 &arg_ty,
                 &template.type_params,
@@ -220,6 +260,7 @@ impl TypeInferrer {
 
     /// 将形参类型与实参类型进行统一匹配，收集类型变量的具体绑定。
     pub(super) fn unify_type(
+        &self,
         param_ty: &Type,
         arg_ty: &Type,
         type_params: &[String],
@@ -240,28 +281,38 @@ impl TypeInferrer {
             }
             Type::Box(inner_p) => {
                 if let Type::Box(inner_a) = arg_ty {
-                    Self::unify_type(inner_p, inner_a, type_params, inferred)?;
+                    self.unify_type(inner_p, inner_a, type_params, inferred)?;
                 }
             }
             Type::Applied(p_name, p_args) => {
                 if let Type::Applied(a_name, a_args) = arg_ty {
                     if p_name == a_name && p_args.len() == a_args.len() {
                         for (pa, aa) in p_args.iter().zip(a_args) {
-                            Self::unify_type(pa, aa, type_params, inferred)?;
+                            self.unify_type(pa, aa, type_params, inferred)?;
+                        }
+                    }
+                } else if let Type::Named(mangled) = arg_ty {
+                    if let Some((base_name, actual_args)) =
+                        self.instantiated_struct_types.get(mangled)
+                    {
+                        if p_name == base_name && p_args.len() == actual_args.len() {
+                            for (pa, aa) in p_args.iter().zip(actual_args) {
+                                self.unify_type(pa, aa, type_params, inferred)?;
+                            }
                         }
                     }
                 }
             }
             Type::Array(p_elem, _) => {
                 if let Type::Array(a_elem, _) = arg_ty {
-                    Self::unify_type(p_elem, a_elem, type_params, inferred)?;
+                    self.unify_type(p_elem, a_elem, type_params, inferred)?;
                 }
             }
             Type::Tuple(p_elems) => {
                 if let Type::Tuple(a_elems) = arg_ty {
                     if p_elems.len() == a_elems.len() {
                         for (pe, ae) in p_elems.iter().zip(a_elems) {
-                            Self::unify_type(pe, ae, type_params, inferred)?;
+                            self.unify_type(pe, ae, type_params, inferred)?;
                         }
                     }
                 }

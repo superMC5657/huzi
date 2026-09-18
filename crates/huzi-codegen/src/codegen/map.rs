@@ -129,6 +129,48 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    /// 解析 map 实参的 (data, len, cap) 三件套，支持变量与结构体字段。
+    pub(super) fn resolve_map_parts(
+        &mut self,
+        fname: &str,
+        first: &Expr,
+    ) -> Result<super::vec::VecParts<'ctx>> {
+        if let Expr::Ident(name) = first {
+            let slot = self.map_slot_of(name)?;
+            return self.load_vec_parts(&slot);
+        }
+        if let Expr::FieldAccess(fa) = first {
+            if let Some(ty) = self.field_ast_type(&fa.base, &fa.field) {
+                if matches!(ty, Type::Named(ref n) | Type::Applied(ref n, _) if n == "Map" || n == "HashMap" || n == "map") {
+                    let map_val = self.compile_expr(first)?;
+                    if map_val.is_struct_value() {
+                        let sv = map_val.into_struct_value();
+                        let data = self
+                            .builder
+                            .build_extract_value(sv, 0, "map_data")
+                            .unwrap()
+                            .into_pointer_value();
+                        let len = self
+                            .builder
+                            .build_extract_value(sv, 1, "map_len")
+                            .unwrap()
+                            .into_int_value();
+                        let cap = self
+                            .builder
+                            .build_extract_value(sv, 2, "map_cap")
+                            .unwrap()
+                            .into_int_value();
+                        return Ok(super::vec::VecParts { data, len, cap });
+                    }
+                }
+            }
+        }
+        Err(HuziError::new_global(format!(
+            "{}() first argument must be a HashMap variable or field (str->i32 only)",
+            fname
+        )))
+    }
+
     /// 键实参须为 `str`(指针),否则报特化边界错误。
     pub(super) fn map_key_ptr(&mut self, expr: &Expr, fname: &str) -> Result<PointerValue<'ctx>> {
         let v = self.compile_expr(expr)?;

@@ -322,4 +322,33 @@ impl<'ctx> CodeGen<'ctx> {
         });
         Ok(i32_type.const_int(0, false).into())
     }
+
+    /// 从原始结构体指针装载 (data, len, cap) 三件套。
+    pub(super) fn load_vec_parts_from_ptr(
+        &mut self,
+        ptr: PointerValue<'ctx>,
+        ty: inkwell::types::BasicTypeEnum<'ctx>,
+    ) -> Result<VecParts<'ctx>> {
+        let vec_val = self
+            .builder
+            .build_load(ty, ptr, "vec_load")
+            .unwrap()
+            .into_struct_value();
+        let data = self
+            .builder
+            .build_extract_value(vec_val, 0, "vec_data")
+            .unwrap()
+            .into_pointer_value();
+        let len = self
+            .builder
+            .build_extract_value(vec_val, 1, "vec_len")
+            .unwrap()
+            .into_int_value();
+        let cap = self
+            .builder
+            .build_extract_value(vec_val, 2, "vec_cap")
+            .unwrap()
+            .into_int_value();
+        Ok(VecParts { data, len, cap })
+    }
 }

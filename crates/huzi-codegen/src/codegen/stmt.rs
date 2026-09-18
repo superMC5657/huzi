@@ -171,7 +171,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    fn elem_and_mark_from_ast(
+    pub(super) fn elem_and_mark_from_ast(
         &self,
         ty: &Type,
     ) -> Result<(Option<inkwell::types::BasicTypeEnum<'ctx>>, Option<u32>)> {

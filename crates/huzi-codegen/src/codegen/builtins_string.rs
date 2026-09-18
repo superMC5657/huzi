@@ -28,12 +28,23 @@ impl<'ctx> CodeGen<'ctx> {
             }
         }
 
-        // len(s.arr) on a struct array field uses the declared array size.
+        // len(s.arr) on a struct array field uses the declared array size;
+        // len(s.items) on a vec field returns its dynamic length.
         if let Expr::FieldAccess(fa) = &arguments[0] {
             if let Some((_, fields)) = self.struct_def_of_expr(&fa.base) {
                 if let Some(info) = fields.iter().find(|info| info.name == fa.field) {
                     if let Type::Array(_, size) = &info.ast_ty {
                         return Ok(self.context.i32_type().const_int(*size as u64, false).into());
+                    }
+                    if matches!(&info.ast_ty, Type::Applied(n, _) if n == "vec") {
+                        let vec_val = self.compile_expr(&arguments[0])?;
+                        if vec_val.is_struct_value() {
+                            let len = self
+                                .builder
+                                .build_extract_value(vec_val.into_struct_value(), 1, "vec_field_len")
+                                .unwrap();
+                            return Ok(len.into());
+                        }
                     }
                 }
             }

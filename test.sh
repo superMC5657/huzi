@@ -14,11 +14,15 @@ case "$(uname -s 2>/dev/null)" in
   MINGW*|MSYS*|CYGWIN*|Windows*) EXE_SUFFIX=".exe" ;;
 esac
 HUZC="./target/debug/huzc$EXE_SUFFIX"
+DIFF_CMD="diff"
+if diff --strip-trailing-cr /dev/null /dev/null > /dev/null 2>&1; then
+  DIFF_CMD="diff --strip-trailing-cr"
+fi
 run_limited() {
   if command -v timeout > /dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
 }
 
-cargo build --workspace 2>&1 | grep -E "^error" && { echo "BUILD FAILED"; exit 1; }
+cargo build --workspace || { echo "BUILD FAILED"; exit 1; }
 
 pass=0
 fail=0
@@ -47,9 +51,9 @@ for f in test/examples/*.hz; do
     fail=$((fail+1))
     continue
   fi
-  if ! diff -q "test/expected/$name.stdout" /tmp/huzc_run.log > /dev/null 2>&1; then
+  if ! $DIFF_CMD -q "test/expected/$name.stdout" /tmp/huzc_run.log > /dev/null 2>&1; then
     echo "FAIL(stdout): $name"
-    diff "test/expected/$name.stdout" /tmp/huzc_run.log | head -5
+    $DIFF_CMD "test/expected/$name.stdout" /tmp/huzc_run.log | head -5
     fail=$((fail+1))
     continue
   fi
@@ -90,6 +94,14 @@ echo "$pass passed, $fail failed"
 
 if [ "${RUN_BENCH:-0}" = "1" ] || [ "${1:-}" = "--bench" ]; then
   echo "==> 运行性能回归门禁 (bench_compare.py)..."
-  python test/bench_compare.py || { echo "FAIL: 性能回归门禁未通过"; exit 1; }
+  PY=""
+  for cand in python3 python py; do
+    if "$cand" -c "import sys; exit(0 if sys.version_info[0] >= 3 else 1)" >/dev/null 2>&1; then
+      PY="$cand"
+      break
+    fi
+  done
+  [ -n "$PY" ] || { echo "FAIL: 未检测到有效的 Python 3 环境"; exit 1; }
+  "$PY" test/bench_compare.py || { echo "FAIL: 性能回归门禁未通过"; exit 1; }
 fi
 

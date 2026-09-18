@@ -5,11 +5,90 @@ use huzi_error::{HuziError, Result};
 
 
 impl<'ctx> CodeGen<'ctx> {
+    fn compile_assign_ident(
+        &mut self,
+        name: &str,
+        expr: &AssignExpr,
+        value: inkwell::values::BasicValueEnum<'ctx>,
+    ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let slot = self
+            .scope_lookup(name)
+            .ok_or_else(|| self.unknown_variable_error(name))?;
+
+        if !slot.mutable {
+            return Err(HuziError::new_global(format!(
+                "Cannot assign to immutable variable '{}'; declare it with `let mut`",
+                name
+            )));
+        }
+
+        if Self::is_null_expr(&expr.value) && !Self::is_box_slot(&slot) {
+            return Err(HuziError::new_global(format!(
+                "null can only be assigned to a Box<T> slot (variable '{}' is not a Box)",
+                name
+            )));
+        }
+        if matches!(&*expr.value, Expr::BoxAlloc(_)) && !Self::is_box_slot(&slot) {
+            return Err(HuziError::new_global(format!(
+                "Cannot assign a Box value to non-Box variable '{}'",
+                name
+            )));
+        }
+
+        if Self::is_box_slot(&slot) {
+            let old_ptr = self
+                .builder
+                .build_load(slot.ty, slot.ptr, "rc_old")
+                .unwrap()
+                .into_pointer_value();
+            if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
+                if value.is_pointer_value() {
+                    self.emit_retain_box(value.into_pointer_value())?;
+                }
+            }
+            self.emit_release_box(old_ptr)?;
+        }
+
+        let value = self.coerce_value(slot.ty, value)?;
+        self.builder.build_store(slot.ptr, value).unwrap();
+        Ok(value)
+    }
+
+    fn compile_assign_field(
+        &mut self,
+        fa: &FieldAccessExpr,
+        expr: &AssignExpr,
+        value: inkwell::values::BasicValueEnum<'ctx>,
+    ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        self.ensure_mutable(&expr.target)?;
+        let mut is_box_field = false;
+        if let Some(expected) = self.field_ast_type(&fa.base, &fa.field) {
+            self.check_box_assignable(&expr.value, &expected)?;
+            is_box_field = Self::is_box_ast(&expected);
+        }
+        let (field_ptr, field_ty) = self.compile_addr(&expr.target)?;
+        if is_box_field {
+            let old_ptr = self
+                .builder
+                .build_load(field_ty, field_ptr, "rc_old_field")
+                .unwrap()
+                .into_pointer_value();
+            if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
+                if value.is_pointer_value() {
+                    self.emit_retain_box(value.into_pointer_value())?;
+                }
+            }
+            self.emit_release_box(old_ptr)?;
+        }
+        let value = self.coerce_value(field_ty, value)?;
+        self.builder.build_store(field_ptr, value).unwrap();
+        Ok(value)
+    }
+
     pub(super) fn compile_assign(
         &mut self,
         expr: &AssignExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        // 无返回值函数的调用值不可赋值(与 `let` 同规则)。
         if let Some(name) = self.unit_call_name(&expr.value) {
             return Err(HuziError::new_global(format!(
                 "Function '{}' has no return value and cannot be used as a value; call it as a statement instead",
@@ -19,125 +98,74 @@ impl<'ctx> CodeGen<'ctx> {
         let value = self.compile_expr(&expr.value)?;
 
         match &*expr.target {
-            Expr::Ident(name) => {
-                let slot = self
-                    .scope_lookup(name)
-                    .ok_or_else(|| self.unknown_variable_error(name))?;
-
-                if !slot.mutable {
-                    return Err(HuziError::new_global(format!(
-                        "Cannot assign to immutable variable '{}'; declare it with `let mut`",
-                        name
-                    )));
-                }
-
-                // `null` 只能赋给 Box 槽;`box(..)` 不能赋给非 Box 槽(LLVM
-                // 层面指针与整数/字符串指针无法区分,此处补位)。
-                if Self::is_null_expr(&expr.value) && !Self::is_box_slot(&slot) {
-                    return Err(HuziError::new_global(format!(
-                        "null can only be assigned to a Box<T> slot (variable '{}' is not a Box)",
-                        name
-                    )));
-                }
-                if matches!(&*expr.value, Expr::BoxAlloc(_)) && !Self::is_box_slot(&slot) {
-                    return Err(HuziError::new_global(format!(
-                        "Cannot assign a Box value to non-Box variable '{}'",
-                        name
-                    )));
-                }
-
-                if Self::is_box_slot(&slot) {
-                    let old_ptr = self
-                        .builder
-                        .build_load(slot.ty, slot.ptr, "rc_old")
-                        .unwrap()
-                        .into_pointer_value();
-                    if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
-                        if value.is_pointer_value() {
-                            self.emit_retain_box(value.into_pointer_value())?;
-                        }
-                    }
-                    self.emit_release_box(old_ptr)?;
-                }
-
-                let value = self.coerce_value(slot.ty, value)?;
-                self.builder.build_store(slot.ptr, value).unwrap();
-                Ok(value)
-            }
+            Expr::Ident(name) => self.compile_assign_ident(name, expr, value),
             Expr::ArrayIndex(idx_expr) => {
                 self.ensure_mutable(&expr.target)?;
-                // vec 下标走动态长度路径。
-                if let Expr::Ident(name) = &*idx_expr.array {
-                    if let Some(slot) = self.scope_lookup(name) {
-                        if Self::is_vec_slot(&slot) {
-                            let (elem_ptr, elem_type) =
-                                self.vec_index_ptr(name, &idx_expr.index)?;
-                            let value = self.coerce_value(elem_type, value)?;
-                            self.builder.build_store(elem_ptr, value).unwrap();
-                            return Ok(value);
-                        }
-                    }
-                }
-                let array_ptr = self.compile_expr(&idx_expr.array)?;
-                let array_ptr = if array_ptr.is_pointer_value() {
-                    array_ptr.into_pointer_value()
-                } else {
-                    return Err(HuziError::new_global("Indexed value is not an array"));
-                };
-
-                let elem_type = self.resolve_elem_type(&idx_expr.array, Some(value.get_type()))?;
-
-                let index_val = self.compile_expr(&idx_expr.index)?;
-                let index_i32 = self.coerce_index(index_val)?;
-
-                if self.is_string_index(&idx_expr.array, elem_type)? {
-                    self.emit_str_bounds_check(array_ptr, index_i32)?;
-                } else {
-                    self.emit_bounds_check(&idx_expr.array, index_i32)?;
-                }
-
+                let (elem_ptr, elem_type) =
+                    self.compile_array_index_addr(idx_expr, Some(value.get_type()))?;
                 let value = self.coerce_value(elem_type, value)?;
-
-                let elem_ptr = unsafe {
-                    self.builder
-                        .build_gep(elem_type, array_ptr, &[index_i32], "elem_ptr")
-                        .unwrap()
-                };
                 self.builder.build_store(elem_ptr, value).unwrap();
                 Ok(value)
             }
-            Expr::FieldAccess(_) => {
-                self.ensure_mutable(&expr.target)?;
-                // 字段期望类型已知时先做 `box`/`null` 的 AST 校验。
-                let mut is_box_field = false;
-                if let Expr::FieldAccess(fa) = &*expr.target {
-                    if let Some(expected) = self.field_ast_type(&fa.base, &fa.field) {
-                        self.check_box_assignable(&expr.value, &expected)?;
-                        is_box_field = Self::is_box_ast(&expected);
-                    }
-                }
-                let (field_ptr, field_ty) = self.compile_addr(&expr.target)?;
-                if is_box_field {
-                    let old_ptr = self
-                        .builder
-                        .build_load(field_ty, field_ptr, "rc_old_field")
-                        .unwrap()
-                        .into_pointer_value();
-                    if !matches!(&*expr.value, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null) {
-                        if value.is_pointer_value() {
-                            self.emit_retain_box(value.into_pointer_value())?;
-                        }
-                    }
-                    self.emit_release_box(old_ptr)?;
-                }
-                let value = self.coerce_value(field_ty, value)?;
-                self.builder.build_store(field_ptr, value).unwrap();
-                Ok(value)
-            }
+            Expr::FieldAccess(fa) => self.compile_assign_field(fa, expr, value),
             _ => Err(HuziError::new_global("Invalid assignment target")),
         }
     }
 
+    fn compile_array_index_addr(
+        &mut self,
+        idx_expr: &ArrayIndexExpr,
+        expected_elem: Option<inkwell::types::BasicTypeEnum<'ctx>>,
+    ) -> Result<(PointerValue<'ctx>, inkwell::types::BasicTypeEnum<'ctx>)> {
+        if let Expr::Ident(name) = &*idx_expr.array {
+            if let Some(slot) = self.scope_lookup(name) {
+                if Self::is_vec_slot(&slot) {
+                    return self.vec_index_ptr(name, &idx_expr.index);
+                }
+            }
+        }
+        if let Expr::FieldAccess(fa) = &*idx_expr.array {
+            if let Some(field_ty) = self.field_ast_type(&fa.base, &fa.field) {
+                if matches!(field_ty, Type::Applied(ref n, _) if n == "vec") {
+                    let elem_type = self.elem_and_mark_from_ast(&field_ty)?.0.unwrap();
+                    let (vec_ptr, vec_ty) = self.compile_addr(&idx_expr.array)?;
+                    let parts = self.load_vec_parts_from_ptr(vec_ptr, vec_ty)?;
+                    let index_val = self.compile_expr(&idx_expr.index)?;
+                    let index_i32 = self.coerce_index(index_val)?;
+                    self.emit_vec_bounds_check(parts.len, index_i32)?;
+                    let elem_ptr = unsafe {
+                        self.builder
+                            .build_gep(elem_type, parts.data, &[index_i32], "vec_elem_ptr")
+                            .unwrap()
+                    };
+                    return Ok((elem_ptr, elem_type));
+                }
+            }
+        }
+        let array_ptr = self.compile_expr(&idx_expr.array)?;
+        let array_ptr = if array_ptr.is_pointer_value() {
+            array_ptr.into_pointer_value()
+        } else {
+            return Err(HuziError::new_global("Indexed value is not an array"));
+        };
+
+        let elem_type = self.resolve_elem_type(&idx_expr.array, expected_elem)?;
+        let index_val = self.compile_expr(&idx_expr.index)?;
+        let index_i32 = self.coerce_index(index_val)?;
+
+        if self.is_string_index(&idx_expr.array, elem_type)? {
+            self.emit_str_bounds_check(array_ptr, index_i32)?;
+        } else {
+            self.emit_bounds_check(&idx_expr.array, index_i32)?;
+        }
+
+        let elem_ptr = unsafe {
+            self.builder
+                .build_gep(elem_type, array_ptr, &[index_i32], "elem_ptr")
+                .unwrap()
+        };
+        Ok((elem_ptr, elem_type))
+    }
 
     pub(super) fn compile_addr(
         &mut self,
@@ -151,45 +179,11 @@ impl<'ctx> CodeGen<'ctx> {
                 Ok((slot.ptr, slot.ty))
             }
             Expr::FieldAccess(fa) => {
-                // 基址是 Box 时先自动解引用(装载堆指针),再对 pointee 做 GEP。
                 let (base_ptr, base_ty) = self.compile_addr_deref(&fa.base)?;
                 self.gep_field(base_ptr, base_ty, &fa.field)
             }
-            Expr::ArrayIndex(idx_expr) => {
-                if let Expr::Ident(name) = &*idx_expr.array {
-                    if let Some(slot) = self.scope_lookup(name) {
-                        if Self::is_vec_slot(&slot) {
-                            return self.vec_index_ptr(name, &idx_expr.index);
-                        }
-                    }
-                }
-                let array_ptr = self.compile_expr(&idx_expr.array)?;
-                let array_ptr = if array_ptr.is_pointer_value() {
-                    array_ptr.into_pointer_value()
-                } else {
-                    return Err(HuziError::new_global("Indexed value is not an array"));
-                };
-
-                let elem_type = self.resolve_elem_type(&idx_expr.array, None)?;
-                let index_val = self.compile_expr(&idx_expr.index)?;
-                let index_i32 = self.coerce_index(index_val)?;
-
-                if self.is_string_index(&idx_expr.array, elem_type)? {
-                    self.emit_str_bounds_check(array_ptr, index_i32)?;
-                } else {
-                    self.emit_bounds_check(&idx_expr.array, index_i32)?;
-                }
-
-                let elem_ptr = unsafe {
-                    self.builder
-                        .build_gep(elem_type, array_ptr, &[index_i32], "elem_ptr")
-                        .unwrap()
-                };
-                Ok((elem_ptr, elem_type))
-            }
+            Expr::ArrayIndex(idx_expr) => self.compile_array_index_addr(idx_expr, None),
             _ => {
-                // Rvalue base (e.g. a function call or enum constructor):
-                // spill it to a temporary so it has an address.
                 let value = self.compile_expr(expr)?;
                 let ty = value.get_type();
                 let tmp = self.build_alloca(ty, "rvalue_tmp")?;

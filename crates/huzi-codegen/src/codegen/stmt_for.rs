@@ -1,6 +1,8 @@
 use super::{CodeGen, VarSlot};
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
+use inkwell::types::BasicTypeEnum;
+use inkwell::values::{IntValue, PointerValue};
 
 
 impl<'ctx> CodeGen<'ctx> {
@@ -72,85 +74,13 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `for x in arr`:遍历长度编译期已知的数组,循环变量逐轮绑定
     /// 当前元素的值。支持数值/字符串/结构体/元组元素的数组。
-    fn compile_for_array(
+    fn execute_for_in_body(
         &mut self,
         stmt: &ForStmt,
-        array: &Expr,
-        span: Span,
+        var_alloca: PointerValue<'ctx>,
+        elem: inkwell::values::BasicValueEnum<'ctx>,
+        elem_type: BasicTypeEnum<'ctx>,
     ) -> Result<()> {
-        // `for x in v`:vec 走动态长度路径。
-        if let Expr::Ident(name) = array {
-            if let Some(slot) = self.scope_lookup(name) {
-                if Self::is_vec_slot(&slot) {
-                    return self.compile_for_vec(stmt, name, span);
-                }
-            }
-        }
-        let arr_value = self.compile_expr(array)?;
-        let arr_ptr = if arr_value.is_pointer_value() {
-            arr_value.into_pointer_value()
-        } else {
-            return Err(HuziError::new_global("for-in requires an array to iterate"));
-        };
-        let elem_type = self.resolve_elem_type(array, None)?;
-        let Some(len) = self.resolve_array_len(array)? else {
-            return Err(HuziError::new_global(
-                "for-in requires an array with a known length (a variable or struct field)",
-            ));
-        };
-
-        let function = self.current_function()?;
-        let i_type = self.context.i32_type();
-        let len_val = i_type.const_int(len as u64, false);
-
-        let loop_block = self.context.append_basic_block(function, "for_in_loop");
-        let body_block = self.context.append_basic_block(function, "for_in_body");
-        let after_block = self.context.append_basic_block(function, "for_in_after");
-        self.loop_stack.push((loop_block, after_block));
-
-        // 隐藏下标计数器 + 每轮重新绑定的元素变量。
-        let idx_alloca = self.build_alloca(i_type.into(), "for_in_idx")?;
-        self.builder
-            .build_store(idx_alloca, i_type.const_int(0, false))
-            .unwrap();
-        let var_alloca = self.build_alloca(elem_type, &stmt.var_name)?;
-        self.declare_local(&stmt.var_name, var_alloca, elem_type, span);
-
-        self.builder
-            .build_unconditional_branch(loop_block)
-            .unwrap();
-
-        // 循环头:idx < len(无符号比较,负数不会出现)。
-        self.builder.position_at_end(loop_block);
-        let idx = self
-            .builder
-            .build_load(i_type, idx_alloca, "for_in_i")
-            .unwrap()
-            .into_int_value();
-        let cond = self
-            .builder
-            .build_int_compare(inkwell::IntPredicate::ULT, idx, len_val, "for_in_cond")
-            .unwrap();
-        self.builder
-            .build_conditional_branch(cond, body_block, after_block)
-            .unwrap();
-
-        // 循环体:装载当前元素存入变量,执行块,递增下标。
-        self.builder.position_at_end(body_block);
-        let idx = self
-            .builder
-            .build_load(i_type, idx_alloca, "for_in_i")
-            .unwrap()
-            .into_int_value();
-        let elem_ptr = unsafe {
-            self.builder
-                .build_gep(elem_type, arr_ptr, &[idx], "for_in_elem_ptr")
-                .unwrap()
-        };
-        let elem = self
-            .builder
-            .build_load(elem_type, elem_ptr, "for_in_elem")
-            .unwrap();
         self.builder.build_store(var_alloca, elem).unwrap();
         self.push_scope();
         self.scope_insert(
@@ -166,6 +96,74 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.compile_block(&stmt.body)?;
         self.pop_scope();
+        Ok(())
+    }
+
+    fn try_compile_for_vec(
+        &mut self,
+        stmt: &ForStmt,
+        array: &Expr,
+        span: Span,
+    ) -> Result<bool> {
+        if let Expr::Ident(name) = array {
+            if let Some(slot) = self.scope_lookup(name) {
+                if Self::is_vec_slot(&slot) {
+                    self.compile_for_vec(stmt, name, span)?;
+                    return Ok(true);
+                }
+            }
+        }
+        if let Expr::FieldAccess(fa) = array {
+            if let Some(field_ty) = self.field_ast_type(&fa.base, &fa.field) {
+                if matches!(field_ty, Type::Applied(ref n, _) if n == "vec") {
+                    let elem_type = self.elem_and_mark_from_ast(&field_ty)?.0.unwrap();
+                    let vec_val = self.compile_expr(array)?;
+                    if vec_val.is_struct_value() {
+                        let sv = vec_val.into_struct_value();
+                        let data = self
+                            .builder
+                            .build_extract_value(sv, 0, "vec_data")
+                            .unwrap()
+                            .into_pointer_value();
+                        let len = self
+                            .builder
+                            .build_extract_value(sv, 1, "vec_len")
+                            .unwrap()
+                            .into_int_value();
+                        self.compile_for_vec_parts(stmt, data, len, elem_type, span)?;
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    fn compile_for_array_iter(
+        &mut self,
+        stmt: &ForStmt,
+        arr_ptr: PointerValue<'ctx>,
+        elem_type: BasicTypeEnum<'ctx>,
+        idx_alloca: PointerValue<'ctx>,
+        var_alloca: PointerValue<'ctx>,
+        loop_block: inkwell::basic_block::BasicBlock<'ctx>,
+    ) -> Result<()> {
+        let i_type = self.context.i32_type();
+        let idx = self
+            .builder
+            .build_load(i_type, idx_alloca, "for_in_i")
+            .unwrap()
+            .into_int_value();
+        let elem_ptr = unsafe {
+            self.builder
+                .build_gep(elem_type, arr_ptr, &[idx], "for_in_elem_ptr")
+                .unwrap()
+        };
+        let elem = self
+            .builder
+            .build_load(elem_type, elem_ptr, "for_in_elem")
+            .unwrap();
+        self.execute_for_in_body(stmt, var_alloca, elem, elem_type)?;
         let idx = self
             .builder
             .build_load(i_type, idx_alloca, "for_in_i")
@@ -179,10 +177,90 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder
             .build_unconditional_branch(loop_block)
             .unwrap();
+        Ok(())
+    }
+
+    fn compile_for_array_loop(
+        &mut self,
+        stmt: &ForStmt,
+        arr_ptr: PointerValue<'ctx>,
+        len: u32,
+        elem_type: BasicTypeEnum<'ctx>,
+        span: Span,
+    ) -> Result<()> {
+        let function = self.current_function()?;
+        let i_type = self.context.i32_type();
+        let len_val = i_type.const_int(len as u64, false);
+
+        let loop_block = self.context.append_basic_block(function, "for_in_loop");
+        let body_block = self.context.append_basic_block(function, "for_in_body");
+        let after_block = self.context.append_basic_block(function, "for_in_after");
+        self.loop_stack.push((loop_block, after_block));
+
+        let idx_alloca = self.build_alloca(i_type.into(), "for_in_idx")?;
+        self.builder
+            .build_store(idx_alloca, i_type.const_int(0, false))
+            .unwrap();
+        let var_alloca = self.build_alloca(elem_type, &stmt.var_name)?;
+        self.declare_local(&stmt.var_name, var_alloca, elem_type, span);
+
+        self.builder
+            .build_unconditional_branch(loop_block)
+            .unwrap();
+
+        self.builder.position_at_end(loop_block);
+        let idx = self
+            .builder
+            .build_load(i_type, idx_alloca, "for_in_i")
+            .unwrap()
+            .into_int_value();
+        let cond = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::ULT, idx, len_val, "for_in_cond")
+            .unwrap();
+        self.builder
+            .build_conditional_branch(cond, body_block, after_block)
+            .unwrap();
+
+        self.builder.position_at_end(body_block);
+        self.compile_for_array_iter(
+            stmt,
+            arr_ptr,
+            elem_type,
+            idx_alloca,
+            var_alloca,
+            loop_block,
+        )?;
 
         self.loop_stack.pop();
         self.builder.position_at_end(after_block);
         Ok(())
+    }
+
+    /// `for x in arr`:遍历长度编译期已知的数组,循环变量逐轮绑定
+    /// 当前元素的值。支持数值/字符串/结构体/元组元素的数组。
+    fn compile_for_array(
+        &mut self,
+        stmt: &ForStmt,
+        array: &Expr,
+        span: Span,
+    ) -> Result<()> {
+        if self.try_compile_for_vec(stmt, array, span)? {
+            return Ok(());
+        }
+        let arr_value = self.compile_expr(array)?;
+        let arr_ptr = if arr_value.is_pointer_value() {
+            arr_value.into_pointer_value()
+        } else {
+            return Err(HuziError::new_global("for-in requires an array to iterate"));
+        };
+        let elem_type = self.resolve_elem_type(array, None)?;
+        let Some(len) = self.resolve_array_len(array)? else {
+            return Err(HuziError::new_global(
+                "for-in requires an array with a known length (a variable or struct field)",
+            ));
+        };
+        self.compile_for_array_loop(stmt, arr_ptr, len, elem_type, span)
     }
 
     /// `for x in v`:循环变量逐轮绑定当前元素值;进入前一次性读取长度。
@@ -195,8 +273,17 @@ impl<'ctx> CodeGen<'ctx> {
         let slot = self.vec_slot_of(name)?;
         let elem_type = slot.elem.unwrap();
         let parts = self.load_vec_parts(&slot)?;
-        let (data, len) = (parts.data, parts.len);
+        self.compile_for_vec_parts(stmt, parts.data, parts.len, elem_type, span)
+    }
 
+    pub(super) fn compile_for_vec_parts(
+        &mut self,
+        stmt: &ForStmt,
+        data: PointerValue<'ctx>,
+        len: IntValue<'ctx>,
+        elem_type: BasicTypeEnum<'ctx>,
+        span: Span,
+    ) -> Result<()> {
         let function = self.current_function()?;
         let i_type = self.context.i32_type();
         let loop_block = self.context.append_basic_block(function, "vec_for_loop");
@@ -230,6 +317,23 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap();
 
         self.builder.position_at_end(body_block);
+        self.compile_for_vec_iter(stmt, data, elem_type, idx_alloca, var_alloca, loop_block)?;
+
+        self.loop_stack.pop();
+        self.builder.position_at_end(after_block);
+        Ok(())
+    }
+
+    fn compile_for_vec_iter(
+        &mut self,
+        stmt: &ForStmt,
+        data: PointerValue<'ctx>,
+        elem_type: BasicTypeEnum<'ctx>,
+        idx_alloca: PointerValue<'ctx>,
+        var_alloca: PointerValue<'ctx>,
+        loop_block: inkwell::basic_block::BasicBlock<'ctx>,
+    ) -> Result<()> {
+        let i_type = self.context.i32_type();
         let idx = self
             .builder
             .build_load(i_type, idx_alloca, "vec_for_i")
@@ -244,21 +348,7 @@ impl<'ctx> CodeGen<'ctx> {
             .builder
             .build_load(elem_type, elem_ptr, "vec_for_elem")
             .unwrap();
-        self.builder.build_store(var_alloca, elem).unwrap();
-        self.push_scope();
-        self.scope_insert(
-            stmt.var_name.clone(),
-            VarSlot {
-                ptr: var_alloca,
-                ty: elem_type,
-                elem: None,
-                array_len: None,
-                mutable: true,
-                box_inner: None,
-            },
-        );
-        self.compile_block(&stmt.body)?;
-        self.pop_scope();
+        self.execute_for_in_body(stmt, var_alloca, elem, elem_type)?;
         let idx = self
             .builder
             .build_load(i_type, idx_alloca, "vec_for_i")
@@ -272,9 +362,6 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder
             .build_unconditional_branch(loop_block)
             .unwrap();
-
-        self.loop_stack.pop();
-        self.builder.position_at_end(after_block);
         Ok(())
     }
 

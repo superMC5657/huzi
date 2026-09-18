@@ -5,6 +5,44 @@ use huzi_ast::*;
 use huzi_error::{HuziError, Result, did_you_mean};
 
 impl Monomorphizer {
+    pub(super) fn collect_templates(&mut self, program: &Program) -> Result<()> {
+        for s in &program.statements {
+            match &s.node {
+                Stmt::Struct(d) => {
+                    self.known_types.insert(d.name.clone());
+                    self.inferrer
+                        .struct_defs
+                        .insert(d.name.clone(), d.clone());
+                    if !d.type_params.is_empty() {
+                        self.validate_struct_template(d)?;
+                        self.struct_templates.insert(d.name.clone(), d.clone());
+                    }
+                }
+                Stmt::Enum(d) => {
+                    self.known_types.insert(d.name.clone());
+                    self.inferrer.known_enums.insert(d.name.clone());
+                }
+                Stmt::Fn(f) => {
+                    if !f.type_params.is_empty() {
+                        self.validate_fn_template(f)?;
+                        self.fn_templates
+                            .insert(f.name.clone(), (f.clone(), s.span));
+                    } else {
+                        self.inferrer.fn_signatures.insert(
+                            f.name.clone(),
+                            (
+                                f.params.iter().map(|p| p.param_type.clone()).collect(),
+                                f.return_type.clone(),
+                            ),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_struct_template(&self, d: &StructDef) -> Result<()> {
         for field in &d.fields {
             self.validate_type_params(&field.field_type, &d.type_params, &d.name)?;

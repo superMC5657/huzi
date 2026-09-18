@@ -63,7 +63,7 @@ jobs:
 
       - name: Build (zero warnings)
         shell: bash
-        run: cargo build --workspace 2>&1 | tee build.log; grep -E "^warning|^error" build.log && exit 1 || true
+        run: RUSTFLAGS="-D warnings" cargo build --workspace
 
       - name: Unit tests
         shell: bash
@@ -86,7 +86,16 @@ jobs:
 
       - name: Benchmark regression gate
         shell: bash
-        run: python test/bench_compare.py
+        run: |
+          PY=""
+          for cand in python3 python py; do
+            if "$cand" -c "import sys; exit(0 if sys.version_info[0] >= 3 else 1)" >/dev/null 2>&1; then
+              PY="$cand"
+              break
+            fi
+          done
+          [ -n "$PY" ] || { echo "Python 3 not found"; exit 1; }
+          "$PY" test/bench_compare.py
 
 
       - name: Stage release artifact

@@ -48,43 +48,6 @@ impl Monomorphizer {
         }
     }
 
-    fn collect_templates(&mut self, program: &Program) -> Result<()> {
-        for s in &program.statements {
-            match &s.node {
-                Stmt::Struct(d) => {
-                    self.known_types.insert(d.name.clone());
-                    self.inferrer
-                        .struct_defs
-                        .insert(d.name.clone(), d.clone());
-                    if !d.type_params.is_empty() {
-                        self.validate_struct_template(d)?;
-                        self.struct_templates.insert(d.name.clone(), d.clone());
-                    }
-                }
-                Stmt::Enum(d) => {
-                    self.known_types.insert(d.name.clone());
-                }
-                Stmt::Fn(f) => {
-                    if !f.type_params.is_empty() {
-                        self.validate_fn_template(f)?;
-                        self.fn_templates
-                            .insert(f.name.clone(), (f.clone(), s.span));
-                    } else {
-                        self.inferrer.fn_signatures.insert(
-                            f.name.clone(),
-                            (
-                                f.params.iter().map(|p| p.param_type.clone()).collect(),
-                                f.return_type.clone(),
-                            ),
-                        );
-                    }
-                }
-                _ => {}
-            }
-        }
-        Ok(())
-    }
-
     fn monomorphize_type(&mut self, ty: &mut Type) -> Result<()> {
         match ty {
             Type::Applied(name, args) => {
@@ -137,6 +100,10 @@ impl Monomorphizer {
                     self.instantiated_structs
                         .insert(mangled.clone(), spec.clone());
                     self.inferrer.struct_defs.insert(mangled.clone(), spec);
+                    self.inferrer.instantiated_struct_types.insert(
+                        mangled.clone(),
+                        (name.clone(), args.clone()),
+                    );
                 }
                 *ty = Type::Named(mangled);
             }
@@ -343,13 +310,19 @@ impl Monomorphizer {
             }
             Stmt::If(i) => {
                 self.monomorphize_expr(&mut i.condition)?;
+                self.inferrer.enter_scope();
                 self.monomorphize_block(&mut i.then_branch)?;
+                self.inferrer.leave_scope();
                 for (cond, blk) in &mut i.elif_branches {
                     self.monomorphize_expr(cond)?;
+                    self.inferrer.enter_scope();
                     self.monomorphize_block(blk)?;
+                    self.inferrer.leave_scope();
                 }
                 if let Some(b) = &mut i.else_branch {
+                    self.inferrer.enter_scope();
                     self.monomorphize_block(b)?;
+                    self.inferrer.leave_scope();
                 }
             }
             Stmt::For(f) => {
@@ -389,7 +362,9 @@ impl Monomorphizer {
             }
             Stmt::While(w) => {
                 self.monomorphize_expr(&mut w.condition)?;
+                self.inferrer.enter_scope();
                 self.monomorphize_block(&mut w.body)?;
+                self.inferrer.leave_scope();
             }
             Stmt::Defer(d) => self.monomorphize_stmt(&mut d.node)?,
             Stmt::Impl(i) => {

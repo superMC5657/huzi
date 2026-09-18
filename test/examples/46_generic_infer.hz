@@ -1,3 +1,13 @@
+struct Pair<K, V> {
+    key: K,
+    val: V,
+}
+
+enum Status {
+    Ok,
+    Err,
+}
+
 fn id<T>(x: T) -> T {
     return x
 }
@@ -14,6 +24,10 @@ fn call_id<T>(val: T) -> T {
     return id(val)
 }
 
+fn get_pair_key<K, V>(p: Pair<K, V>) -> K {
+    return p.key
+}
+
 fn main() -> i32 {
     let a = id(42)
     print(a)
@@ -27,5 +41,10 @@ fn main() -> i32 {
     print(sec)
     let nested = call_id(999)
     print(nested)
+    let pair = Pair<i32, str> { key: 88, val: "generic_struct" }
+    let pk = get_pair_key(pair)
+    print(pk)
+    let st = id(Status::Ok)
+    print(st)
     return 0
 }

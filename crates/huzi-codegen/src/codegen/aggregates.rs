@@ -133,6 +133,31 @@ impl<'ctx> CodeGen<'ctx> {
         Ok((info, vinfo))
     }
 
+    fn check_enum_variant_arity(expr: &EnumConstructExpr, expected: usize) -> Result<()> {
+        if expr.args.len() == expected {
+            return Ok(());
+        }
+        if expected == 0 {
+            return Err(HuziError::new_global(format!(
+                "Unit variant '{}::{}' takes no arguments",
+                expr.enum_name, expr.variant
+            )));
+        }
+        if expected == 1 {
+            return Err(HuziError::new_global(format!(
+                "Variant '{}::{}' expects exactly 1 argument",
+                expr.enum_name, expr.variant
+            )));
+        }
+        Err(HuziError::new_global(format!(
+            "Variant '{}::{}' expects {} arguments, got {}",
+            expr.enum_name,
+            expr.variant,
+            expected,
+            expr.args.len()
+        )))
+    }
+
     /// Build `{ i32 tag, payload union }` for a data-carrying enum variant:
     /// check arity, store the discriminant, store the payload fields, and
     /// load the finished value.
@@ -143,28 +168,7 @@ impl<'ctx> CodeGen<'ctx> {
         vinfo: &EnumVariantInfo<'ctx>,
         enum_st: inkwell::types::StructType<'ctx>,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        let expected = vinfo.ast_payloads.len();
-        if expr.args.len() != expected {
-            if expected == 0 {
-                return Err(HuziError::new_global(format!(
-                    "Unit variant '{}::{}' takes no arguments",
-                    expr.enum_name, expr.variant
-                )));
-            }
-            if expected == 1 {
-                return Err(HuziError::new_global(format!(
-                    "Variant '{}::{}' expects exactly 1 argument",
-                    expr.enum_name, expr.variant
-                )));
-            }
-            return Err(HuziError::new_global(format!(
-                "Variant '{}::{}' expects {} arguments, got {}",
-                expr.enum_name,
-                expr.variant,
-                expected,
-                expr.args.len()
-            )));
-        }
+        Self::check_enum_variant_arity(expr, vinfo.ast_payloads.len())?;
 
         let payload_union = info.payload_union.unwrap();
         let tmp = self.build_alloca(enum_st.into(), "enum_val")?;
@@ -236,6 +240,34 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
+    fn compile_field_vec_index(
+        &mut self,
+        expr: &huzi_ast::ArrayIndexExpr,
+        fa: &huzi_ast::FieldAccessExpr,
+    ) -> Result<Option<inkwell::values::BasicValueEnum<'ctx>>> {
+        let Some(field_ty) = self.field_ast_type(&fa.base, &fa.field) else {
+            return Ok(None);
+        };
+        if !matches!(field_ty, Type::Applied(ref n, _) if n == "vec") {
+            return Ok(None);
+        }
+        let elem_llvm_ty = self.elem_and_mark_from_ast(&field_ty)?.0.unwrap();
+        let vec_val = self.compile_expr(&expr.array)?;
+        if !vec_val.is_struct_value() {
+            return Ok(None);
+        }
+        let sv = vec_val.into_struct_value();
+        let data = self.builder.build_extract_value(sv, 0, "vec_data").unwrap().into_pointer_value();
+        let len = self.builder.build_extract_value(sv, 1, "vec_len").unwrap().into_int_value();
+        let index_val = self.compile_expr(&expr.index)?;
+        let index_i32 = self.coerce_index(index_val)?;
+        self.emit_vec_bounds_check(len, index_i32)?;
+        let elem_ptr = unsafe {
+            self.builder.build_gep(elem_llvm_ty, data, &[index_i32], "vec_elem_ptr").unwrap()
+        };
+        Ok(Some(self.builder.build_load(elem_llvm_ty, elem_ptr, "vec_elem").unwrap()))
+    }
+
     pub(super) fn compile_array_index(
         &mut self,
         expr: &huzi_ast::ArrayIndexExpr,
@@ -246,6 +278,11 @@ impl<'ctx> CodeGen<'ctx> {
                 if Self::is_vec_slot(&slot) {
                     return self.compile_vec_index_load(name, &expr.index);
                 }
+            }
+        }
+        if let huzi_ast::Expr::FieldAccess(fa) = &*expr.array {
+            if let Some(val) = self.compile_field_vec_index(expr, fa)? {
+                return Ok(val);
             }
         }
         let array_ptr = self.compile_expr(&expr.array)?;

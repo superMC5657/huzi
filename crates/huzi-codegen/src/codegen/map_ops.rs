@@ -337,9 +337,8 @@ impl<'ctx> CodeGen<'ctx> {
         if arguments.len() != 2 {
             return Err(HuziError::new_global("map_get() requires exactly 2 arguments (map, key)"));
         }
-        let slot = self.map_first_slot("map_get", &arguments[0])?;
+        let parts = self.resolve_map_parts("map_get", &arguments[0])?;
         let key = self.map_key_ptr(&arguments[1], "map_get")?;
-        let parts = self.load_vec_parts(&slot)?;
         let i32_t = self.context.i32_type();
         let f = self.current_function()?;
         let probe_bb = self.context.append_basic_block(f, "get_probe");
@@ -395,9 +394,8 @@ impl<'ctx> CodeGen<'ctx> {
         if arguments.len() != 2 {
             return Err(HuziError::new_global("map_has() requires exactly 2 arguments (map, key)"));
         }
-        let slot = self.map_first_slot("map_has", &arguments[0])?;
+        let parts = self.resolve_map_parts("map_has", &arguments[0])?;
         let key = self.map_key_ptr(&arguments[1], "map_has")?;
-        let parts = self.load_vec_parts(&slot)?;
         let i32_t = self.context.i32_type();
         let is0 = self.builder.build_int_compare(inkwell::IntPredicate::EQ, parts.cap,
             i32_t.const_int(0, false), "has_empty").unwrap();
@@ -481,7 +479,7 @@ impl<'ctx> CodeGen<'ctx> {
         if arguments.len() != 1 {
             return Err(HuziError::new_global("map_len() requires exactly 1 argument (map)"));
         }
-        let slot = self.map_first_slot("map_len", &arguments[0])?;
-        Ok(self.load_vec_parts(&slot)?.len.into())
+        let parts = self.resolve_map_parts("map_len", &arguments[0])?;
+        Ok(parts.len.into())
     }
 }
