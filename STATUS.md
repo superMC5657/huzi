@@ -24,9 +24,9 @@
 
 - [x] I/O：`print/read_line/read_int/read_float/is_eof`
 - [x] CLI 参数：`arg_count/arg/arg_ok`
-- [x] 字符串：`len/concat/to_string/split/substring/trim/contains` + 下标 + 字典序比较
+- [x] 字符串：`len/concat/to_string/split/substring/trim/contains/parse_int/parse_float` + 下标 + 字典序比较
 - [x] 数学：`abs/sqrt/pow/sin/cos/tan/floor/ceil/round`（含 `math::` 前缀）
-- [x] 系统：`rand/srand/time/exit/panic/sleep_ms`
+- [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms`
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
 - [x] 内存：`free_str/free_vec/free_box/ref_count`（支持手动打破循环引用）
 - [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len`
@@ -36,6 +36,7 @@
 ### 编译器与工具链
 
 - [x] 五阶段流水线：Lexer → Parser → CodeGen(LLVM IR) → Verify → Linker
+- [x] 标准库根解析：支持 `HUZI_LIB` 环境变量与相邻 `../huzi-src` 标准库解析
 - [x] IR 优化：`--release` / `--opt-level 0-3`
 - [x] 调试：`-g/--debug` DWARF，GDB/LLDB 按源码行调试
 - [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
@@ -46,7 +47,7 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 集成回归：`bash test.sh`（49 示例 + 44 负例测试全部通过，交互示例跳过）
+- [x] 集成回归：`bash test.sh`（55 示例 + 48 负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（huzi release / Rust -O <= 2.0x）
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交

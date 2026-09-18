@@ -80,12 +80,16 @@
 - `substring(s: str, start: i32, end: i32) -> str`: 取 `[start, end)` 字节子串。
 - `trim(s: str) -> str`: 移除首尾 ASCII 空白字符。
 - `contains(s: str, sub: str) -> bool`: 是否包含子串。
+- `parse_int(s: str) -> (bool, i32)`: 尝试解析整数，失败返回 `(false, 0)`。
+- `parse_float(s: str) -> (bool, f64)`: 尝试解析浮点数，失败返回 `(false, 0.0)`。
 
 ### 4.4 数学函数 (`math::*`)
 - `abs(x)`, `sqrt(x)`, `pow(x, y)`, `sin(x)`, `cos(x)`, `tan(x)`, `floor(x)`, `ceil(x)`, `round(x)`。
 
 ### 4.5 系统与进程
 - `time() -> i64`: 当前 Unix 时间戳（秒）。
+- `localtime(ts: i64) -> str`: 将时间戳格式化为 `YYYY-MM-DD hh:mm:ss` 本地时间字符串。
+- `env_get(key: str) -> (bool, str)`: 读取环境变量，不存在返回 `(false, "")`。
 - `rand() -> i32` / `srand(seed: i64)`: 伪随机数发生器。
 - `sleep_ms(ms: i32)`: 毫秒级进程睡眠。
 - `exit(code: i32)`: 立即退出进程并返回退出码。
