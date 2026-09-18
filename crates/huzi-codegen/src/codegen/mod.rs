@@ -23,6 +23,7 @@ mod builtins_math;
 mod builtins_print;
 mod builtins_string;
 mod builtins_string_util;
+mod builtins_parse;
 mod builtins_io;
 mod builtins_file_check;
 mod builtins_sys;

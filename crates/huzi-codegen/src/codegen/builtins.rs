@@ -96,6 +96,27 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strcmp", strcmp_fn, None);
 
+        // strtoll for parse_int
+        let strtoll_fn = self.context.i64_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.i32_type().into(),
+            ],
+            false,
+        );
+        self.module.add_function("strtoll", strtoll_fn, None);
+
+        // strtod for parse_float
+        let strtod_fn = self.context.f64_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+        self.module.add_function("strtod", strtod_fn, None);
+
         // exit for runtime error aborts (division by zero, out-of-bounds, ...)
         let exit_fn = self.context.void_type().fn_type(
             &[self.context.i32_type().into()],

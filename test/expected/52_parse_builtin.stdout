@@ -1,0 +1,13 @@
+true 123
+true -456
+true 789
+true 42
+false 0
+false 0
+false 0
+true 3.140000
+true -0.500000
+true 2.718000
+false 0.000000
+false 0.000000
+false 0.000000

@@ -170,6 +170,8 @@ impl<'ctx> CodeGen<'ctx> {
             "trim" => return self.compile_trim(&expr.arguments),
             "contains" => return self.compile_contains(&expr.arguments),
             "to_string" => return self.compile_to_string(&expr.arguments),
+            "parse_int" => return self.compile_parse_int(&expr.arguments),
+            "parse_float" => return self.compile_parse_float(&expr.arguments),
             "arg_count" => return self.compile_arg_count(),
             "arg" => return self.compile_arg(&expr.arguments),
             "arg_ok" => return self.compile_arg_ok(&expr.arguments),
