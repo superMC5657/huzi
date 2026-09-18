@@ -72,3 +72,29 @@ jobs:
       - name: Regression tests (examples + negative)
         shell: bash
         run: bash test.sh
+
+      - name: Code formatting check
+        shell: bash
+        run: |
+          EXE="./target/debug/huzc"
+          [ -f "${EXE}.exe" ] && EXE="${EXE}.exe"
+          "$EXE" fmt --check test/examples
+
+      - name: Build release
+        shell: bash
+        run: cargo build --workspace --release
+
+      - name: Stage release artifact
+        shell: bash
+        run: |
+          mkdir -p staging
+          EXE="./target/release/huzc"
+          [ -f "${EXE}.exe" ] && EXE="${EXE}.exe"
+          cp "$EXE" staging/
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: huzc-${{ matrix.os }}
+          path: staging/
+

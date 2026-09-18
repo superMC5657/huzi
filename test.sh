@@ -18,7 +18,7 @@ run_limited() {
   if command -v timeout > /dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
 }
 
-cargo build 2>&1 | grep -E "^error" && { echo "BUILD FAILED"; exit 1; }
+cargo build --workspace 2>&1 | grep -E "^error" && { echo "BUILD FAILED"; exit 1; }
 
 pass=0
 fail=0
