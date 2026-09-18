@@ -12,3 +12,7 @@ after free b1: 2
 ret val: 42
 ret rc: 1
 null rc: 0
+cycle n1 rc: 2
+cycle n2 rc: 2
+after break n1 rc: 2
+after break n2 rc: 1

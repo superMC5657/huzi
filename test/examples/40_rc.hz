@@ -12,6 +12,19 @@ fn create_node(v: i32) -> Box<Node> {
     return n
 }
 
+fn test_cycle() {
+    let mut n1 = box(Node { val: 100, next: null })
+    let mut n2 = box(Node { val: 200, next: null })
+    n1.next = n2
+    n2.next = n1
+    print("cycle n1 rc: ", ref_count(n1))
+    print("cycle n2 rc: ", ref_count(n2))
+    defer free_box(n2)
+    n1.next = null
+    print("after break n1 rc: ", ref_count(n1))
+    print("after break n2 rc: ", ref_count(n2))
+}
+
 fn main() -> i32 {
     let mut b1 = box(Node { val: 10, next: null })
     print("b1 init: ", ref_count(b1))
@@ -34,5 +47,6 @@ fn main() -> i32 {
     print("ret rc: ", ref_count(ret))
     let nil: Box<Node> = null
     print("null rc: ", ref_count(nil))
+    test_cycle()
     return 0
 }

@@ -547,6 +547,49 @@ fn main() -> i32 {
 
 完整示例见 `test/examples/38_hashmap.hz`（含循环 put 100 个再全读回的扩容验证）。
 
+### 内存管理、引用计数 (RC) 与循环引用诊断
+
+Huzi 对堆分配对象（如 `Box<T>`）采用自动引用计数 (RC) 机制进行生命周期管理：
+
+- **自动管理**：堆对象在初始化或克隆别名时计数增加，在离开作用域时自动递减并释放内存。
+- **状态观测**：内置函数 `ref_count(x)` 可观测堆对象的当前计数值（未分配或 `null` 返回 0）。
+- **显式提前释放**：`free_box(b)` 可提前释放堆对象，并将原变量安全置为 `null`。
+
+#### 循环引用诊断与打破
+
+引用计数机制无法自动回收相互引用的环状数据结构。例如：
+
+```huzi
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn leaky_cycle() {
+    let mut n1 = box(Node { val: 1, next: null })
+    let mut n2 = box(Node { val: 2, next: null })
+    n1.next = n2
+    n2.next = n1
+    # 此时 n1 与 n2 互相引用，ref_count 均为 2
+    # 函数退出时局部变量释放，计数降为 1，但循环引用导致内存无法回收
+}
+```
+
+#### 手动打破循环的两种推荐模式
+
+1. **显式断开环（置空）**：在退出作用域前，将环中至少一个引用置为 `null`：
+   ```huzi
+   n1.next = null  # n2 计数降为 1，退出时可正常级联释放
+   ```
+
+2. **利用 `defer` 保证打破**：使用 `defer free_box(...)` 或 `defer` 块，确保在任何退出路径均打破循环：
+   ```huzi
+   defer free_box(n2)
+   n1.next = null
+   ```
+
+完整可运行示例见 `test/examples/40_rc.hz`。
+
 ### 阶乘计算
 
 ```python
