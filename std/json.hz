@@ -1,0 +1,252 @@
+struct JsonField {
+    key: str,
+    val: str,
+}
+
+fn is_ws(ch: str) -> bool {
+    if ch == " " {
+        return true
+    }
+    if ch == "\t" {
+        return true
+    }
+    if ch == "\n" {
+        return true
+    }
+    if ch == "\r" {
+        return true
+    }
+    return false
+}
+
+fn skip_ws(s: str, start: i32) -> i32 {
+    let n = len(s)
+    let mut i = start
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if is_ws(ch) {
+            i = i + 1
+        } else {
+            return i
+        }
+    }
+    return i
+}
+
+fn escape_json_str(s: str) -> str {
+    let n = len(s)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if ch == "\"" {
+            res = concat(res, "\\\"")
+        } elif ch == "\\" {
+            res = concat(res, "\\\\")
+        } elif ch == "\n" {
+            res = concat(res, "\\n")
+        } elif ch == "\r" {
+            res = concat(res, "\\r")
+        } elif ch == "\t" {
+            res = concat(res, "\\t")
+        } else {
+            res = concat(res, ch)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn parse_json_string(s: str, start: i32) -> (bool, str, i32) {
+    let n = len(s)
+    if start >= n {
+        return (false, "", start)
+    }
+    if substring(s, start, start + 1) != "\"" {
+        return (false, "", start)
+    }
+    let mut i = start + 1
+    let mut res = ""
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if ch == "\"" {
+            return (true, res, i + 1)
+        } elif ch == "\\" {
+            if i + 1 >= n {
+                return (false, "", start)
+            }
+            let esc = substring(s, i + 1, i + 2)
+            if esc == "\"" {
+                res = concat(res, "\"")
+            } elif esc == "\\" {
+                res = concat(res, "\\")
+            } elif esc == "n" {
+                res = concat(res, "\n")
+            } elif esc == "r" {
+                res = concat(res, "\r")
+            } elif esc == "t" {
+                res = concat(res, "\t")
+            } else {
+                res = concat(res, esc)
+            }
+            i = i + 2
+        } else {
+            res = concat(res, ch)
+            i = i + 1
+        }
+    }
+    return (false, "", start)
+}
+
+fn stringify_map(m: Map, keys: vec<str>) -> str {
+    let n = len(keys)
+    let mut res = "{"
+    let mut i = 0
+    while i < n {
+        let k = keys[i]
+        let v_res = map_get(m, k)
+        let v = v_res.1
+        let entry = concat("\"", escape_json_str(k), "\":", to_string(v))
+        if i > 0 {
+            res = concat(res, ",", entry)
+        } else {
+            res = concat(res, entry)
+        }
+        i = i + 1
+    }
+    return concat(res, "}")
+}
+
+fn parse_i32_map(s: str) -> (bool, Map) {
+    let mut res_map = map_new()
+    let n = len(s)
+    let mut i = skip_ws(s, 0)
+    if i >= n {
+        return (false, res_map)
+    }
+    if substring(s, i, i + 1) != "{" {
+        return (false, res_map)
+    }
+    i = skip_ws(s, i + 1)
+    if i < n {
+        if substring(s, i, i + 1) == "}" {
+            return (true, res_map)
+        }
+    }
+    while i < n {
+        let key_res = parse_json_string(s, i)
+        if !key_res.0 {
+            return (false, res_map)
+        }
+        let key = key_res.1
+        i = skip_ws(s, key_res.2)
+        if i >= n {
+            return (false, res_map)
+        }
+        if substring(s, i, i + 1) != ":" {
+            return (false, res_map)
+        }
+        i = skip_ws(s, i + 1)
+        let start_val = i
+        while i < n {
+            let ch = substring(s, i, i + 1)
+            if ch == "," {
+                break
+            }
+            if ch == "}" {
+                break
+            }
+            if is_ws(ch) {
+                break
+            }
+            i = i + 1
+        }
+        let num_str = substring(s, start_val, i)
+        let p_res = parse_int(num_str)
+        if !p_res.0 {
+            return (false, res_map)
+        }
+        map_put(res_map, key, p_res.1)
+        i = skip_ws(s, i)
+        if i >= n {
+            return (false, res_map)
+        }
+        let next_tok = substring(s, i, i + 1)
+        if next_tok == "," {
+            i = skip_ws(s, i + 1)
+        } elif next_tok == "}" {
+            return (true, res_map)
+        } else {
+            return (false, res_map)
+        }
+    }
+    return (false, res_map)
+}
+
+fn stringify_fields(fields: vec<JsonField>) -> str {
+    let n = len(fields)
+    let mut res = "{"
+    let mut i = 0
+    while i < n {
+        let item = fields[i]
+        let entry = concat("\"", escape_json_str(item.key), "\":\"", escape_json_str(item.val), "\"")
+        if i > 0 {
+            res = concat(res, ",", entry)
+        } else {
+            res = concat(res, entry)
+        }
+        i = i + 1
+    }
+    return concat(res, "}")
+}
+
+fn parse_str_fields(s: str) -> (bool, vec<JsonField>) {
+    let mut fields = vec<JsonField>()
+    let n = len(s)
+    let mut i = skip_ws(s, 0)
+    if i >= n {
+        return (false, fields)
+    }
+    if substring(s, i, i + 1) != "{" {
+        return (false, fields)
+    }
+    i = skip_ws(s, i + 1)
+    if i < n {
+        if substring(s, i, i + 1) == "}" {
+            return (true, fields)
+        }
+    }
+    while i < n {
+        let key_res = parse_json_string(s, i)
+        if !key_res.0 {
+            return (false, fields)
+        }
+        let key = key_res.1
+        i = skip_ws(s, key_res.2)
+        if i >= n {
+            return (false, fields)
+        }
+        if substring(s, i, i + 1) != ":" {
+            return (false, fields)
+        }
+        i = skip_ws(s, i + 1)
+        let val_res = parse_json_string(s, i)
+        if !val_res.0 {
+            return (false, fields)
+        }
+        push(fields, JsonField { key: key, val: val_res.1 })
+        i = skip_ws(s, val_res.2)
+        if i >= n {
+            return (false, fields)
+        }
+        let next_tok = substring(s, i, i + 1)
+        if next_tok == "," {
+            i = skip_ws(s, i + 1)
+        } elif next_tok == "}" {
+            return (true, fields)
+        } else {
+            return (false, fields)
+        }
+    }
+    return (false, fields)
+}

@@ -1,0 +1,45 @@
+import core.assert
+import std.json
+
+fn main() -> i32 {
+    let r1 = json::parse_i32_map("{\"apple\": 10, \"banana\": 25, \"zero\": 0}")
+    assert::assert_true(r1.0)
+    let m: Map = r1.1
+    assert::assert_eq_i32(map_get(m, "apple").1, 10)
+    assert::assert_eq_i32(map_get(m, "banana").1, 25)
+    assert::assert_eq_i32(map_get(m, "zero").1, 0)
+    let bad1 = json::parse_i32_map("{\"apple\": not_a_number}")
+    assert::assert_true(!bad1.0)
+    let bad2 = json::parse_i32_map("{unquoted_key: 123}")
+    assert::assert_true(!bad2.0)
+    let mut m2 = map_new()
+    map_put(m2, "k1", 100)
+    map_put(m2, "k2", 200)
+    let mut keys = vec<str>()
+    push(keys, "k1")
+    push(keys, "k2")
+    let s_map = json::stringify_map(m2, keys)
+    let back_m = json::parse_i32_map(s_map)
+    assert::assert_true(back_m.0)
+    let m3: Map = back_m.1
+    assert::assert_eq_i32(map_get(m3, "k1").1, 100)
+    assert::assert_eq_i32(map_get(m3, "k2").1, 200)
+    let raw_fields = "{\"name\": \"huzi\", \"desc\": \"great \\\"language\\\"\\nfast\"}"
+    let rf = json::parse_str_fields(raw_fields)
+    assert::assert_true(rf.0)
+    let f_vec: vec<JsonField> = rf.1
+    assert::assert_eq_i32(len(f_vec), 2)
+    assert::assert_eq_str(f_vec[0].key, "name")
+    assert::assert_eq_str(f_vec[0].val, "huzi")
+    assert::assert_eq_str(f_vec[1].key, "desc")
+    assert::assert_eq_str(f_vec[1].val, "great \"language\"\nfast")
+    let s_fields = json::stringify_fields(f_vec)
+    let back_f = json::parse_str_fields(s_fields)
+    assert::assert_true(back_f.0)
+    let back_v: vec<JsonField> = back_f.1
+    assert::assert_eq_i32(len(back_v), 2)
+    assert::assert_eq_str(back_v[0].val, "huzi")
+    assert::assert_eq_str(back_v[1].val, "great \"language\"\nfast")
+    print("json_test: ok")
+    return 0
+}
