@@ -1,0 +1,38 @@
+import core.assert
+import std.fsx
+
+fn main() -> i32 {
+    assert::assert_eq_str(fsx::path_join("a", "b"), "a/b")
+    assert::assert_eq_str(fsx::path_join("a/", "b"), "a/b")
+    assert::assert_eq_str(fsx::path_join("a\\", "b"), "a\\b")
+    assert::assert_eq_str(fsx::path_join("", "b"), "b")
+    assert::assert_eq_str(fsx::path_join("a", ""), "a")
+    assert::assert_eq_str(fsx::ext_name("main.hz"), "hz")
+    assert::assert_eq_str(fsx::ext_name("dir.sub/file.txt"), "txt")
+    assert::assert_eq_str(fsx::ext_name("dir.sub/file"), "")
+    assert::assert_eq_str(fsx::ext_name("no_ext"), "")
+    assert::assert_eq_str(fsx::ext_name("trailing."), "")
+    assert::assert_true(fsx::exists("sample.hz"))
+    assert::assert_true(!fsx::exists("test/out/non_existent_file_12345.xyz"))
+    let path = "test/out/fsx_tmp.txt"
+    let mut lines = vec<str>()
+    push(lines, "alpha")
+    push(lines, "beta")
+    push(lines, "gamma")
+    let w_ok = fsx::write_lines(path, lines)
+    assert::assert_true(w_ok)
+    assert::assert_true(fsx::exists(path))
+    let res = fsx::read_lines(path)
+    assert::assert_true(res.0)
+    let read_v: vec<str> = res.1
+    assert::assert_eq_i32(len(read_v), 3)
+    assert::assert_eq_str(read_v[0], "alpha")
+    assert::assert_eq_str(read_v[1], "beta")
+    assert::assert_eq_str(read_v[2], "gamma")
+    let fail_res = fsx::read_lines("test/out/definitely_not_exist_file.txt")
+    assert::assert_true(!fail_res.0)
+    let fail_v: vec<str> = fail_res.1
+    assert::assert_eq_i32(len(fail_v), 0)
+    print("fsx_test: ok")
+    return 0
+}

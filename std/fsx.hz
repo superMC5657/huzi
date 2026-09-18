@@ -1,0 +1,91 @@
+import alloc.stringx
+
+fn exists(path: str) -> bool {
+    return read_file_ok(path)
+}
+
+fn read_lines(path: str) -> (bool, vec<str>) {
+    if !read_file_ok(path) {
+        let mut empty = vec<str>()
+        return (false, empty)
+    }
+    let content = read_file(path)
+    if len(content) == 0 {
+        let mut empty = vec<str>()
+        return (true, empty)
+    }
+    let raw = stringx::split_lines(content)
+    let n = len(raw)
+    let mut clean = vec<str>()
+    let mut i = 0
+    while i < n {
+        let line = raw[i]
+        let l = len(line)
+        if l > 0 {
+            if substring(line, l - 1, l) == "\r" {
+                push(clean, substring(line, 0, l - 1))
+            } else {
+                push(clean, line)
+            }
+        } else {
+            push(clean, "")
+        }
+        i = i + 1
+    }
+    return (true, clean)
+}
+
+fn write_lines(path: str, lines: vec<str>) -> bool {
+    let content = stringx::join(lines, "\n")
+    return write_file(path, content)
+}
+
+fn path_join(base: str, sub: str) -> str {
+    if len(base) == 0 {
+        return sub
+    }
+    if len(sub) == 0 {
+        return base
+    }
+    let last = substring(base, len(base) - 1, len(base))
+    if last == "/" {
+        return concat(base, sub)
+    }
+    if last == "\\" {
+        return concat(base, sub)
+    }
+    return concat(base, "/", sub)
+}
+
+fn ext_name(path: str) -> str {
+    let n = len(path)
+    if n == 0 {
+        return ""
+    }
+    let mut dot_idx = -1
+    let mut sep_idx = -1
+    let mut i = 0
+    while i < n {
+        let ch = substring(path, i, i + 1)
+        if ch == "." {
+            dot_idx = i
+        }
+        if ch == "/" {
+            sep_idx = i
+        }
+        if ch == "\\" {
+            sep_idx = i
+        }
+        i = i + 1
+    }
+    if dot_idx < 0 {
+        return ""
+    }
+    if dot_idx < sep_idx {
+        return ""
+    }
+    if dot_idx == n - 1 {
+        return ""
+    }
+    return substring(path, dot_idx + 1, n)
+}
