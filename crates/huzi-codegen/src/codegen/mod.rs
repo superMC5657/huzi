@@ -201,8 +201,11 @@ impl<'ctx> CodeGen<'ctx> {
         });
     }
 
-    /// 编译模块内代码时,函数按 `模块::名` 限定;主程序代码原样返回。
+    /// 编译模块内代码时,函数按 `模块::名` 限定;已限定名或主程序代码原样返回。
     fn qualify_name(&self, name: &str) -> String {
+        if name.contains("::") {
+            return name.to_string();
+        }
         match &self.current_module {
             Some(m) => format!("{}::{}", m, name),
             None => name.to_string(),
