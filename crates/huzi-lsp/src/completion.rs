@@ -19,7 +19,7 @@ use crate::analysis::parse_and_collect;
 /// 补全关键字表(与语法关键字对齐)。
 const KEYWORDS: &[&str] = &[
     "fn", "let", "mut", "if", "elif", "else", "for", "in", "while",
-    "return", "break", "continue", "defer", "import", "match", "struct", "enum",
+    "return", "break", "continue", "defer", "import", "export", "match", "struct", "enum",
     "trait", "impl",
 ];
 

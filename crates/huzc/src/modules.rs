@@ -98,7 +98,7 @@ pub fn load_modules_from_memory(
     }
 }
 
-/// 取出主程序中的 import 语句并从语句列表中移除。
+/// 取出主程序中的 import 语句并从语句列表中移除，同时收集 export 依赖的子模块名(保留 export 供 codegen 做重导出)。
 fn extract_imports(program: &mut Program) -> Vec<String> {
     let mut names = Vec::new();
     program.statements.retain(|stmt| match &stmt.node {
@@ -108,6 +108,15 @@ fn extract_imports(program: &mut Program) -> Vec<String> {
         }
         _ => true,
     });
+    for stmt in &program.statements {
+        if let Stmt::Export(exp) = &stmt.node {
+            let root_mod = exp.path.split("::").next().unwrap_or(&exp.path);
+            let root_mod = root_mod.split('.').next().unwrap_or(root_mod);
+            if !names.contains(&root_mod.to_string()) {
+                names.push(root_mod.to_string());
+            }
+        }
+    }
     names
 }
 
@@ -148,6 +157,21 @@ fn lookup_memory_source<'a>(
             .trim_start_matches('/');
         if path_part == rel || path_part.ends_with(&format!("/{rel}")) {
             return Some(source);
+        }
+    }
+    let rel_stem = import_name.replace('.', "/");
+    for candidate in &["src/lib.hz", "lib.hz", "src/mod.hz", "mod.hz"] {
+        let rel_cand = format!("{}/{}", rel_stem, candidate);
+        for (key, source) in files {
+            let normalized = key.replace('\\', "/");
+            let path_part = normalized
+                .rsplit("://")
+                .next()
+                .unwrap_or(&normalized)
+                .trim_start_matches('/');
+            if path_part == rel_cand || path_part.ends_with(&format!("/{rel_cand}")) {
+                return Some(source);
+            }
         }
     }
     files.get(module_bind_name(import_name))
@@ -287,15 +311,49 @@ fn parse_memory_source(name: &str, source: &str) -> Result<Program, String> {
     }
 }
 
+/// 探查目录下的模块入口文件:
+/// 1. `<root>/<file>` 直接存在 (如 `core/assert.hz`)
+/// 2. `<root>/<file_stem>/huzi.toml` 中的 `lib_entry`
+/// 3. `<root>/<file_stem>/{src/lib.hz, lib.hz, src/mod.hz, mod.hz}`
+fn probe_entry_file(root: &Path, file: &Path) -> Option<PathBuf> {
+    let p = root.join(file);
+    if p.is_file() {
+        return Some(p);
+    }
+    let stem_path = file.with_extension("");
+    let stem_dir = root.join(&stem_path);
+    if stem_dir.is_dir() {
+        let toml_path = stem_dir.join("huzi.toml");
+        if toml_path.is_file() {
+            if let Ok(content) = std::fs::read_to_string(&toml_path) {
+                if let Ok(m) = crate::pkg::parse_manifest(&content) {
+                    if let Some(lib_entry) = m.lib_entry {
+                        let p = stem_dir.join(lib_entry);
+                        if p.is_file() {
+                            return Some(p);
+                        }
+                    }
+                }
+            }
+        }
+        for candidate in &["src/lib.hz", "lib.hz", "src/mod.hz", "mod.hz"] {
+            let p = stem_dir.join(candidate);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
 /// 模块名 -> 文件:点分段转子路径加 `.hz`,先找导入文件同目录,再找当前工作目录。
 /// 纯函数版:找不到返回 `Err`,不退出进程。
 fn resolve_module_file_result(import_name: &str, base_dir: &Path) -> Result<PathBuf, String> {
     let segments: PathBuf = import_name.split('.').collect();
     let file = segments.with_extension("hz");
     for dir in [base_dir, Path::new(".")] {
-        let candidate = dir.join(&file);
-        if candidate.is_file() {
-            return Ok(candidate);
+        if let Some(hit) = probe_entry_file(dir, &file) {
+            return Ok(hit);
         }
     }
 
@@ -326,34 +384,30 @@ fn resolve_module_file_result(import_name: &str, base_dir: &Path) -> Result<Path
 /// 优先级: HUZI_LIB 环境变量 -> 可执行文件相对路径 -> base_dir/工作目录相对路径 -> ~/.huzi/
 fn resolve_std_module(file: &Path, base_dir: &Path) -> Option<PathBuf> {
     if let Ok(lib) = std::env::var("HUZI_LIB") {
-        let p = PathBuf::from(lib).join(file);
-        if p.is_file() {
-            return Some(p);
+        if let Some(hit) = probe_entry_file(&PathBuf::from(lib), file) {
+            return Some(hit);
         }
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
             for sub in ["../huzi-src", "../../huzi-src", "../../../huzi-src", "../lib/huzi-src", "huzi-src"] {
-                let p = exe_dir.join(sub).join(file);
-                if p.is_file() {
-                    return Some(p);
+                if let Some(hit) = probe_entry_file(&exe_dir.join(sub), file) {
+                    return Some(hit);
                 }
             }
         }
     }
     for parent in [base_dir, Path::new(".")] {
         for sub in ["huzi-src", "../huzi-src", "../../huzi-src", "../../../huzi-src"] {
-            let p = parent.join(sub).join(file);
-            if p.is_file() {
-                return Some(p);
+            if let Some(hit) = probe_entry_file(&parent.join(sub), file) {
+                return Some(hit);
             }
         }
     }
     if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
         for sub in ["huzi-src", "std"] {
-            let p = PathBuf::from(&home).join(".huzi").join(sub).join(file);
-            if p.is_file() {
-                return Some(p);
+            if let Some(hit) = probe_entry_file(&PathBuf::from(&home).join(".huzi").join(sub), file) {
+                return Some(hit);
             }
         }
     }
@@ -366,10 +420,10 @@ fn validate_module_program_result(name: &str, program: &Program) -> Result<(), S
     for stmt in &program.statements {
         if !matches!(
             &stmt.node,
-            Stmt::Fn(_) | Stmt::Struct(_) | Stmt::Enum(_) | Stmt::Import(_) | Stmt::Trait(_) | Stmt::Impl(_)
+            Stmt::Fn(_) | Stmt::Struct(_) | Stmt::Enum(_) | Stmt::Import(_) | Stmt::Export(_) | Stmt::Trait(_) | Stmt::Impl(_)
         ) {
             return Err(format!(
-                "Module '{name}' may only contain fn/struct/enum/trait/impl definitions and imports"
+                "Module '{name}' may only contain fn/struct/enum/trait/impl definitions, imports, and exports"
             ));
         }
     }

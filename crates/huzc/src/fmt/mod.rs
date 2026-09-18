@@ -23,7 +23,7 @@ pub fn format_program(program: &Program) -> String {
     let mut prev_was_import = false;
 
     for (i, stmt) in program.statements.iter().enumerate() {
-        let is_import = matches!(stmt.node, Stmt::Import(_));
+        let is_import = matches!(stmt.node, Stmt::Import(_) | Stmt::Export(_));
         if i > 0 && (!is_import || !prev_was_import) {
             f.buf.push('\n');
         }
@@ -62,6 +62,13 @@ impl Formatter {
     fn format_top_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Import(imp) => self.line(&format!("import {}", imp.name)),
+            Stmt::Export(exp) => {
+                if exp.is_wildcard {
+                    self.line(&format!("export {}::*", exp.path));
+                } else {
+                    self.line(&format!("export {}", exp.path));
+                }
+            }
             Stmt::Struct(s) => self.format_struct(s),
             Stmt::Enum(e) => self.format_enum(e),
             Stmt::Fn(func) => self.format_fn(func),
@@ -192,6 +199,13 @@ impl Formatter {
                 self.line("}");
             }
             Stmt::Import(imp) => self.line(&format!("import {}", imp.name)),
+            Stmt::Export(exp) => {
+                if exp.is_wildcard {
+                    self.line(&format!("export {}::*", exp.path));
+                } else {
+                    self.line(&format!("export {}", exp.path));
+                }
+            }
             Stmt::Struct(s) => self.format_struct(s),
             Stmt::Enum(e) => self.format_enum(e),
             Stmt::Trait(t) => self.format_trait(t),

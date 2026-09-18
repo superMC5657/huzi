@@ -104,10 +104,20 @@ pub fn resolve_import_uri(
         dirs.push(PathBuf::from(&home).join(".huzi").join("huzi-src"));
         dirs.push(PathBuf::from(&home).join(".huzi").join("std"));
     }
-    dirs.into_iter()
-        .map(|dir| dir.join(&rel))
-        .find(|candidate| candidate.is_file())
-        .and_then(Uri::from_file_path)
+    for dir in dirs {
+        let candidate = dir.join(&rel);
+        if candidate.is_file() {
+            return Uri::from_file_path(candidate);
+        }
+        let stem_dir = dir.join(rel.with_extension(""));
+        for sub in &["src/lib.hz", "lib.hz", "src/mod.hz", "mod.hz"] {
+            let p = stem_dir.join(sub);
+            if p.is_file() {
+                return Uri::from_file_path(p);
+            }
+        }
+    }
+    None
 }
 
 /// 行文本是 `import X` 声明时返回点分 import 名(去首尾空格)。

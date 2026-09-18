@@ -13,6 +13,7 @@ pub struct Manifest {
     pub name: String,
     pub version: String,
     pub entry: Option<String>,
+    pub lib_entry: Option<String>,
     pub dependencies: HashMap<String, Dependency>,
 }
 
@@ -28,6 +29,7 @@ impl Default for Manifest {
             name: "app".to_string(),
             version: "0.1.0".to_string(),
             entry: None,
+            lib_entry: None,
             dependencies: HashMap::new(),
         }
     }
@@ -60,6 +62,7 @@ pub fn parse_manifest(content: &str) -> Result<Manifest, String> {
                 "name" => manifest.name = trim_quotes(val),
                 "version" => manifest.version = trim_quotes(val),
                 "entry" => manifest.entry = Some(trim_quotes(val)),
+                "lib_entry" | "lib" => manifest.lib_entry = Some(trim_quotes(val)),
                 _ => {}
             },
             "dependencies" => {
@@ -118,6 +121,9 @@ pub fn format_manifest(manifest: &Manifest) -> String {
     out.push_str(&format!("version = \"{}\"\n", manifest.version));
     if let Some(entry) = &manifest.entry {
         out.push_str(&format!("entry = \"{}\"\n", entry));
+    }
+    if let Some(lib_entry) = &manifest.lib_entry {
+        out.push_str(&format!("lib_entry = \"{}\"\n", lib_entry));
     }
     out.push('\n');
 
@@ -184,6 +190,21 @@ pub fn resolve_package_module(
     if let Some(m_file) = find_manifest_file(base_dir) {
         if let Some(p) = m_file.parent() {
             search_dirs.push(p.join("vendor"));
+            // 若 manifest 中声明了显式 path 依赖，支持直接从本地源码路径解析
+            if let Ok(content) = fs::read_to_string(&m_file) {
+                if let Ok(manifest) = parse_manifest(&content) {
+                    if let Some(dep) = manifest.dependencies.get(pkg_name) {
+                        if let Some(dep_path) = &dep.path {
+                            let direct_path = p.join(dep_path);
+                            if direct_path.is_dir() {
+                                if let Some(hit) = find_in_package_dir(&direct_path, sub_segs) {
+                                    return Some(hit);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
     search_dirs.push(base_dir.join("vendor"));
@@ -225,6 +246,19 @@ fn find_in_package_dir(pkg_dir: &Path, sub_segs: &[&str]) -> Option<PathBuf> {
             if let Some(hit) = match_module_file(&vdir, sub_segs) {
                 return Some(hit);
             }
+            if sub_segs.is_empty() {
+                if let Some(pkg_stem) = pkg_dir.file_name().and_then(|n| n.to_str()) {
+                    for candidate in &[
+                        format!("src/{}.hz", pkg_stem),
+                        format!("{}.hz", pkg_stem),
+                    ] {
+                        let p = vdir.join(candidate);
+                        if p.is_file() {
+                            return Some(p);
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -244,17 +278,38 @@ fn match_module_file(root: &Path, sub_segs: &[&str]) -> Option<PathBuf> {
             return Some(src_target);
         }
     } else {
-        // 单段 import: 寻找 mod.hz / lib.hz / <pkg>.hz
-        for candidate in &["mod.hz", "lib.hz", "src/mod.hz", "src/lib.hz"] {
+        // 0. 优先检查 huzi.toml 中指定的 lib_entry / lib
+        let toml_path = root.join("huzi.toml");
+        if toml_path.is_file() {
+            if let Ok(content) = fs::read_to_string(&toml_path) {
+                if let Ok(m) = parse_manifest(&content) {
+                    if let Some(lib_entry) = m.lib_entry {
+                        let p = root.join(lib_entry);
+                        if p.is_file() {
+                            return Some(p);
+                        }
+                    }
+                }
+            }
+        }
+        // 1. 规范库入口优先级: src/lib.hz -> lib.hz -> src/mod.hz -> mod.hz
+        for candidate in &["src/lib.hz", "lib.hz", "src/mod.hz", "mod.hz"] {
             let p = root.join(candidate);
             if p.is_file() {
                 return Some(p);
             }
         }
-        let pkg_stem = root.file_name()?.to_string_lossy();
-        let p = root.join(format!("{}.hz", pkg_stem));
-        if p.is_file() {
-            return Some(p);
+        // 2. 包名同名文件: src/<pkg>.hz -> <pkg>.hz
+        if let Some(pkg_stem) = root.file_name().and_then(|n| n.to_str()) {
+            for candidate in &[
+                format!("src/{}.hz", pkg_stem),
+                format!("{}.hz", pkg_stem),
+            ] {
+                let p = root.join(candidate);
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
         }
     }
     None
@@ -408,6 +463,7 @@ mod tests {
 name = "my_app"
 version = "1.2.0"
 entry = "src/app.hz"
+lib_entry = "src/lib.hz"
 
 [dependencies]
 foo = "0.1.0"
@@ -417,6 +473,7 @@ bar = { version = "2.0.0", path = "../bar" }
         assert_eq!(m.name, "my_app");
         assert_eq!(m.version, "1.2.0");
         assert_eq!(m.entry.as_deref(), Some("src/app.hz"));
+        assert_eq!(m.lib_entry.as_deref(), Some("src/lib.hz"));
         assert_eq!(m.dependencies.len(), 2);
         assert_eq!(m.dependencies["foo"].version, "0.1.0");
         assert_eq!(m.dependencies["foo"].path, None);
@@ -425,6 +482,7 @@ bar = { version = "2.0.0", path = "../bar" }
 
         let formatted = format_manifest(&m);
         assert!(formatted.contains("name = \"my_app\""));
+        assert!(formatted.contains("lib_entry = \"src/lib.hz\""));
         assert!(formatted.contains("bar = { version = \"2.0.0\", path = \"../bar\" }"));
         assert!(formatted.contains("foo = \"0.1.0\""));
     }
@@ -434,6 +492,26 @@ bar = { version = "2.0.0", path = "../bar" }
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test/pkg/app");
         let manifest = find_manifest_file(&root);
         assert!(manifest.is_some());
+    }
+
+    #[test]
+    fn test_resolve_package_library_entry() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test/pkg/app");
+        // Test resolving top-level library entry: sub_segs is empty (&[])
+        let hit = resolve_package_module("my_math", &[], &root);
+        assert!(hit.is_some(), "Expected library entry to be resolved");
+        let path = hit.unwrap();
+        assert!(path.ends_with("lib.hz"), "Expected resolved path to end with lib.hz, got: {}", path.display());
+    }
+
+    #[test]
+    fn test_resolve_package_submodule() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test/pkg/app");
+        // Test resolving submodule: sub_segs is ["calc"]
+        let hit = resolve_package_module("my_math", &["calc"], &root);
+        assert!(hit.is_some(), "Expected submodule calc to be resolved");
+        let path = hit.unwrap();
+        assert!(path.ends_with("calc.hz"), "Expected resolved path to end with calc.hz, got: {}", path.display());
     }
 }
 
