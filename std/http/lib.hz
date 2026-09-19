@@ -1,0 +1,96 @@
+// HTTP/1.1 客户端 —— 基于 TCP 原语的 GET,Connection: close 语义。
+//
+// 读法:发送请求后循环 recv 直到服务端关闭连接,再解析响应。
+// 限制:仅文本响应(body 经 C 字符串拼接,NUL 字节会截断);不支持
+// chunked 编码与 TLS;错误类型固定为 core.result 的 Result<str>。
+//
+// 用法:
+//   import core.result
+//   import std.http
+//   let r = http::http_get("example.com", 80, "/")
+//   if result::is_ok(r) {
+//       print(result::unwrap_or(r, ""))
+//   } else {
+//       print(result::err_msg(r))
+//   }
+
+import alloc.stringx
+import core.result
+
+/// 构造 GET 请求报文(path 为空时取 "/")。
+fn http_build_request(host: str, path: str) -> str {
+    let mut p = path
+    if len(p) == 0 {
+        p = "/"
+    }
+    return concat("GET ", p, " HTTP/1.1\r\nHost: ", host, "\r\nUser-Agent: huzi-http/0.1\r\nConnection: close\r\n\r\n")
+}
+
+/// 状态码:解析 "HTTP/1.1 200 OK" 首行;非 HTTP 响应或无法解析返回 0。
+fn http_status_code(resp: str) -> i32 {
+    let line_end = stringx::find(resp, "\r\n")
+    let line = if line_end < 0 {
+        resp
+    } else {
+        substring(resp, 0, line_end)
+    }
+    if !stringx::starts_with(line, "HTTP/") {
+        return 0
+    }
+    let sp = stringx::find(line, " ")
+    if sp < 0 {
+        return 0
+    }
+    let rest = substring(line, sp + 1, len(line))
+    let sp2 = stringx::find(rest, " ")
+    let code_str = if sp2 < 0 {
+        rest
+    } else {
+        substring(rest, 0, sp2)
+    }
+    let r = parse_int(code_str)
+    if !r.0 {
+        return 0
+    }
+    return r.1
+}
+
+/// `\r\n\r\n` 之后的 body;未找到头部结束符返回空串。
+fn http_body(resp: str) -> str {
+    let sep = stringx::find(resp, "\r\n\r\n")
+    if sep < 0 {
+        return ""
+    }
+    return substring(resp, sep + 4, len(resp))
+}
+
+/// 校验响应并取出 body:状态码 2xx 返回 Ok(body),否则 Err(状态描述)。
+fn http_parse(resp: str) -> Result<str> {
+    let code = http_status_code(resp)
+    if code < 200 || code >= 300 {
+        return result::err_str(concat("http status ", to_string(code)))
+    }
+    return result::ok_str(http_body(resp))
+}
+
+/// 发起 GET 请求,返回完整 body(2xx)或错误信息。
+fn http_get(host: str, port: i32, path: str) -> Result<str> {
+    let sock = tcp_connect(host, port)
+    if sock < 0 {
+        return result::err_str(concat("connect failed: ", host))
+    }
+    let req = http_build_request(host, path)
+    let sent = tcp_send(sock, req)
+    if sent <= 0 {
+        tcp_close(sock)
+        return result::err_str("send failed")
+    }
+    let mut resp = ""
+    let mut chunk = tcp_recv(sock, 4096)
+    while len(chunk) > 0 {
+        resp = concat(resp, chunk)
+        chunk = tcp_recv(sock, 4096)
+    }
+    tcp_close(sock)
+    return http_parse(resp)
+}

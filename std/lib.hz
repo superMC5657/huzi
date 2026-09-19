@@ -6,6 +6,8 @@ export framing
 export framing::*
 export fsx
 export fsx::*
+export http
+export http::*
 export json
 export json::*
 export log

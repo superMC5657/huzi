@@ -51,6 +51,26 @@ fn ends_with(s: str, p: str) -> bool {
     return sub == p
 }
 
+/// 子串首次出现的字节下标,未出现返回 -1(字节语义);空子串返回 0。
+fn find(s: str, needle: str) -> i32 {
+    let n = len(s)
+    let m = len(needle)
+    if m == 0 {
+        return 0
+    }
+    if m > n {
+        return -1
+    }
+    let mut i = 0
+    while i <= n - m {
+        if substring(s, i, i + m) == needle {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
 fn lines(s: str) -> vec<str> {
     let raw = split(s, "\n")
     let n = len(raw)

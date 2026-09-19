@@ -24,7 +24,7 @@ huzi-src/
 │   ├── vec_algo/
 │   │   └── lib.hz     # 向量排序、二分查找、反转等
 │   ├── stringx/
-│   │   └── lib.hz     # 字符串高阶扩展 (join/repeat/starts_with + 字符级 UTF-8 API)
+│   │   └── lib.hz     # 字符串高阶扩展 (join/repeat/starts_with/find + 字符级 UTF-8 API)
 │   ├── mapx/
 │   │   └── lib.hz     # Map 默认值与合并
 │   └── queue/
@@ -34,6 +34,8 @@ huzi-src/
 │   ├── huzi.toml      # 包元数据清单
 │   ├── fsx/
 │   │   └── lib.hz     # 文件行读写与路径工具
+│   ├── http/
+│   │   └── lib.hz     # HTTP/1.1 GET 客户端 (TCP + Connection: close, Result<str>)
 │   ├── env_cli/
 │   │   └── lib.hz     # 环境变量与命令行参数解析
 │   ├── timex/
@@ -52,6 +54,7 @@ huzi-src/
     ├── vec_algo_test.hz
     ├── stringx_test.hz
     ├── fsx_test.hz
+    ├── http_test.hz
     ├── timex_test.hz
     ├── env_cli_test.hz
     ├── csv_test.hz
