@@ -1,7 +1,9 @@
+mod comments;
 mod expr;
 #[cfg(test)]
 mod tests;
 
+use comments::{collect_comments, CommentInfo};
 use expr::*;
 use huzi_ast::*;
 use huzi_error::HuziError;
@@ -11,25 +13,40 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub fn format_source(source: &str) -> Result<String, HuziError> {
+    let comments = collect_comments(source);
     let mut lexer = Lexer::new(source.to_string());
     let tokens = lexer.tokenize()?;
     let mut parser = HuziParser::new(tokens);
     let program = parser.parse()?;
-    Ok(format_program(&program))
+    Ok(format_program(&program, comments))
 }
 
-pub fn format_program(program: &Program) -> String {
-    let mut f = Formatter::new();
+/// `end_bound[i]` = 下一条顶层语句的起始行(末条为 usize::MAX),
+/// 作为复合结构(结构体等)内部注释的回收边界。
+pub fn format_program(program: &Program, comments: Vec<CommentInfo>) -> String {
+    let mut f = Formatter::new(comments);
     let mut prev_was_import = false;
 
+    let n = program.statements.len();
+    let start_lines: Vec<usize> = program
+        .statements
+        .iter()
+        .map(|s| s.span.start_line())
+        .collect();
     for (i, stmt) in program.statements.iter().enumerate() {
         let is_import = matches!(stmt.node, Stmt::Import(_) | Stmt::Export(_));
         if i > 0 && (!is_import || !prev_was_import) {
             f.buf.push('\n');
         }
         prev_was_import = is_import;
-        f.format_top_stmt(&stmt.node);
+        let end_bound = if i + 1 < n {
+            start_lines[i + 1]
+        } else {
+            usize::MAX
+        };
+        f.format_top_stmt(&stmt.node, start_lines[i], end_bound);
     }
+    f.emit_pending_before(usize::MAX);
     if !f.buf.ends_with('\n') {
         f.buf.push('\n');
     }
@@ -39,13 +56,17 @@ pub fn format_program(program: &Program) -> String {
 struct Formatter {
     indent: usize,
     buf: String,
+    comments: Vec<CommentInfo>,
+    next_comment: usize,
 }
 
 impl Formatter {
-    fn new() -> Self {
+    fn new(comments: Vec<CommentInfo>) -> Self {
         Self {
             indent: 0,
             buf: String::new(),
+            comments,
+            next_comment: 0,
         }
     }
 
@@ -59,50 +80,96 @@ impl Formatter {
         self.buf.push('\n');
     }
 
-    fn format_top_stmt(&mut self, stmt: &Stmt) {
-        match stmt {
-            Stmt::Import(imp) => self.line(&format!("import {}", imp.name)),
-            Stmt::Export(exp) => {
-                if exp.is_wildcard {
-                    self.line(&format!("export {}::*", exp.path));
-                } else {
-                    self.line(&format!("export {}", exp.path));
-                }
+    /// 把行号早于 `before_line` 的整行注释按当前缩进吐出。
+    fn emit_pending_before(&mut self, before_line: usize) {
+        while self.next_comment < self.comments.len() {
+            let c = &self.comments[self.next_comment];
+            if c.line >= before_line {
+                break;
             }
-            Stmt::Struct(s) => self.format_struct(s),
-            Stmt::Enum(e) => self.format_enum(e),
-            Stmt::Fn(func) => self.format_fn(func),
-            other => self.format_stmt(other),
+            let text = c.text.clone();
+            self.line(&text);
+            self.next_comment += 1;
         }
     }
 
-    fn format_struct(&mut self, s: &StructDef) {
+    /// 若指定行有行尾注释则消费并返回其文本。
+    fn take_trailing(&mut self, line: usize) -> Option<String> {
+        let c = self.comments.get(self.next_comment)?;
+        if c.line == line && !c.full_line {
+            self.next_comment += 1;
+            return Some(c.text.clone());
+        }
+        None
+    }
+
+    /// 语句行输出:先吐前置整行注释,再拼接可能的行尾注释。
+    fn line_at(&mut self, s: &str, line: usize) {
+        self.emit_pending_before(line);
+        let mut out = s.to_string();
+        if let Some(c) = self.take_trailing(line) {
+            out.push(' ');
+            out.push_str(&c);
+        }
+        self.line(&out);
+    }
+
+    /// 块内语句的边界:下一条语句起始行,末条用外层 end_bound。
+    fn child_bound(lines: &[usize], i: usize, end: usize) -> usize {
+        if i + 1 < lines.len() {
+            lines[i + 1]
+        } else {
+            end
+        }
+    }
+
+    fn format_top_stmt(&mut self, stmt: &Stmt, line: usize, end: usize) {
+        match stmt {
+            Stmt::Import(imp) => self.line_at(&format!("import {}", imp.name), line),
+            Stmt::Export(exp) => {
+                if exp.is_wildcard {
+                    self.line_at(&format!("export {}::*", exp.path), line);
+                } else {
+                    self.line_at(&format!("export {}", exp.path), line);
+                }
+            }
+            Stmt::Struct(s) => self.format_struct(s, line, end),
+            Stmt::Enum(e) => self.format_enum(e, line, end),
+            Stmt::Fn(func) => self.format_fn(func, line, end),
+            other => self.format_stmt(other, line, end),
+        }
+    }
+
+    fn format_struct(&mut self, s: &StructDef, line: usize, end: usize) {
         let type_params = if s.type_params.is_empty() {
             String::new()
         } else {
             format!("<{}>", s.type_params.join(", "))
         };
         if s.fields.is_empty() {
-            self.line(&format!("struct {}{} {{}}", s.name, type_params));
+            self.line_at(&format!("struct {}{} {{}}", s.name, type_params), line);
             return;
         }
-        self.line(&format!("struct {}{} {{", s.name, type_params));
+        self.line_at(&format!("struct {}{} {{", s.name, type_params), line);
         self.indent += 1;
         for field in &s.fields {
+            self.emit_pending_before(end);
             self.line(&format!("{}: {},", field.name, field.field_type));
         }
+        self.emit_pending_before(end);
         self.indent -= 1;
         self.line("}");
     }
 
-    fn format_enum(&mut self, e: &EnumDef) {
+    fn format_enum(&mut self, e: &EnumDef, line: usize, end: usize) {
         if e.variants.is_empty() {
-            self.line(&format!("enum {} {{}}", e.name));
+            self.line_at(&format!("enum {} {{}}", e.name), line);
             return;
         }
-        self.line(&format!("enum {} {{", e.name));
+        self.line_at(&format!("enum {} {{", e.name), line);
         self.indent += 1;
         for v in &e.variants {
+            self.emit_pending_before(end);
             if v.payloads.is_empty() {
                 self.line(&format!("{},", v.name));
             } else {
@@ -110,12 +177,13 @@ impl Formatter {
                 self.line(&format!("{}({}),", v.name, payloads.join(", ")));
             }
         }
+        self.emit_pending_before(end);
         self.indent -= 1;
         self.line("}");
     }
 
-    fn format_trait(&mut self, t: &TraitDef) {
-        self.line(&format!("trait {} {{", t.name));
+    fn format_trait(&mut self, t: &TraitDef, line: usize, _end: usize) {
+        self.line_at(&format!("trait {} {{", t.name), line);
         self.indent += 1;
         for m in &t.methods {
             let mut params = Vec::new();
@@ -135,17 +203,18 @@ impl Formatter {
         self.line("}");
     }
 
-    fn format_impl(&mut self, i: &ImplBlock) {
-        self.line(&format!("impl {} for {} {{", i.trait_name, i.target_type));
+    fn format_impl(&mut self, i: &ImplBlock, line: usize, end: usize) {
+        self.line_at(&format!("impl {} for {} {{", i.trait_name, i.target_type), line);
         self.indent += 1;
         for m in &i.methods {
-            self.format_fn(m);
+            self.format_fn(m, 0, end);
         }
+        self.emit_pending_before(end);
         self.indent -= 1;
         self.line("}");
     }
 
-    fn format_fn(&mut self, f: &FnStmt) {
+    fn format_fn(&mut self, f: &FnStmt, line: usize, end: usize) {
         let type_params = if f.type_params.is_empty() {
             String::new()
         } else {
@@ -166,55 +235,65 @@ impl Formatter {
             ),
             None => format!("fn {}{}({}) {{", f.name, type_params, params.join(", ")),
         };
-        self.line(&header);
+        self.line_at(&header, line);
         self.indent += 1;
-        for stmt in &f.body.statements {
-            self.format_stmt(&stmt.node);
+        let body_lines: Vec<usize> = f
+            .body
+            .statements
+            .iter()
+            .map(|st| st.span.start_line())
+            .collect();
+        for (i, stmt) in f.body.statements.iter().enumerate() {
+            let bound = Self::child_bound(&body_lines, i, end);
+            self.format_stmt(&stmt.node, body_lines[i], bound);
         }
         self.indent -= 1;
         self.line("}");
     }
 
-    fn format_stmt(&mut self, stmt: &Stmt) {
+    fn format_stmt(&mut self, stmt: &Stmt, line: usize, end: usize) {
         match stmt {
-            Stmt::Let(l) => self.format_let(l),
-            Stmt::Expr(e) => self.line(&format_expr(&e.expr)),
+            Stmt::Let(l) => self.format_let(l, line),
+            Stmt::Expr(e) => self.line_at(&format_expr(&e.expr), line),
             Stmt::Return(r) => match &r.value {
-                Some(v) => self.line(&format!("return {}", format_expr(v))),
-                None => self.line("return"),
+                Some(v) => self.line_at(&format!("return {}", format_expr(v)), line),
+                None => self.line_at("return", line),
             },
-            Stmt::Break => self.line("break"),
-            Stmt::Continue => self.line("continue"),
-            Stmt::Defer(d) => self.format_defer(&d.node),
-            Stmt::If(i) => self.format_if(i),
-            Stmt::For(f) => self.format_for(f),
-            Stmt::While(w) => self.format_while(w),
+            Stmt::Break => self.line_at("break", line),
+            Stmt::Continue => self.line_at("continue", line),
+            Stmt::Defer(d) => self.format_defer(&d.node, line, end),
+            Stmt::If(i) => self.format_if(i, line, end),
+            Stmt::For(f) => self.format_for(f, line, end),
+            Stmt::While(w) => self.format_while(w, line, end),
             Stmt::Block(b) => {
-                self.line("{");
+                self.line_at("{", line);
                 self.indent += 1;
-                for s in &b.statements {
-                    self.format_stmt(&s.node);
+                let lines: Vec<usize> =
+                    b.statements.iter().map(|s| s.span.start_line()).collect();
+                for (i, s) in b.statements.iter().enumerate() {
+                    let bound = Self::child_bound(&lines, i, end);
+                    self.format_stmt(&s.node, lines[i], bound);
                 }
                 self.indent -= 1;
                 self.line("}");
             }
-            Stmt::Import(imp) => self.line(&format!("import {}", imp.name)),
+            Stmt::Import(imp) => self.line_at(&format!("import {}", imp.name), line),
             Stmt::Export(exp) => {
                 if exp.is_wildcard {
-                    self.line(&format!("export {}::*", exp.path));
+                    self.line_at(&format!("export {}::*", exp.path), line);
                 } else {
-                    self.line(&format!("export {}", exp.path));
+                    self.line_at(&format!("export {}", exp.path), line);
                 }
             }
-            Stmt::Struct(s) => self.format_struct(s),
-            Stmt::Enum(e) => self.format_enum(e),
-            Stmt::Trait(t) => self.format_trait(t),
-            Stmt::Impl(i) => self.format_impl(i),
-            Stmt::Fn(f) => self.format_fn(f),
+            Stmt::Struct(s) => self.format_struct(s, line, end),
+            Stmt::Enum(e) => self.format_enum(e, line, end),
+            Stmt::Trait(t) => self.format_trait(t, line, end),
+            Stmt::Impl(i) => self.format_impl(i, line, end),
+            Stmt::Fn(f) => self.format_fn(f, line, end),
         }
     }
 
-    fn format_let(&mut self, l: &LetStmt) {
+    fn format_let(&mut self, l: &LetStmt, line: usize) {
         let mut s = String::from("let ");
         if l.mutable {
             s.push_str("mut ");
@@ -226,39 +305,52 @@ impl Formatter {
         if let Some(v) = &l.value {
             s.push_str(&format!(" = {}", format_expr(v)));
         }
-        self.line(&s);
+        self.line_at(&s, line);
     }
 
-    fn format_defer(&mut self, inner: &Stmt) {
+    fn format_defer(&mut self, inner: &Stmt, line: usize, end: usize) {
         match inner {
             Stmt::Block(b) => {
-                self.line("defer {");
+                self.line_at("defer {", line);
                 self.indent += 1;
-                for s in &b.statements {
-                    self.format_stmt(&s.node);
+                let lines: Vec<usize> =
+                    b.statements.iter().map(|s| s.span.start_line()).collect();
+                for (i, s) in b.statements.iter().enumerate() {
+                    let bound = Self::child_bound(&lines, i, end);
+                    self.format_stmt(&s.node, lines[i], bound);
                 }
                 self.indent -= 1;
                 self.line("}");
             }
             other => {
-                self.line(&format!("defer {}", format_stmt_inline(other)));
+                self.line_at(&format!("defer {}", format_stmt_inline(other)), line);
             }
         }
     }
 
-    fn format_if(&mut self, i: &IfStmt) {
-        self.line(&format!("if {} {{", format_expr(&i.condition)));
+    fn format_if(&mut self, i: &IfStmt, line: usize, end: usize) {
+        self.line_at(&format!("if {} {{", format_expr(&i.condition)), line);
         self.indent += 1;
-        for s in &i.then_branch.statements {
-            self.format_stmt(&s.node);
+        let then_lines: Vec<usize> = i
+            .then_branch
+            .statements
+            .iter()
+            .map(|s| s.span.start_line())
+            .collect();
+        for (k, s) in i.then_branch.statements.iter().enumerate() {
+            let bound = Self::child_bound(&then_lines, k, end);
+            self.format_stmt(&s.node, then_lines[k], bound);
         }
         self.indent -= 1;
 
         for (cond, block) in &i.elif_branches {
             self.line(&format!("}} elif {} {{", format_expr(cond)));
             self.indent += 1;
-            for s in &block.statements {
-                self.format_stmt(&s.node);
+            let lines: Vec<usize> =
+                block.statements.iter().map(|s| s.span.start_line()).collect();
+            for (k, s) in block.statements.iter().enumerate() {
+                let bound = Self::child_bound(&lines, k, end);
+                self.format_stmt(&s.node, lines[k], bound);
             }
             self.indent -= 1;
         }
@@ -266,35 +358,55 @@ impl Formatter {
         if let Some(else_branch) = &i.else_branch {
             self.line("} else {");
             self.indent += 1;
-            for s in &else_branch.statements {
-                self.format_stmt(&s.node);
+            let lines: Vec<usize> = else_branch
+                .statements
+                .iter()
+                .map(|s| s.span.start_line())
+                .collect();
+            for (k, s) in else_branch.statements.iter().enumerate() {
+                let bound = Self::child_bound(&lines, k, end);
+                self.format_stmt(&s.node, lines[k], bound);
             }
             self.indent -= 1;
         }
         self.line("}");
     }
 
-    fn format_for(&mut self, f: &ForStmt) {
+    fn format_for(&mut self, f: &ForStmt, line: usize, end: usize) {
         let source_str = match &f.source {
             ForSource::Range { start, end } => {
                 format!("{}..{}", format_expr(start), format_expr(end))
             }
             ForSource::Array(arr) => format_expr(arr),
         };
-        self.line(&format!("for {} in {} {{", f.var_name, source_str));
+        self.line_at(&format!("for {} in {} {{", f.var_name, source_str), line);
         self.indent += 1;
-        for s in &f.body.statements {
-            self.format_stmt(&s.node);
+        let body_lines: Vec<usize> = f
+            .body
+            .statements
+            .iter()
+            .map(|s| s.span.start_line())
+            .collect();
+        for (i, s) in f.body.statements.iter().enumerate() {
+            let bound = Self::child_bound(&body_lines, i, end);
+            self.format_stmt(&s.node, body_lines[i], bound);
         }
         self.indent -= 1;
         self.line("}");
     }
 
-    fn format_while(&mut self, w: &WhileStmt) {
-        self.line(&format!("while {} {{", format_expr(&w.condition)));
+    fn format_while(&mut self, w: &WhileStmt, line: usize, end: usize) {
+        self.line_at(&format!("while {} {{", format_expr(&w.condition)), line);
         self.indent += 1;
-        for s in &w.body.statements {
-            self.format_stmt(&s.node);
+        let body_lines: Vec<usize> = w
+            .body
+            .statements
+            .iter()
+            .map(|s| s.span.start_line())
+            .collect();
+        for (i, s) in w.body.statements.iter().enumerate() {
+            let bound = Self::child_bound(&body_lines, i, end);
+            self.format_stmt(&s.node, body_lines[i], bound);
         }
         self.indent -= 1;
         self.line("}");
