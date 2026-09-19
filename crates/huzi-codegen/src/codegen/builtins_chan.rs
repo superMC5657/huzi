@@ -185,9 +185,11 @@ impl<'ctx> CodeGen<'ctx> {
             .build_conditional_branch(is_null, invalid_bb, loop_bb)
             .unwrap();
 
-        // 无效句柄:结果空串。
+        // 无效句柄:结果为真实空串(复用全局 NUL 常量,可安全
+        // strlen/print),不是 NULL 指针。
         self.builder.position_at_end(invalid_bb);
-        self.builder.build_store(result_alloca, ptr_ty.const_null()).unwrap();
+        let empty = self.empty_str_ptr();
+        self.builder.build_store(result_alloca, empty).unwrap();
         self.builder.build_unconditional_branch(after_bb).unwrap();
 
         // 主循环:加锁检查是否有消息。
@@ -218,6 +220,9 @@ impl<'ctx> CodeGen<'ctx> {
             .builder
             .build_int_add(head, self.context.i32_type().const_int(1, false), "chan_head_inc")
             .unwrap();
+        // head 回绕到 [0, cap):否则 i32 持续递增,约 2^31 条消息后
+        // 溢出为负,ring_mod 产生负下标越界读写。
+        let head2 = self.ring_mod(head2, cap)?;
         self.store_chan_i32(chan_ptr, CHAN_HEAD, head2)?;
         let count2 = self.load_chan_i32(chan_ptr, CHAN_COUNT)?;
         let count3 = self
@@ -417,6 +422,8 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 睡 1ms(Windows `Sleep`,POSIX `usleep`;均已在 prelude 声明)。
+    /// 按编译器宿主平台选择,与 prelude 的声明条件一致;交叉编译
+    /// 场景暂不支持(STATUS 同此口径)。
     fn emit_chan_sleep(&mut self) -> Result<()> {
         let one_ms = self.context.i32_type().const_int(1, false);
         if cfg!(windows) {

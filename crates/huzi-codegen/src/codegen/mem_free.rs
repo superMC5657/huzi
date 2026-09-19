@@ -39,8 +39,9 @@ impl<'ctx> CodeGen<'ctx> {
         Ok((name, slot))
     }
 
-    /// 空串全局指针(首次创建,后续复用同一全局,供 free 后安全态与判空)。
-    fn empty_str_ptr(&mut self) -> PointerValue<'ctx> {
+    /// 空串全局指针(首次创建,后续复用同一全局,供 free 后安全态与判空;
+    /// chan recv 的 null 句柄返回值亦复用)。
+    pub(super) fn empty_str_ptr(&mut self) -> PointerValue<'ctx> {
         if let Some(g) = self.module.get_global("huzi_empty_str") {
             return g.as_pointer_value();
         }

@@ -3,7 +3,9 @@ mod expr;
 #[cfg(test)]
 mod tests;
 
-use comments::{collect_comments, CommentInfo};
+// CommentInfo/collect_comments 一并对外重导出(format_program 的
+// comments 实参类型必须可由调用方命名与构造)。
+pub use comments::{collect_comments, CommentInfo};
 use expr::*;
 use huzi_ast::*;
 use huzi_error::HuziError;
@@ -153,9 +155,10 @@ impl Formatter {
         self.line_at(&format!("struct {}{} {{", s.name, type_params), line);
         self.indent += 1;
         for field in &s.fields {
-            self.emit_pending_before(end);
             self.line(&format!("{}: {},", field.name, field.field_type));
         }
+        // 字段没有独立 span,字段间注释无法逐位回插:统一在收尾
+        // 花括号前回收(提交口径一致,注释不丢失)。
         self.emit_pending_before(end);
         self.indent -= 1;
         self.line("}");
@@ -169,7 +172,6 @@ impl Formatter {
         self.line_at(&format!("enum {} {{", e.name), line);
         self.indent += 1;
         for v in &e.variants {
-            self.emit_pending_before(end);
             if v.payloads.is_empty() {
                 self.line(&format!("{},", v.name));
             } else {
@@ -177,6 +179,7 @@ impl Formatter {
                 self.line(&format!("{}({}),", v.name, payloads.join(", ")));
             }
         }
+        // 同 format_struct:变体间注释统一在收尾花括号前回收。
         self.emit_pending_before(end);
         self.indent -= 1;
         self.line("}");
@@ -207,6 +210,16 @@ impl Formatter {
         self.line_at(&format!("impl {} for {} {{", i.trait_name, i.target_type), line);
         self.indent += 1;
         for m in &i.methods {
+            // FnStmt 不携带 span,方法头行号不可知:取首条 body 语句
+            // 行号作注释回收上界,方法前的整行注释在方法头前吐出
+            // (行尾注释可能整体偏移,但不再丢失/失效)。
+            let bound = m
+                .body
+                .statements
+                .first()
+                .map(|s| s.span.start_line())
+                .unwrap_or(end);
+            self.emit_pending_before(bound);
             self.format_fn(m, 0, end);
         }
         self.emit_pending_before(end);

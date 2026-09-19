@@ -37,6 +37,14 @@ impl<'ctx> CodeGen<'ctx> {
             if !ok_is_bool {
                 return Err(HuziError::new_global("?: Result 的 ok 字段必须为 bool"));
             }
+            // RFC §3.6 限制:value 字段为 Box<T> 时提前返回无法安全
+            // 释放该 Box,规范明确"暂不支持",编译期直接拒绝。
+            // LLVM 层面 Box 与指针同形,须按 AST 字段类型判断。
+            if matches!(fields[value_idx].ast_ty, Type::Box(_)) {
+                return Err(HuziError::new_global(
+                    "?: Result 的 value 字段不支持 Box<T>(RFC §3.6:暂不支持)",
+                ));
+            }
             (ok_idx, value_idx)
         };
 

@@ -1,0 +1,20 @@
+import core.result
+
+struct Node {
+    v: i32,
+}
+
+struct Bad {
+    ok: bool,
+    value: Box<Node>,
+    err: str,
+}
+
+fn unwrap(r: Bad) -> Bad {
+    let n = r?
+    return r
+}
+
+fn main() -> i32 {
+    return 0
+}

@@ -10,7 +10,7 @@ pub mod fmt;
 pub mod pkg;
 mod modules;
 
-pub use fmt::{format_program, format_source};
+pub use fmt::{collect_comments, format_program, format_source, CommentInfo};
 pub use modules::{
     LoadedModule, load_modules, load_modules_from_memory, load_modules_result,
 };
