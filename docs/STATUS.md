@@ -37,6 +37,8 @@
 - [x] 线程：`spawn/join`
 - [x] 通道：`chan_new/chan_send/chan_recv`（跨线程传 str 消息，环形缓冲 + 自旋锁，句柄可作 spawn 实参）
 - [x] `for x in 调用(...)`：直接遍历返回 `vec<T>` 的函数调用结果（含 `split` 与模块函数），无需先存变量
+- [x] 右值字段访问：`f(...).0`、`g(...).field` 对调用结果直接取元组/结构体字段
+- [x] `str_from_bytes(vec<i32>) -> str`：字节向量构造字符串（自举标准库 UTF-8 编码的底层支撑）
 - [x] 字符级 UTF-8 API（自举标准库 `alloc::stringx`）：`char_len/chars/char_at/char_sub`，中英文混排按"字"计数、遍历与截取（示例 `57_unicode_string`）
 
 ### 编译器与工具链

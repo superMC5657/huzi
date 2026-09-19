@@ -291,12 +291,36 @@ impl<'ctx> CodeGen<'ctx> {
         expr: &FieldAccessExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         // 基址是 Box 时先自动解引用,逐层生效(`head.next.val`)。
-        let (base_ptr, base_ty) = self.compile_addr_deref(&expr.base)?;
-        let (field_ptr, field_ty) = self.gep_field(base_ptr, base_ty, &expr.field)?;
-        let loaded = self
-            .builder
-            .build_load(field_ty, field_ptr, "field")
-            .unwrap();
-        Ok(loaded)
+        match self.compile_addr_deref(&expr.base) {
+            Ok((base_ptr, base_ty)) => {
+                let (field_ptr, field_ty) = self.gep_field(base_ptr, base_ty, &expr.field)?;
+                let loaded = self
+                    .builder
+                    .build_load(field_ty, field_ptr, "field")
+                    .unwrap();
+                Ok(loaded)
+            }
+            Err(base_err) => {
+                // 右值基座(调用结果等值位置):暂存临时槽再取字段,
+                // 支持 `parse_int(s).1`、`json::get_int(d, "k").0` 写法。
+                let val = match self.compile_expr(&expr.base) {
+                    Ok(v) => v,
+                    Err(_) => return Err(base_err),
+                };
+                if !val.is_struct_value() {
+                    return Err(base_err);
+                }
+                let sv = val.into_struct_value();
+                let sty = sv.get_type();
+                let tmp = self.build_alloca(sty.into(), "field_rvalue_tmp")?;
+                self.builder.build_store(tmp, sv).unwrap();
+                let (field_ptr, field_ty) = self.gep_field(tmp, sty.into(), &expr.field)?;
+                let loaded = self
+                    .builder
+                    .build_load(field_ty, field_ptr, "field")
+                    .unwrap();
+                Ok(loaded)
+            }
+        }
     }
 }

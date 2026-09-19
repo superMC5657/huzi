@@ -20,6 +20,7 @@ mod box_nest;
 mod box_print;
 mod boxed;
 mod builtins;
+mod builtins_bytes;
 mod builtins_chan;
 mod builtins_math;
 mod builtins_print;

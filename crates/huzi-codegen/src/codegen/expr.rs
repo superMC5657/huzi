@@ -217,6 +217,7 @@ impl<'ctx> CodeGen<'ctx> {
             "chan_new" => return self.compile_chan_new(&expr.arguments),
             "chan_send" => return self.compile_chan_send(&expr.arguments),
             "chan_recv" => return self.compile_chan_recv(&expr.arguments),
+            "str_from_bytes" => return self.compile_str_from_bytes(&expr.arguments),
             _ => {}
         }
 
