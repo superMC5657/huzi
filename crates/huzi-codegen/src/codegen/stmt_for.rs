@@ -136,7 +136,79 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
         }
+        if self.try_compile_for_call(stmt, array, span)? {
+            return Ok(true);
+        }
         Ok(false)
+    }
+
+    /// `for x in 调用(...)`:直接遍历返回 `vec<T>` 的函数调用结果,
+    /// 无需先 `let` 暂存。元素类型取自被调函数的声明返回类型
+    /// (`fn_return_ast`);内置 `split` 恒为 `vec<str>`。其余调用返回
+    /// false,交回原错误路径。
+    fn try_compile_for_call(
+        &mut self,
+        stmt: &ForStmt,
+        array: &Expr,
+        span: Span,
+    ) -> Result<bool> {
+        let callee_name = match array {
+            Expr::Call(c) => match &*c.callee {
+                Expr::Ident(n) => Some(n.clone()),
+                _ => None,
+            },
+            // `mod::fn(args)` 与 `Enum::Variant(args)` 同形(解析为
+            // EnumConstruct),模块前缀拼接与 codegen 调用分派一致。
+            Expr::EnumConstruct(ec) => Some(format!("{}::{}", ec.enum_name, ec.variant)),
+            _ => None,
+        };
+        let Some(callee_name) = callee_name else {
+            return Ok(false);
+        };
+
+        let elem_type = if callee_name == "split" {
+            Some(
+                self.context
+                    .ptr_type(inkwell::AddressSpace::default())
+                    .into(),
+            )
+        } else if let Some(ret) = self.fn_return_ast.get(&callee_name) {
+            match ret {
+                Type::Applied(n, args) if n == "vec" => {
+                    let Some(arg) = args.first() else {
+                        return Ok(false);
+                    };
+                    match self.type_to_llvm(arg) {
+                        Ok(ty) => Some(ty),
+                        Err(_) => None,
+                    }
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let Some(elem_type) = elem_type else {
+            return Ok(false);
+        };
+
+        let vec_val = self.compile_expr(array)?;
+        if !vec_val.is_struct_value() {
+            return Ok(false);
+        }
+        let sv = vec_val.into_struct_value();
+        let data = self
+            .builder
+            .build_extract_value(sv, 0, "vec_call_data")
+            .unwrap()
+            .into_pointer_value();
+        let len = self
+            .builder
+            .build_extract_value(sv, 1, "vec_call_len")
+            .unwrap()
+            .into_int_value();
+        self.compile_for_vec_parts(stmt, data, len, elem_type, span)?;
+        Ok(true)
     }
 
     fn compile_for_array_iter(

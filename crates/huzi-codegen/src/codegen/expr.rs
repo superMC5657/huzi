@@ -214,6 +214,9 @@ impl<'ctx> CodeGen<'ctx> {
             "tcp_accept" => return self.compile_tcp_accept(&expr.arguments),
             "spawn" | "thread_spawn" => return self.compile_spawn(&expr.arguments),
             "join" | "thread_join" => return self.compile_join(&expr.arguments),
+            "chan_new" => return self.compile_chan_new(&expr.arguments),
+            "chan_send" => return self.compile_chan_send(&expr.arguments),
+            "chan_recv" => return self.compile_chan_recv(&expr.arguments),
             _ => {}
         }
 

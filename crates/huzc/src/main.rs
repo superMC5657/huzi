@@ -114,8 +114,8 @@ fn main() {
     }
     let paths = OutputPaths::new(&args.effective_output());
     write_ir(&codegen, &paths.ll_path);
-    if !codegen.verify() {
-        die("Error: LLVM module verification failed (this is a compiler bug)".to_string());
+    if let Err(e) = codegen.verify_detailed() {
+        die(format!("Error: LLVM module verification failed (this is a compiler bug)\n{}", e));
     }
 
     // Optimization: run the LLVM IR optimizer before code generation when the

@@ -20,6 +20,7 @@ mod box_nest;
 mod box_print;
 mod boxed;
 mod builtins;
+mod builtins_chan;
 mod builtins_math;
 mod builtins_print;
 mod builtins_string;
@@ -354,6 +355,11 @@ impl<'ctx> CodeGen<'ctx> {
 
     pub fn verify(&self) -> bool {
         self.module.verify().is_ok()
+    }
+
+    /// 校验并返回 LLVM 原始错误信息(verify 失败时供 CLI 打印细节)。
+    pub fn verify_detailed(&self) -> std::result::Result<(), String> {
+        self.module.verify().map_err(|e| e.to_string())
     }
 
     pub fn write_ir_to_file(&self, path: &str) -> std::result::Result<(), std::io::Error> {
