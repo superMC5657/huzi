@@ -24,7 +24,7 @@ huzi-src/
 │   ├── vec_algo/
 │   │   └── lib.hz     # 向量排序、二分查找、反转等
 │   ├── stringx/
-│   │   └── lib.hz     # 字符串高阶扩展 (join/repeat/starts_with)
+│   │   └── lib.hz     # 字符串高阶扩展 (join/repeat/starts_with + 字符级 UTF-8 API)
 │   ├── mapx/
 │   │   └── lib.hz     # Map 默认值与合并
 │   └── queue/

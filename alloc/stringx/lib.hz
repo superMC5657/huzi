@@ -96,3 +96,96 @@ fn pad_right(s: str, total_len: i32, pad_char: str) -> str {
     let padding = repeat(pad_char, diff)
     return concat(s, padding)
 }
+
+// ---- 字符级 (UTF-8) API ----
+// `str` 底层是 UTF-8 字节串:内建 `len`/`substring`/下标按字节计,
+// 本组函数按"字"处理,一个汉字/Emoji 均视为 1 个字符。
+
+/// UTF-8 首字节 → 该字符占用的字节数 (1-4)。
+/// 字节取自有符号 char(即 i8):连续字节 0x80-0xBF 落在 -128..-65,
+/// 首字节 0xC0-0xF7 落在 -64..-9;非法字节按 1 前进,保证扫描不死循环。
+fn char_byte_width(b: i32) -> i32 {
+    if b >= -16 && b <= -9 {
+        return 4
+    }
+    if b >= -32 && b <= -17 {
+        return 3
+    }
+    if b >= -64 && b <= -33 {
+        return 2
+    }
+    return 1
+}
+
+/// 字符数:`char_len("你好a") == 3`(对比 `len` 返回字节数 7)。
+fn char_len(s: str) -> i32 {
+    let n = len(s)
+    let mut i = 0
+    let mut count = 0
+    while i < n {
+        count = count + 1
+        i = i + char_byte_width(s[i])
+    }
+    return count
+}
+
+/// 拆成单字符字符串数组:`chars("你好")` 即 `vec("你", "好")`,
+/// 配合 `for ch in chars(s)` 逐字遍历。
+fn chars(s: str) -> vec<str> {
+    let mut out = vec<str>()
+    let n = len(s)
+    let mut i = 0
+    while i < n {
+        let w = char_byte_width(s[i])
+        push(out, substring(s, i, i + w))
+        i = i + w
+    }
+    return out
+}
+
+/// 第 idx 个字符(0 起,按字符计);越界返回空串。
+fn char_at(s: str, idx: i32) -> str {
+    let n = len(s)
+    let mut i = 0
+    let mut cur = 0
+    while i < n {
+        let w = char_byte_width(s[i])
+        if cur == idx {
+            return substring(s, i, i + w)
+        }
+        cur = cur + 1
+        i = i + w
+    }
+    return ""
+}
+
+/// 按字符下标取子串 `[start, end)`:char_sub("你好世界", 1, 3) 即 "好世"。
+/// 区间非法(负数 / start > end / end 超出字符数)时 panic。
+fn char_sub(s: str, start: i32, end: i32) -> str {
+    let total = char_len(s)
+    if start < 0 || end > total || start > end {
+        panic("Runtime error: char_sub out of bounds")
+    }
+    let n = len(s)
+    let mut i = 0
+    let mut cur = 0
+    let mut byte_start = n
+    let mut byte_end = n
+    while i < n {
+        if cur == start {
+            byte_start = i
+        }
+        if cur == end {
+            byte_end = i
+        }
+        i = i + char_byte_width(s[i])
+        cur = cur + 1
+    }
+    if cur == start {
+        byte_start = n
+    }
+    if cur == end {
+        byte_end = n
+    }
+    return substring(s, byte_start, byte_end)
+}
