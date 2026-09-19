@@ -1,5 +1,6 @@
 //! 泛型函数实参类型推导：在调用点未显式给出 `<T>` 时，根据形参与实参类型反推。
 
+use crate::codegen::qname::{bare_name, qualified};
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 use std::collections::HashMap;
@@ -89,7 +90,7 @@ impl TypeInferrer {
     }
 
     fn infer_enum_construct_type(&self, ec: &EnumConstructExpr) -> Option<Type> {
-        let full_name = format!("{}::{}", ec.enum_name, ec.variant);
+        let full_name = qualified(&ec.enum_name, &ec.variant);
         if let Some((_, ret)) = self
             .fn_signatures
             .get(&full_name)
@@ -193,7 +194,7 @@ impl TypeInferrer {
             return ret.clone();
         }
         // 限定调用(`result::ok_i32`):签名按定义名(末段)收录。
-        let bare = name.rsplit("::").next().unwrap_or(name);
+        let bare = bare_name(name);
         if bare != name.as_str() {
             if let Some((_, ret)) = self.fn_signatures.get(bare) {
                 return ret.clone();

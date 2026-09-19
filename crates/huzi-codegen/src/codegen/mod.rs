@@ -10,6 +10,7 @@ use inkwell::{
 };
 
 mod program_compile;
+mod qname;
 use program_compile::*;
 
 mod aggregates;
@@ -216,7 +217,7 @@ impl<'ctx> CodeGen<'ctx> {
             return name.to_string();
         }
         match &self.current_module {
-            Some(m) => format!("{}::{}", m, name),
+            Some(m) => qname::qualified(m, name),
             None => name.to_string(),
         }
     }

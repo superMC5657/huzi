@@ -29,34 +29,18 @@ pub fn collect_comments(source: &str) -> Vec<CommentInfo> {
     while i < n {
         let c = chars[i];
         if in_string {
-            if c == '\\' && i + 1 < n {
-                i += 2;
-                col += 2;
-                continue;
-            }
-            if c == '"' {
-                in_string = false;
-            }
-            if c == '\n' {
-                line += 1;
-                col = 0;
-            } else {
-                col += 1;
-            }
-            i += 1;
+            let (ni, nline, ncol, still) = advance_in_string(&chars, i, line, col);
+            i = ni;
+            line = nline;
+            col = ncol;
+            in_string = still;
             continue;
         }
         if in_char {
-            if c == '\\' && i + 1 < n {
-                i += 2;
-                col += 2;
-                continue;
-            }
-            if c == '\'' {
-                in_char = false;
-            }
-            col += 1;
-            i += 1;
+            let (ni, ncol, still) = advance_in_char(&chars, i, col);
+            i = ni;
+            col = ncol;
+            in_char = still;
             continue;
         }
         if c == '"' {
@@ -95,4 +79,34 @@ pub fn collect_comments(source: &str) -> Vec<CommentInfo> {
         i += 1;
     }
     out
+}
+
+/// 字符串字面量内推进一步:转义跳两格,结束引号退出字面量,
+/// 换行累计行号。返回新的 (i, line, col, 是否仍在字符串内)。
+fn advance_in_string(chars: &[char], i: usize, line: usize, col: usize) -> (usize, usize, usize, bool) {
+    let c = chars[i];
+    if c == '\\' && i + 1 < chars.len() {
+        return (i + 2, line, col + 2, true);
+    }
+    if c == '"' {
+        return (i + 1, line, col + 1, false);
+    }
+    if c == '\n' {
+        (i + 1, line + 1, 0, true)
+    } else {
+        (i + 1, line, col + 1, true)
+    }
+}
+
+/// 字符字面量内推进一步(字面量内无换行):转义跳两格,结束引号
+/// 退出字面量。返回新的 (i, col, 是否仍在字符字面量内)。
+fn advance_in_char(chars: &[char], i: usize, col: usize) -> (usize, usize, bool) {
+    let c = chars[i];
+    if c == '\\' && i + 1 < chars.len() {
+        return (i + 2, col + 2, true);
+    }
+    if c == '\'' {
+        return (i + 1, col + 1, false);
+    }
+    (i + 1, col + 1, true)
 }
