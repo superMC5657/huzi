@@ -131,6 +131,9 @@ pub struct CodeGen<'ctx> {
     fn_param_ast: HashMap<String, Vec<Type>>,
     /// 各函数的返回 AST 类型,供表达式求值时判断调用结果是否为 Box。
     fn_return_ast: HashMap<String, Type>,
+    /// 局部变量名 → 已知的 AST 类型(由 let 的值静态推导),
+    /// 供 `r.1` 这类元组字段访问推断元素类型。
+    local_ast: HashMap<String, Type>,
     /// 当前函数中分配的 Box 局部变量槽 (alloca_ptr, llvm_ty),统一在函数退出时 release。
     box_slots: Vec<(inkwell::values::PointerValue<'ctx>, inkwell::types::BasicTypeEnum<'ctx>)>,
     /// 无返回值函数表(限定名 -> 是否省略返回类型):`fn foo() {...}` 仍按
@@ -178,6 +181,7 @@ impl<'ctx> CodeGen<'ctx> {
             current_return_type: None,
             fn_param_ast: HashMap::new(),
             fn_return_ast: HashMap::new(),
+            local_ast: HashMap::new(),
             box_slots: Vec::new(),
             fn_no_return: HashMap::new(),
             current_return_ast: None,

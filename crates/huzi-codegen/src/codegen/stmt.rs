@@ -130,6 +130,16 @@ impl<'ctx> CodeGen<'ctx> {
             None => value.get_type(),
         };
 
+        // 记录局部变量的 AST 类型(供 `r.1` 元组字段访问推断元素类型)。
+        let ast_ty = if let Some(ann) = &stmt.type_annotation {
+            Some(ann.clone())
+        } else {
+            self.static_type_of_value(value_expr)
+        };
+        if let Some(t) = ast_ty {
+            self.local_ast.insert(stmt.name.clone(), t);
+        }
+
         // Box 槽记录 pointee(无标注时由值推导);Box 指针不做字符串元数据标记。
         let box_inner = match &stmt.type_annotation {
             Some(ann) => self.box_nest_of_ast(ann)?,
@@ -220,6 +230,19 @@ impl<'ctx> CodeGen<'ctx> {
         if let Expr::FieldAccess(fa) = value_expr {
             if let Some(field_ty) = self.field_ast_type(&fa.base, &fa.field) {
                 return self.elem_and_mark_from_ast(&field_ty);
+            }
+            // 元组右值字段:`let kinds = r.1` / `let kinds = f(s).1`。
+            // 字段名为数字且基座的元组类型可知时,取对应元素类型。
+            if let Ok(idx) = fa.field.parse::<usize>() {
+                let base_ty = match &*fa.base {
+                    Expr::Ident(id) => self.local_ast.get(id).cloned(),
+                    other => self.static_type_of_value(other),
+                };
+                if let Some(Type::Tuple(elems)) = base_ty {
+                    if let Some(et) = elems.get(idx) {
+                        return self.elem_and_mark_from_ast(et);
+                    }
+                }
             }
         }
         if let Expr::Call(c) = value_expr {
@@ -463,6 +486,25 @@ impl<'ctx> CodeGen<'ctx> {
             }
         }
         None
+    }
+
+    /// 值表达式的静态 AST 类型(能从函数签名得知时):调用与
+    /// 模块限定调用取声明的返回类型。
+    pub(super) fn static_type_of_value(&self, expr: &Expr) -> Option<Type> {
+        match expr {
+            Expr::Call(c) => match &*c.callee {
+                Expr::Ident(fname) => {
+                    let key = self.qualify_name(fname);
+                    self.fn_return_ast.get(&key).cloned()
+                }
+                _ => None,
+            },
+            Expr::EnumConstruct(ec) => {
+                let key = format!("{}::{}", ec.enum_name, ec.variant);
+                self.fn_return_ast.get(&key).cloned()
+            }
+            _ => None,
+        }
     }
 
     /// Compile a block as an expression: the block's value is the value of its

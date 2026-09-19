@@ -39,6 +39,8 @@
 - [x] `for x in 调用(...)`：直接遍历返回 `vec<T>` 的函数调用结果（含 `split` 与模块函数），无需先存变量
 - [x] 右值字段访问：`f(...).0`、`g(...).field` 对调用结果直接取元组/结构体字段
 - [x] `str_from_bytes(vec<i32>) -> str`：字节向量构造字符串（自举标准库 UTF-8 编码的底层支撑）
+- [x] let 元组字段元素类型推断：`let kinds = r.1`（元组右值字段取 vec）后可直接索引/遍历
+- [x] 自举里程碑：`examples/hzlex` 用 Huzi 重写词法器，selftest 断言全过，并对 90 个文件（全部测试示例 + 标准库源码与自测）词法分析零失败
 - [x] 字符级 UTF-8 API（自举标准库 `alloc::stringx`）：`char_len/chars/char_at/char_sub`，中英文混排按"字"计数、遍历与截取（示例 `57_unicode_string`）
 
 ### 编译器与工具链
