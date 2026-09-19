@@ -1,23 +1,46 @@
-fn ok_i32(val: i32) -> (bool, i32, str) {
-    return (true, val, "")
+// Result<T> — 错误处理约定。
+// ok 为 true 时 value 有效;否则 err 携带错误信息。
+// 配合后缀 `?` 运算符:成功解包 value,失败从当前函数提前返回整个 Result。
+
+struct Result<T> {
+    ok: bool,
+    value: T,
+    err: str,
 }
 
-fn err_i32(err: str) -> (bool, i32, str) {
-    return (false, 0, err)
+fn is_ok<T>(r: Result<T>) -> bool {
+    return r.ok
 }
 
-fn is_ok(ok: bool) -> bool {
-    return ok
+fn is_err<T>(r: Result<T>) -> bool {
+    return !r.ok
 }
 
-fn is_err(ok: bool) -> bool {
-    return !ok
-}
-
-fn unwrap_or_i32(ok: bool, val: i32, dflt: i32) -> i32 {
-    if ok {
-        return val
-    } else {
-        return dflt
+/// 成功时取 value,失败时取 dflt(不触发 `?` 的提前返回)。
+fn unwrap_or<T>(r: Result<T>, dflt: T) -> T {
+    if r.ok {
+        return r.value
     }
+    return dflt
+}
+
+/// 失败时的错误信息(成功时为空串)。
+fn err_msg<T>(r: Result<T>) -> str {
+    return r.err
+}
+
+fn ok_i32(val: i32) -> Result<i32> {
+    return Result<i32> { ok: true, value: val, err: "" }
+}
+
+fn err_i32(err: str) -> Result<i32> {
+    return Result<i32> { ok: false, value: 0, err: err }
+}
+
+fn ok_str(val: str) -> Result<str> {
+    return Result<str> { ok: true, value: val, err: "" }
+}
+
+fn err_str(err: str) -> Result<str> {
+    return Result<str> { ok: false, value: "", err: err }
 }

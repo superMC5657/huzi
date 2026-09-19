@@ -11,9 +11,9 @@ fn main() -> i32 {
     core::assert::assert_eq_i32(42, 42)
 
     let r_ok = core::ok_i32(10)
-    core::assert_true(core::is_ok(r_ok.0))
-    core::assert_eq_i32(core::unwrap_or_i32(r_ok.0, r_ok.1, 999), 10)
-    core::assert_eq_i32(core::result::unwrap_or_i32(r_ok.0, r_ok.1, 999), 10)
+    core::assert_true(core::is_ok(r_ok))
+    core::assert_eq_i32(core::unwrap_or(r_ok, 999), 10)
+    core::assert_eq_i32(core::result::unwrap_or(r_ok, 999), 10)
 
     let opt = core::some_i32(77)
     core::assert_eq_i32(core::option::unwrap_or_i32(opt.0, opt.1, 0), 77)
