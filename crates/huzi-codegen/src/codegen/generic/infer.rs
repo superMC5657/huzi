@@ -192,6 +192,13 @@ impl TypeInferrer {
         if let Some((_, ret)) = self.fn_signatures.get(name) {
             return ret.clone();
         }
+        // 限定调用(`result::ok_i32`):签名按定义名(末段)收录。
+        let bare = name.rsplit("::").next().unwrap_or(name);
+        if bare != name.as_str() {
+            if let Some((_, ret)) = self.fn_signatures.get(bare) {
+                return ret.clone();
+            }
+        }
         if let Some(ty) = self.infer_builtin_name_type(name.as_str()) {
             return Some(ty);
         }

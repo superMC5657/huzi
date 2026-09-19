@@ -45,6 +45,7 @@ mod runtime;
 mod stmt;
 mod stmt_branch;
 mod stmt_for;
+mod try_op;
 #[cfg(test)]
 mod tests;
 mod tuples;
@@ -221,27 +222,40 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.prelude()?;
 
-        // 模块先注册类型与函数签名,主程序才能引用模块符号。
+        // 类型注册统一先行:模块与主程序(含泛型单态化产物,如
+        // Result__i32)的全部具名类型都注册完成后,才编译函数签名——
+        // 任一侧的签名都可能引用另一侧的具名类型。
         let modules = self.modules.clone();
         for m in &modules {
             self.current_module = Some(m.name.clone());
             if let Some(prog) = &m.program {
-                self.register_module_types(prog)?;
+                self.register_module_type_definitions(prog)?;
+            }
+        }
+        self.current_module = None;
+
+        let fn_stmts = self.register_program_types(program)?;
+
+        for m in &modules {
+            self.current_module = Some(m.name.clone());
+            if let Some(prog) = &m.program {
+                self.register_module_fn_signatures(prog)?;
             }
         }
         self.current_module = None;
         self.apply_module_export_signatures(&modules)?;
-
-        let fn_stmts = self.register_program_types(program)?;
         self.declare_fn_signatures(&fn_stmts)?;
 
         // 模块函数体先于主程序编译,函数已注册,互相可见。
+        // 泛型模板同样跳过:与主程序一致,只编译单态化产物。
         for m in &modules {
             if let Some(prog) = &m.program {
                 self.current_module = Some(m.name.clone());
                 self.use_debug_file(m.path.as_deref());
                 for (fn_stmt, span) in module_fn_statements(prog) {
-                    self.compile_fn(&fn_stmt, span)?;
+                    if fn_stmt.type_params.is_empty() {
+                        self.compile_fn(&fn_stmt, span)?;
+                    }
                 }
                 self.current_module = None;
             }

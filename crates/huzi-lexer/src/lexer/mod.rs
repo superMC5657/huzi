@@ -82,6 +82,7 @@ impl Lexer {
                 '>' => self.read_greater()?,
                 '&' => self.read_amp()?,
                 '|' => self.read_bar()?,
+                '?' => self.single(Token::Question),
                 _ => {
                     return Err(huzi_error::HuziError::new(
                         format!("Unexpected character '{}'", c),

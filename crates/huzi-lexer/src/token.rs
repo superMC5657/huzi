@@ -49,6 +49,7 @@ pub enum Token {
     GreaterEqual,
     AmpAmp,
     BarBar,
+    Question,
 
     // Delimiters
     LParen,
@@ -87,6 +88,7 @@ impl fmt::Display for Token {
             Token::String(s) => write!(f, "\"{}\"", s),
             Token::Char(c) => write!(f, "'{}'", c),
             Token::Eof => write!(f, "EOF"),
+            Token::Question => write!(f, "?"),
             _ => write!(f, "{:?}", self),
         }
     }

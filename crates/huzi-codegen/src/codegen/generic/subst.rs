@@ -35,6 +35,7 @@ pub fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, Type>) {
             substitute_expr(&mut b.right, mapping);
         }
         Expr::Unary(u) => substitute_expr(&mut u.operand, mapping),
+        Expr::Try(t) => substitute_expr(&mut t.inner, mapping),
         Expr::Call(c) => {
             substitute_expr(&mut c.callee, mapping);
             for arg in &mut c.arguments {

@@ -35,6 +35,7 @@ impl<'ctx> CodeGen<'ctx> {
                 "Unresolved method call '{}'",
                 mc.method
             ))),
+            Expr::Try(t) => self.compile_try(t),
         }
     }
 

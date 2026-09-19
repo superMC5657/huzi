@@ -251,6 +251,11 @@ impl Parser {
                     arguments,
                     type_args: Vec::new(),
                 });
+            } else if self.check(&Token::Question) {
+                self.advance();
+                expr = Expr::Try(TryExpr {
+                    inner: Box::new(expr),
+                });
             } else {
                 break;
             }

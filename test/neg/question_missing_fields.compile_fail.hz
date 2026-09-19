@@ -1,0 +1,14 @@
+struct Pairish {
+    ok: bool,
+    value: i32,
+}
+
+fn f(p: Pairish) -> Pairish {
+    return p?
+}
+
+fn main() -> i32 {
+    let p = Pairish { ok: true, value: 1 }
+    print(p.value)
+    return 0
+}

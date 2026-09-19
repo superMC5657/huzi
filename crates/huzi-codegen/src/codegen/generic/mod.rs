@@ -119,6 +119,108 @@ impl Monomorphizer {
         Ok(())
     }
 
+    /// 泛型函数模板查找:先按调用名原样查找,再按末段回退——限定调用
+    /// (`result::is_ok`)的模板按定义名 `is_ok` 收录。
+    fn fn_template_for(&self, callee_name: &str) -> Option<&(FnStmt, Span)> {
+        if let Some(t) = self.fn_templates.get(callee_name) {
+            return Some(t);
+        }
+        let bare = callee_name.rsplit("::").next()?;
+        self.fn_templates.get(bare)
+    }
+
+    /// 对调用点做泛型推导与单态化(实参须已完成表达式级单态化)。
+    /// 返回 Some(单态化名) 时调用方把 callee 重写为该裸名并清空
+    /// type_args;返回 None 表示非泛型调用,保持原样由 codegen 分派。
+    fn try_monomorphize_call(
+        &mut self,
+        callee_name: &str,
+        type_args: &mut Vec<Type>,
+        arguments: &mut [Expr],
+    ) -> Result<Option<String>> {
+        // 实参类型推导：未提供显式类型实参时尝试推导
+        if type_args.is_empty() {
+            if let Some((template, _)) = self.fn_template_for(callee_name) {
+                let inferred =
+                    self.inferrer
+                        .infer_call_type_args(callee_name, template, arguments)?;
+                *type_args = inferred;
+            }
+        }
+        if type_args.is_empty() {
+            return Ok(None);
+        }
+        // 模板按定义名(不带模块前缀)收录:限定调用(result::is_ok)取
+        // 末段查找,单态化产物也以裸名注册进主程序。
+        let bare_callee = callee_name.rsplit("::").next().unwrap_or(callee_name);
+        let (template, span) = self
+            .fn_templates
+            .get(bare_callee)
+            .cloned()
+            .ok_or_else(|| {
+                let hint = did_you_mean(callee_name, self.fn_templates.keys().map(|s| s.as_str()));
+                match hint {
+                    Some(h) => HuziError::new_global(format!(
+                        "Unknown generic function '{}', did you mean '{}'?",
+                        callee_name, h
+                    )),
+                    None => HuziError::new_global(format!(
+                        "Unknown generic function '{}'",
+                        callee_name
+                    )),
+                }
+            })?;
+        if type_args.len() != template.type_params.len() {
+            return Err(HuziError::new_global(format!(
+                "Generic function '{}' expects {} type argument(s), got {}",
+                callee_name,
+                template.type_params.len(),
+                type_args.len()
+            )));
+        }
+        for a in type_args.iter() {
+            self.validate_type_arg(a)?;
+        }
+        let mangled = mangle_name(bare_callee, type_args);
+        if !self.instantiated_fns.contains_key(&mangled) {
+            let mapping: HashMap<String, Type> = template
+                .type_params
+                .iter()
+                .cloned()
+                .zip(type_args.iter().cloned())
+                .collect();
+            let mut spec = template.clone();
+            spec.name = mangled.clone();
+            spec.type_params.clear();
+            for p in &mut spec.params {
+                p.param_type = substitute_type(&p.param_type, &mapping);
+                self.monomorphize_type(&mut p.param_type)?;
+            }
+            if let Some(ret) = &mut spec.return_type {
+                *ret = substitute_type(ret, &mapping);
+                self.monomorphize_type(ret)?;
+            }
+            substitute_block(&mut spec.body, &mapping);
+            self.instantiated_fns
+                .insert(mangled.clone(), (spec.clone(), span));
+            self.inferrer.fn_signatures.insert(
+                mangled.clone(),
+                (
+                    spec.params.iter().map(|p| p.param_type.clone()).collect(),
+                    spec.return_type.clone(),
+                ),
+            );
+            self.inferrer.enter_scope();
+            for p in &spec.params {
+                self.inferrer.insert_var(&p.name, p.param_type.clone());
+            }
+            self.monomorphize_block(&mut spec.body)?;
+            self.inferrer.leave_scope();
+            self.instantiated_fns.insert(mangled.clone(), (spec, span));
+        }
+        Ok(Some(mangled))
+    }
+
     fn monomorphize_expr(&mut self, expr: &mut Expr) -> Result<()> {
         match expr {
             Expr::Call(c) => {
@@ -129,92 +231,36 @@ impl Monomorphizer {
                 for targ in &mut c.type_args {
                     self.monomorphize_type(targ)?;
                 }
-                // 实参类型推导：未提供显式类型实参时尝试推导
-                if c.type_args.is_empty() {
-                    if let Expr::Ident(callee_name) = &*c.callee {
-                        if let Some((template, _)) = self.fn_templates.get(callee_name) {
-                            let inferred = self.inferrer.infer_call_type_args(
-                                callee_name,
-                                template,
-                                &c.arguments,
-                            )?;
-                            c.type_args = inferred;
-                        }
-                    }
-                }
-                if !c.type_args.is_empty() {
-                    let callee_name = match &*c.callee {
-                        Expr::Ident(n) => n.clone(),
-                        _ => return Ok(()),
-                    };
-                    let (template, span) =
-                        self.fn_templates.get(&callee_name).cloned().ok_or_else(|| {
-                            let hint = did_you_mean(
-                                &callee_name,
-                                self.fn_templates.keys().map(|s| s.as_str()),
-                            );
-                            match hint {
-                                Some(h) => HuziError::new_global(format!(
-                                    "Unknown generic function '{}', did you mean '{}'?",
-                                    callee_name, h
-                                )),
-                                None => HuziError::new_global(format!(
-                                    "Unknown generic function '{}'",
-                                    callee_name
-                                )),
-                            }
-                        })?;
-                    if c.type_args.len() != template.type_params.len() {
-                        return Err(HuziError::new_global(format!(
-                            "Generic function '{}' expects {} type argument(s), got {}",
-                            callee_name,
-                            template.type_params.len(),
-                            c.type_args.len()
-                        )));
-                    }
-                    for a in &c.type_args {
-                        self.validate_type_arg(a)?;
-                    }
-                    let mangled = mangle_name(&callee_name, &c.type_args);
-                    if !self.instantiated_fns.contains_key(&mangled) {
-                        let mapping: HashMap<String, Type> = template
-                            .type_params
-                            .iter()
-                            .cloned()
-                            .zip(c.type_args.iter().cloned())
-                            .collect();
-                        let mut spec = template.clone();
-                        spec.name = mangled.clone();
-                        spec.type_params.clear();
-                        for p in &mut spec.params {
-                            p.param_type = substitute_type(&p.param_type, &mapping);
-                            self.monomorphize_type(&mut p.param_type)?;
-                        }
-                        if let Some(ret) = &mut spec.return_type {
-                            *ret = substitute_type(ret, &mapping);
-                            self.monomorphize_type(ret)?;
-                        }
-                        substitute_block(&mut spec.body, &mapping);
-                        self.instantiated_fns
-                            .insert(mangled.clone(), (spec.clone(), span));
-                        self.inferrer.fn_signatures.insert(
-                            mangled.clone(),
-                            (
-                                spec.params.iter().map(|p| p.param_type.clone()).collect(),
-                                spec.return_type.clone(),
-                            ),
-                        );
-                        self.inferrer.enter_scope();
-                        for p in &spec.params {
-                            self.inferrer.insert_var(&p.name, p.param_type.clone());
-                        }
-                        self.monomorphize_block(&mut spec.body)?;
-                        self.inferrer.leave_scope();
-                        self.instantiated_fns
-                            .insert(mangled.clone(), (spec, span));
-                    }
-                    *c.callee = Expr::Ident(mangled);
+                let callee_name = match &*c.callee {
+                    Expr::Ident(n) => n.clone(),
+                    _ => return Ok(()),
+                };
+                if let Some(mangled) =
+                    self.try_monomorphize_call(&callee_name, &mut c.type_args, &mut c.arguments)?
+                {
+                    c.callee = Box::new(Expr::Ident(mangled));
                     c.type_args.clear();
+                }
+            }
+            Expr::EnumConstruct(ec) => {
+                for a in &mut ec.args {
+                    self.monomorphize_expr(a)?;
+                }
+                // `mod::fn(args)` 与 `Enum::Variant(args)` 同形:非已知枚举
+                // 时按限定函数调用处理并参与泛型单态化(与 codegen 的判定
+                // 一致);非泛型调用保持原样,由 codegen 继续分派。
+                if !self.inferrer.known_enums.contains(&ec.enum_name) {
+                    let full_name = format!("{}::{}", ec.enum_name, ec.variant);
+                    let mut type_args: Vec<Type> = Vec::new();
+                    if let Some(mangled) =
+                        self.try_monomorphize_call(&full_name, &mut type_args, &mut ec.args)?
+                    {
+                        *expr = Expr::Call(CallExpr {
+                            callee: Box::new(Expr::Ident(mangled)),
+                            arguments: std::mem::take(&mut ec.args),
+                            type_args: Vec::new(),
+                        });
+                    }
                 }
             }
             Expr::StructLiteral(s) => {
@@ -259,11 +305,7 @@ impl Monomorphizer {
                 self.monomorphize_block(&mut i.else_branch)?;
             }
             Expr::FieldAccess(f) => self.monomorphize_expr(&mut f.base)?,
-            Expr::EnumConstruct(e) => {
-                for a in &mut e.args {
-                    self.monomorphize_expr(a)?;
-                }
-            }
+            Expr::Try(t) => self.monomorphize_expr(&mut t.inner)?,
             Expr::Match(m) => {
                 self.monomorphize_expr(&mut m.scrutinee)?;
                 for arm in &mut m.arms {

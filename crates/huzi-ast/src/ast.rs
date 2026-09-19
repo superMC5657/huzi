@@ -345,6 +345,14 @@ pub enum Expr {
     EnumConstruct(EnumConstructExpr),
     Match(MatchExpr),
     MethodCall(MethodCallExpr),
+    /// 后缀 `?`:`expr?` — Result<T> 解包,失败时从当前函数提前返回。
+    Try(TryExpr),
+}
+
+/// `expr?` — 成功取 `value` 字段,失败提前返回整个 Result 值。
+#[derive(Debug, Clone)]
+pub struct TryExpr {
+    pub inner: Box<Expr>,
 }
 
 #[derive(Debug, Clone)]

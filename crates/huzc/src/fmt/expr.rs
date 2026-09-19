@@ -20,6 +20,7 @@ pub(super) fn format_expr(expr: &Expr) -> String {
         Expr::EnumConstruct(e) => format_enum_construct(e),
         Expr::Match(m) => format_match_expr(m),
         Expr::MethodCall(m) => format_method_call(m),
+        Expr::Try(t) => format_try(t),
     }
 }
 
@@ -90,7 +91,18 @@ pub(super) fn expr_precedence(expr: &Expr) -> u8 {
         Expr::Binary(b) => op_precedence(&b.operator),
         Expr::Assign(_) => 0,
         Expr::Unary(_) => 7,
+        Expr::Try(_) => 8,
         _ => 8,
+    }
+}
+
+/// 后缀 `?`:内层为低优先级表达式时加括号,如 `(a + b)?`。
+fn format_try(t: &TryExpr) -> String {
+    let inner_str = format_expr(&t.inner);
+    if expr_precedence(&t.inner) < 8 {
+        format!("({})?", inner_str)
+    } else {
+        format!("{}?", inner_str)
     }
 }
 

@@ -68,11 +68,27 @@ impl<'ctx> CodeGen<'ctx> {
     /// Register a module file's struct/enum definitions and function
     /// signatures. Called with `current_module` set, so signatures are
     /// registered under qualified names.
-    pub(super) fn register_module_types(&mut self, program: &Program) -> Result<()> {
+    /// 注册模块的类型定义(泛型模板跳过)。签名注册单独进行,
+    /// 以便模块与主程序的全部具名类型先就位。
+    pub(super) fn register_module_type_definitions(&mut self, program: &Program) -> Result<()> {
         let (struct_defs, enum_defs) = program_type_definitions(program);
-        self.register_type_definitions(&struct_defs, &enum_defs)?;
+        // 泛型模板不产生代码:所有使用点已被单态化为具体类型(如
+        // Result__i32),实例化定义在主程序中注册。模板字段含未替换
+        // 的类型参数,在此注册会让 type_to_llvm 在 T 上直接报错。
+        let concrete_structs: Vec<StructDef> = struct_defs
+            .into_iter()
+            .filter(|d| d.type_params.is_empty())
+            .collect();
+        self.register_type_definitions(&concrete_structs, &enum_defs)?;
+        Ok(())
+    }
+
+    /// 注册模块内具体函数的签名(泛型模板函数跳过)。
+    pub(super) fn register_module_fn_signatures(&mut self, program: &Program) -> Result<()> {
         for (fn_stmt, span) in module_fn_statements(program) {
-            self.compile_fn_signature(&fn_stmt, span)?;
+            if fn_stmt.type_params.is_empty() {
+                self.compile_fn_signature(&fn_stmt, span)?;
+            }
         }
         Ok(())
     }
