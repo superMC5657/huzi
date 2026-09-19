@@ -56,6 +56,8 @@ huzi-codegen/src/codegen/
 2. 编译并运行 test/examples/ 下全部非交互示例,确认 exit=0;交互类示例(如 `10_guess_number_game.hz`)跳过(可直接运行 `bash test.sh`)。
 3. `git diff` 复核:确认是纯搬移(删除行与新增行内容对应),没有夹带逻辑改动。
 
+> 本项目不配置 CI(GitHub Actions workflow 已移除,后续不做 CI):上述门禁全部在本地执行,提交前自行跑完 1-3。
+
 ## 提交约定
 
 - 提交信息用中文,格式:`重构:|修复:|新增:<摘要>`,正文列出具体拆分/变更点。

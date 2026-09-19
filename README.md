@@ -40,6 +40,8 @@ bash test.sh
 
 > **Windows 用户**：`test.sh` 是 Bash 脚本（依赖 `bash` / `diff`、可选 `timeout` 与可写的 `/tmp`），需在 **Git Bash / MSYS2 / WSL** 中运行，纯 PowerShell 或 cmd 无法直接执行；同时确保 LLVM 的 `llc` / `opt` 与平台链接器已在 `PATH` 中。
 
+> **关于 CI**：本项目不使用 CI（GitHub Actions workflow 已移除，后续也不再引入），回归测试与性能基准均在本地手动执行，不设服务端门禁。
+
 ### 3. 代码格式化
 
 ```bash
