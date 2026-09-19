@@ -10,6 +10,8 @@ export http
 export http::*
 export json
 export json::*
+export jsonq
+export jsonq::*
 export log
 export log::*
 export timex

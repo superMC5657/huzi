@@ -46,8 +46,10 @@ huzi-src/
 │   │   └── lib.hz     # TCP 行帧封包收发
 │   ├── csv/
 │   │   └── lib.hz     # CSV 格式解析与序列化
-│   └── json/
-│       └── lib.hz     # 平面 JSON 序列化与解析 (仅 ASCII)
+│   ├── json/
+│   │   └── lib.hz     # JSON 序列化/解析 + 嵌套路径查询包装 (get/get_str/get_int...)
+│   └── jsonq/
+│       └── lib.hz     # JSON 底层原语与嵌套查询层 (\uXXXX → UTF-8)
 └── test/              # 库单元与集成自测试
     ├── core_test.hz
     ├── package_entry_test.hz
