@@ -42,8 +42,10 @@
 | `struct Name` | 命名结构体 | `%struct.Name` | 栈上连续布局，赋值与传参逐字段拷贝 |
 | `enum Name` | 枚举变体与 payload | `%enum.Name = { i32, [M x i8] }` | 判别码与 payload 联合存储区 |
 | `vec<T>` | 动态数组 | `{ ptr, i32, i32 }` | 栈上元数据（指针、长度、容量），支持参数与字段 |
-| `Map` / `HashMap` | 键值映射表 | `{ ptr, i32, i32 }` | 堆上哈希槽与元数据，支持参数与字段 |
-| `Box<T>` | 堆指针泛型 | `ptr` | 堆分配，点号自动解引用，引用计数 (RC) 追踪 |
+| `Map` / `HashMap` | 键值映射表（默认 `str->i32`） | `{ ptr, i32, i32 }` | 堆上哈希槽与元数据，支持参数与字段 |
+| `Map<str, str>` | 键值映射表（`str->str`） | `{ ptr, i32, i32 }` | 值字段为 `ptr`；`map_get` 返回 `(bool, str)` |
+| `Map<i32, i32>` | 键值映射表（`i32->i32`） | `{ ptr, i32, i32 }` | 键哈希直接用键值；`map_keys` 返回 `vec<i32>` |
+| `Box<T>` | 堆指针泛型 | `ptr` | 堆分配，`T` 为具名结构体或标量（`i32`/`i64`/`f64`/`bool`/`str`）；结构体字段点号自动解引用，标量经前缀 `*b` 显式解引用（直达最内层，逐层空检查），引用计数 (RC) 追踪 |
 
 ---
 
@@ -54,7 +56,10 @@
 | 算术运算符 | `+`, `-`, `*`, `/`, `%` | 支持整数与浮点数；整数除以零触发 panic |
 | 比较运算符 | `==`, `!=`, `<`, `<=`, `>`, `>=` | 数值、布尔、枚举、指针比较；字符串按字典序对比 |
 | 逻辑运算符 | `&&`, `\|\|`, `!` | 布尔逻辑与、或、非 |
+| 解引用运算符 | `*b` | `Box<T>` 穿透全部嵌套层直达最内层值；`*b = v` 写回 |
 | 位运算符 | `&`, `\|`, `^`, `<<`, `>>` | 整数按位运算与移位 |
+
+> 换行规则：行首 `*` 恒为解引用，不与上一行粘连成乘法。乘法跨行请将 `*` 留在上一行末尾。 |
 
 ---
 
@@ -102,13 +107,14 @@
 - `write_file(path: str, content: str) -> bool`: 覆盖写入文件内容。
 
 ### 4.7 哈希表 (HashMap)
-- `map_new() -> Map`: 创建哈希表。
-- `map_put(m: Map, k: str, v: i32)`: 插入或更新键值对。
-- `map_get(m: Map, k: str) -> i32`: 获取键对应的值（不存在返回 0）。
-- `map_has(m: Map, k: str) -> bool`: 检查键是否存在。
-- `map_remove(m: Map, k: str) -> bool`: 删除指定键。
-- `map_len(m: Map) -> i32`: 当前键值对数量。
-- `map_keys(m: Map) -> vec<str>`: 提取哈希表全部非空键名列表。
+- `map_new() -> Map`: 创建哈希表（裸 `Map` 为 `str->i32`；`let m: Map<str, str> = map_new()` / `let m: Map<i32, i32> = map_new()` 切换特化）。
+- `map_put(m: Map, k: str, v: i32)` / `map_get(m: Map, k: str) -> (bool, i32)`: 插入或更新 / 读取键值（不存在返回 `(false, 0)`）。
+- `map_put(m: Map<str, str>, k: str, v: str)` / `map_get(m: Map<str, str>, k: str) -> (bool, str)`: 字符串值特化。
+- `map_put(m: Map<i32, i32>, k: i32, v: i32)` / `map_get(m: Map<i32, i32>, k: i32) -> (bool, i32)`: 整数键特化。
+- `map_has(m, k) -> bool`: 检查键是否存在（键类型随特化）。
+- `map_remove(m, k) -> bool`: 删除指定键。
+- `map_len(m) -> i32`: 当前键值对数量。
+- `map_keys(m) -> vec<K>`: 提取哈希表全部非空键列表（`K` 为 `str` 或 `i32`，随特化）。
 
 ### 4.8 网络通信 (TCP)
 - `tcp_connect(host: str, port: i32) -> i32`: 连接服务器，返回套接字描述符（失败返回 `-1`）。
@@ -134,6 +140,8 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 
 **浅释放泄漏陷阱**：`free_vec` 只释放 `vec` 自身的 `data` 缓冲区，不释放元素内部的堆内存；`free_box` 只释放 `Box` 自身槽，不递归释放其字段中的堆内存。因此 `vec<str>`、`vec<vec<T>>` 或含堆字段的 `Box`，必须先逐元素 / 逐字段调用 `free_*`，再释放外层容器，否则内部堆内存泄漏。
 
+**Box 标量与嵌套**：`Box<T>` 的 `T` 可为具名结构体或标量（`i32`/`i64`/`f64`/`bool`/`str`，另含 `u32`/`u64`/`f32`/`char`）；`Box<Box<T>>` 每层独立堆单元与 RC 头，不退化。标量经 `*b` 读写（`let mut b = box(42)`，`print(*b)`，`*b = 100`），结构体字段仍点号自动解引用。`print(b)` 直接打印内容（空为 `null`）。
+
 **Box 循环引用**：RC 无法回收互相引用的 `Box`（A → B → A），其计数永不归零，需在适当时机手动 `free_box` 打破环，可用 `ref_count` 辅助诊断残留引用。编译器仅在类型定义层面拦截按值无限递归（A → B → A 的结构体 / 枚举字段），不检测运行时的 `Box` 环。
 
 ---
@@ -148,6 +156,7 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 | `vec pop from empty vec` | 空 `vec` 执行 `pop` 弹出 |
 | `string index out of bounds` | 字符串字符下标越界 |
 | `substring out of bounds` | 子串切片区间越界或倒置 |
+| `dereference of null Box` | 对空 `Box` 执行 `*b` 解引用 |
 
 ---
 
@@ -156,3 +165,11 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 - **工具命令**：`huzc fmt [files/dirs]` 与 `huzc fmt --check`。
 - **排版归一化**：统一采用 4 空格缩进；规范二元运算符与逗号两侧空格；括号与大括号格式归一化；保持严格幂等性（第二次运行零 diff）。
 - **注释保留范围说明**：当前版本 `huzc fmt` 为基于 AST 语法树的代码美化器（AST Pretty Printer）。由于当前前端 AST 节点未保留源码行级注释，格式化过程会自动剥除注释。若源码高度依赖保留特定位置的行级注释，请暂缓使用格式化工具或手动排版。后续版本规划基于完整 CST / Token Span 重构以实现无损注释保留。
+
+---
+
+## 7. 新增 builtin 同步 checklist（与代码同提交）
+
+- `reference.md` 补签名：按第 4 节分组追加 `签名 + 语义 + 返回约定`。
+- `STATUS.md` 打勾：在"标准库内置"清单对应分组同步勾选。
+- `test/examples/` 补示例：正例可运行、非法输入不 abort（配负例）。

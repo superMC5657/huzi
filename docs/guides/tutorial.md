@@ -164,6 +164,22 @@ head.next = box(Node { val: 2, next: null })
 print(head.val, head.next.val) # 1 2
 ```
 
+### 基础类型装箱与解引用
+`Box<T>` 的 `T` 也可为基础类型（`i32`/`i64`/`f64`/`bool`/`str`），读写经前缀 `*` 直达最内层（嵌套 `Box<Box<T>>` 逐层独立堆单元，不退化）：
+
+```huzi
+let mut b = box(42)
+print(*b) # 42
+*b = 100
+print(*b, b) # 100 100（直接 print(b) 即打印内容）
+let mut n: Box<Box<i32>> = box(box(10))
+print(*n) # 10
+let s: Box<str> = box("hi")
+print(*s) # hi
+```
+
+空 `Box` 解引用运行时报错退出；`*null` 与对非 Box 值的 `*` 在编译期直接报错。
+
 ### 循环引用诊断与打破
 Huzi 对 `Box<T>` 采用引用计数 (RC) 内存管理机制。当发生相互引用时，引用计数无法归零，需手动解除闭环：
 

@@ -138,3 +138,25 @@ huzc -i src/main.hz -o build/app
 
 ### Q: 支持泛型实参推导吗
 A: 支持。泛型函数在调用点会根据实参类型自动推导类型参数，如 `id(42)` 会自动推导为 `id<i32>`，无需显式书写 `<i32>`。
+
+### Q: 泛型推导失败的报错怎么看
+A: 推导失败会指出调用位置（行列）、期望与实际，例如类型形参无来源时：
+```text
+Compile error at line 6, column 5: 泛型函数 'zero' 的类型形参 'T' 无法推导:期望由实参确定,实际没有对应推导来源;请显式指定,如 `zero<T>(...)`
+```
+多实参推导不一致时会对比先后结果：
+```text
+Compile error at line 6, column 5: 类型形参 'T' 推导冲突:期望各实参推导结果一致,实际先后为 'i32' 与 'str';帮助:统一对应实参类型,或显式写出类型实参
+```
+按提示统一实参类型，或改写为显式形式（如 `choose<i32>(42, 7)`）即可。
+
+### Q: Trait 缺方法 / 方法冲突的报错怎么看
+A: 缺失方法会列出期望的全部方法表，如：
+```text
+Compile error at line 10, column 1: 类型 'Point' 实现 trait 'Geometry' 缺少方法 'perimeter':期望实现全部 2 个方法 [area, perimeter],实际缺失;请补上 `fn perimeter(...)` 实现
+```
+同一方法被两个 trait 同时实现时会点名双方并给出改名建议：
+```text
+Compile error at line 19, column 1: 类型 'Point' 的方法 'show' 冲突:已由 trait 'Printable' 实现,当前 trait 'Displayable' 再次实现;期望每个方法只由一个 trait 提供,实际出现多次;帮助:改名其中一个方法,或通过 impl 归属区分调用
+```
+方法名拼写接近时会追加 `did you mean` 建议，请按建议检查拼写。

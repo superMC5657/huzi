@@ -15,7 +15,7 @@
 ### 语言核心
 
 - [x] 基本类型：`i32/i64/f32/f64/bool/char/str`
-- [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec<T>`、`Map`（支持作为函数形参与结构体字段）、`Box<T>`（含嵌套 `Box<Box<T>>`）
+- [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec<T>`、`Map`/`Map<str, str>`/`Map<i32, i32>`（支持作为函数形参与结构体字段）、`Box<T>`（含嵌套 `Box<Box<T>>`；`T` 可为结构体或 `i32/i64/f64/bool/str` 标量，标量经前缀 `*b` 解引用读写）
 - [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查）、`defer`（防止嵌套 return/defer）
 - [x] 模块：`import` 相对路径、去重、循环拦截、`mod::fn()` 调用
 - [x] 泛型函数 + 泛型结构体（支持调用点实参自动推导与显式标注）
@@ -58,7 +58,7 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 集成回归：`bash test.sh`（55 示例 + 49 负例测试全部通过，交互示例跳过）
+- [x] 集成回归：`bash test.sh`（60 示例 + 57 负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（huzi release / Rust -O <= 2.0x）
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
@@ -78,4 +78,5 @@
 | 架构/流水线/模块职责 | `dev/开发文档.md` |
 | 泛型冻结规则 | `rfc/rfc_p4_generics.md` |
 | 历史规划 7 项的 IN/OUT | `../.omo/plans/section3-roadmap-plan.md`（内部） |
+| 新增 builtin 同步规则 | `../AGENTS.md` 验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → test/examples 示例，同提交） |
 | 本文件 | 只看状态，不看方法 |

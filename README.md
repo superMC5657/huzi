@@ -42,6 +42,8 @@ bash test.sh
 
 > **关于 CI**：本项目不使用 CI（GitHub Actions workflow 已移除，后续也不再引入），回归测试与性能基准均在本地手动执行，不设服务端门禁。
 
+> **一键全部门禁**：仓库根目录的 [`../check.sh`](../check.sh) 聚合本回归脚本、`huzi-src/test.sh`、`fmt --check` 与性能抽查，提交前在根目录运行 `bash check.sh` 即可。
+
 ### 3. 代码格式化
 
 ```bash
