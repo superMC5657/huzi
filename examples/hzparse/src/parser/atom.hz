@@ -1,0 +1,354 @@
+# parser/atom —— 原子表达式(字面量/标识/泛型试探/结构体字面量/if/match/起始集)，依赖 cursor/typ/expr/stmt。
+# 源自 parser.hz 原子表达式区段逐行搬移；pz_ident_expr 试探分支提炼为子函数(语义不变)。
+import cursor
+import typ
+import expr
+import stmt
+
+fn pz_primary(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    if cursor::pz_at_kind(kinds, pos, "int") || cursor::pz_at_kind(kinds, pos, "float") || cursor::pz_at_kind(kinds, pos, "string") || cursor::pz_at_kind(kinds, pos, "char") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "true") || cursor::pz_kw(kinds, texts, pos, "false") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "if") {
+        return pz_if_expr(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "match") {
+        return pz_match_expr(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_is_ident(kinds, texts, pos) {
+        return pz_ident_expr(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+        while cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+            if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+                return false
+            }
+        }
+        if !cursor::pz_at(kinds, texts, pos, ")") {
+            return cursor::pz_fail(errs, texts, pos, "expected ')' in tuple")
+        }
+        cursor::pz_next(pos)
+        return true
+    }
+    if cursor::pz_at(kinds, texts, pos, "[") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "]") {
+            cursor::pz_next(pos)
+            return true
+        }
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+        while cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+            if cursor::pz_at(kinds, texts, pos, "]") {
+                break
+            }
+            if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+                return false
+            }
+        }
+        if !cursor::pz_at(kinds, texts, pos, "]") {
+            return cursor::pz_fail(errs, texts, pos, "expected ']' in array literal")
+        }
+        cursor::pz_next(pos)
+        return true
+    }
+    return cursor::pz_fail(errs, texts, pos, "unexpected token in expression")
+}
+
+# `{ field: expr, ... }` 前瞻:当前 `{` 之后为 ident 且再后为 `:`。
+fn pz_is_struct_lit(kinds: vec<str>, texts: vec<str>, pos: vec<i32>) -> bool {
+    return cursor::pz_next_kind(kinds, pos, 1, "ident") && cursor::pz_next_at(kinds, texts, pos, 2, ":")
+}
+
+fn pz_struct_fields(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "}") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected field name in struct literal")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, ":") {
+        return cursor::pz_fail(errs, texts, pos, "expected ':' after field name")
+    }
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "}") {
+            break
+        }
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected field name in struct literal")
+        }
+        cursor::pz_next(pos)
+        if !cursor::pz_at(kinds, texts, pos, ":") {
+            return cursor::pz_fail(errs, texts, pos, "expected ':' after field name")
+        }
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return cursor::pz_fail(errs, texts, pos, "expected '}' in struct literal")
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+# `vec<T>()` 空构造试探:完整匹配才提交并返回 true；否则回滚并返回 false(调用方继续)。
+# 泛型调用 `f<T>(...)` / 泛型结构体字面量试探:0 未命中(已回滚，调用方继续)，
+# 1 已提交成功，2 已提交但失败(硬错，错误保留，调用方直接失败)。
+fn pz_try_generic_args(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> i32 {
+    if !cursor::pz_next_at(kinds, texts, pos, 1, "<") {
+        return 0
+    }
+    let saved = pos[0]
+    let mark = cursor::pz_mark(errs)
+    cursor::pz_next(pos)
+    cursor::pz_next(pos)
+    let mut ok = typ::pz_type(kinds, texts, pos, errs)
+    while ok && cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        ok = typ::pz_type(kinds, texts, pos, errs)
+    }
+    if ok && cursor::pz_at(kinds, texts, pos, ">") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "(") {
+            if expr::pz_paren_args(kinds, texts, pos, errs, stats, dep, maxd) {
+                return 1
+            }
+            return 2
+        }
+        if cursor::pz_at(kinds, texts, pos, "{") && pz_is_struct_lit(kinds, texts, pos) {
+            if pz_struct_fields(kinds, texts, pos, errs, stats, dep, maxd) {
+                return 1
+            }
+            return 2
+        }
+    }
+    pos[0] = saved
+    cursor::pz_rollback(errs, mark)
+    return 0
+}
+
+fn pz_try_vec_ctor(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    if !(cursor::pz_at_word(texts, pos, "vec") && cursor::pz_next_at(kinds, texts, pos, 1, "<")) {
+        return false
+    }
+    let saved = pos[0]
+    let mark = cursor::pz_mark(errs)
+    cursor::pz_next(pos)
+    cursor::pz_next(pos)
+    if typ::pz_type(kinds, texts, pos, errs) && cursor::pz_at(kinds, texts, pos, ">") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "(") && cursor::pz_next_at(kinds, texts, pos, 1, ")") {
+            cursor::pz_next(pos)
+            cursor::pz_next(pos)
+            return true
+        }
+    }
+    pos[0] = saved
+    cursor::pz_rollback(errs, mark)
+    return false
+}
+
+fn pz_ident_expr(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    if cursor::pz_at_word(texts, pos, "box") && cursor::pz_next_at(kinds, texts, pos, 1, "(") {
+        cursor::pz_next(pos)
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+        if !cursor::pz_at(kinds, texts, pos, ")") {
+            return cursor::pz_fail(errs, texts, pos, "expected ')' after box expression")
+        }
+        cursor::pz_next(pos)
+        return true
+    }
+    if cursor::pz_at_word(texts, pos, "null") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if pz_try_vec_ctor(kinds, texts, pos, errs) {
+        return true
+    }
+    let g = pz_try_generic_args(kinds, texts, pos, errs, stats, dep, maxd)
+    if g == 1 {
+        return true
+    }
+    if g == 2 {
+        return false
+    }
+    # `Enum::Variant` / `Enum::Variant(args)` / `pkg::sub::f(args)`。
+    if cursor::pz_next_at(kinds, texts, pos, 1, "::") {
+        cursor::pz_next(pos)
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected name after '::'")
+        }
+        cursor::pz_next(pos)
+        while cursor::pz_at(kinds, texts, pos, "::") {
+            cursor::pz_next(pos)
+            if !cursor::pz_is_ident(kinds, texts, pos) {
+                return cursor::pz_fail(errs, texts, pos, "expected name after '::'")
+            }
+            cursor::pz_next(pos)
+        }
+        if cursor::pz_at(kinds, texts, pos, "(") {
+            return expr::pz_paren_args(kinds, texts, pos, errs, stats, dep, maxd)
+        }
+        return true
+    }
+    # `Name { field: ... }` 结构体字面量(前瞻确认,裸块不受影响)。
+    # 注意:此处当前为标识,`{` 在 +1,首字段在 +2,`:` 在 +3。
+    if cursor::pz_next_at(kinds, texts, pos, 1, "{") && cursor::pz_next_kind(kinds, pos, 2, "ident") && cursor::pz_next_at(kinds, texts, pos, 3, ":") {
+        cursor::pz_next(pos)
+        return pz_struct_fields(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+fn pz_if_expr(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    if !stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    while cursor::pz_kw(kinds, texts, pos, "elif") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+        if !stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+    }
+    if !cursor::pz_kw(kinds, texts, pos, "else") {
+        return cursor::pz_fail(errs, texts, pos, "expected 'else' after if expression")
+    }
+    cursor::pz_next(pos)
+    if cursor::pz_kw(kinds, texts, pos, "if") {
+        return pz_if_expr(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    return stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd)
+}
+
+fn pz_pattern(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    if cursor::pz_is_ident(kinds, texts, pos) && cursor::pz_at_word(texts, pos, "_") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected pattern variant or '_'")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, "::") {
+        return cursor::pz_fail(errs, texts, pos, "expected '::' after enum name in pattern")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected variant name after '::'")
+    }
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ")") {
+            cursor::pz_next(pos)
+            return true
+        }
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected binding name in pattern")
+        }
+        cursor::pz_next(pos)
+        while cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+            if cursor::pz_at(kinds, texts, pos, ")") {
+                break
+            }
+            if !cursor::pz_is_ident(kinds, texts, pos) {
+                return cursor::pz_fail(errs, texts, pos, "expected binding name in pattern")
+            }
+            cursor::pz_next(pos)
+        }
+        if !cursor::pz_at(kinds, texts, pos, ")") {
+            return cursor::pz_fail(errs, texts, pos, "expected ')' after pattern bindings")
+        }
+        cursor::pz_next(pos)
+    }
+    return true
+}
+
+fn pz_match_expr(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return cursor::pz_fail(errs, texts, pos, "expected '{' after match scrutinee")
+    }
+    cursor::pz_next(pos)
+    while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_eof(kinds, pos) {
+        if cursor::pz_at_kind(kinds, pos, "eof") {
+            return cursor::pz_fail(errs, texts, pos, "unexpected end in match arms")
+        }
+        if !pz_pattern(kinds, texts, pos, errs) {
+            return false
+        }
+        if !cursor::pz_at(kinds, texts, pos, "=>") {
+            return cursor::pz_fail(errs, texts, pos, "expected '=>' after match pattern")
+        }
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "{") {
+            if !stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+                return false
+            }
+        } else {
+            if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+                return false
+            }
+        }
+        if cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return cursor::pz_fail(errs, texts, pos, "expected '}' after match arms")
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+# 表达式起始集合(return 后可选值的判据)。
+fn pz_expr_start(kinds: vec<str>, texts: vec<str>, pos: vec<i32>) -> bool {
+    if cursor::pz_at_kind(kinds, pos, "int") || cursor::pz_at_kind(kinds, pos, "float") || cursor::pz_at_kind(kinds, pos, "string") || cursor::pz_at_kind(kinds, pos, "char") {
+        return true
+    }
+    if cursor::pz_is_ident(kinds, texts, pos) {
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "if") || cursor::pz_kw(kinds, texts, pos, "match") || cursor::pz_kw(kinds, texts, pos, "true") || cursor::pz_kw(kinds, texts, pos, "false") {
+        return true
+    }
+    return cursor::pz_at(kinds, texts, pos, "!") || cursor::pz_at(kinds, texts, pos, "-") || cursor::pz_at(kinds, texts, pos, "(") || cursor::pz_at(kinds, texts, pos, "[")
+}
