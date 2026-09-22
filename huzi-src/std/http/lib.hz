@@ -1,8 +1,8 @@
-// HTTP/1.1 客户端 —— 基于 TCP 原语的 GET,Connection: close 语义。
+// HTTP/1.1 客户端 —— 基于 TCP 原语,Connection: close 语义。
 //
 // 读法:发送请求后循环 recv 直到服务端关闭连接,再解析响应。
 // 限制:仅文本响应(body 经 C 字符串拼接,NUL 字节会截断);不支持
-// chunked 编码与 TLS;错误类型固定为 core.result 的 Result<str>。
+// chunked 编码、keep-alive 与 TLS;错误类型固定为 core.result 的 Result<str>。
 //
 // 用法:
 //   import core.result
@@ -13,7 +13,6 @@
 //   } else {
 //       print(result::err_msg(r))
 //   }
-
 import alloc.stringx
 import core.result
 
@@ -26,14 +25,31 @@ fn http_build_request(host: str, path: str) -> str {
     return concat("GET ", p, " HTTP/1.1\r\nHost: ", host, "\r\nUser-Agent: huzi-http/0.1\r\nConnection: close\r\n\r\n")
 }
 
+/// 构造通用请求报文(method 为空取 "GET",path 为空取 "/")。
+/// headers 为附加头行(可为空串,如 "X-Token: abc\r\n";末尾缺 "\r\n" 自动补齐);
+/// body 长度自动拼 Content-Length,请求体原样追加。
+fn http_build_request_with_headers(host: str, method: str, path: str, headers: str, body: str) -> str {
+    let mut m = method
+    if len(m) == 0 {
+        m = "GET"
+    }
+    let mut p = path
+    if len(p) == 0 {
+        p = "/"
+    }
+    let mut h = headers
+    if len(h) > 0 {
+        if !stringx::ends_with(h, "\r\n") {
+            h = concat(h, "\r\n")
+        }
+    }
+    return concat(m, " ", p, " HTTP/1.1\r\nHost: ", host, "\r\nUser-Agent: huzi-http/0.1\r\n", h, "Content-Length: ", to_string(len(body)), "\r\nConnection: close\r\n\r\n", body)
+}
+
 /// 状态码:解析 "HTTP/1.1 200 OK" 首行;非 HTTP 响应或无法解析返回 0。
 fn http_status_code(resp: str) -> i32 {
     let line_end = stringx::find(resp, "\r\n")
-    let line = if line_end < 0 {
-        resp
-    } else {
-        substring(resp, 0, line_end)
-    }
+    let line = if line_end < 0 { resp } else { substring(resp, 0, line_end) }
     if !stringx::starts_with(line, "HTTP/") {
         return 0
     }
@@ -43,11 +59,7 @@ fn http_status_code(resp: str) -> i32 {
     }
     let rest = substring(line, sp + 1, len(line))
     let sp2 = stringx::find(rest, " ")
-    let code_str = if sp2 < 0 {
-        rest
-    } else {
-        substring(rest, 0, sp2)
-    }
+    let code_str = if sp2 < 0 { rest } else { substring(rest, 0, sp2) }
     let r = parse_int(code_str)
     if !r.0 {
         return 0
@@ -93,4 +105,42 @@ fn http_get(host: str, port: i32, path: str) -> Result<str> {
     }
     tcp_close(sock)
     return http_parse(resp)
+}
+
+/// 循环 recv 直到服务端关闭连接,拼出完整响应文本。
+fn http_recv_all(sock: i32) -> str {
+    let mut resp = ""
+    let mut chunk = tcp_recv(sock, 4096)
+    while len(chunk) > 0 {
+        resp = concat(resp, chunk)
+        chunk = tcp_recv(sock, 4096)
+    }
+    return resp
+}
+
+/// 发送已成型的请求串并收齐响应:连接/发送失败返回 Err,响应走 http_parse 判定。
+fn http_do_send(host: str, port: i32, req: str) -> Result<str> {
+    let sock = tcp_connect(host, port)
+    if sock < 0 {
+        return result::err_str(concat("connect failed: ", host))
+    }
+    let sent = tcp_send(sock, req)
+    if sent <= 0 {
+        tcp_close(sock)
+        return result::err_str("send failed")
+    }
+    let resp = http_recv_all(sock)
+    tcp_close(sock)
+    return http_parse(resp)
+}
+
+/// 发起任意方法请求(headers 可为空串,body 可为空串),返回完整 body(2xx)或错误信息。
+fn http_request(method: str, host: str, port: i32, path: str, headers: str, body: str) -> Result<str> {
+    let req = http_build_request_with_headers(host, method, path, headers, body)
+    return http_do_send(host, port, req)
+}
+
+/// 发起 POST 请求(Content-Type: text/plain),返回完整 body(2xx)或错误信息。
+fn http_post(host: str, port: i32, path: str, body: str) -> Result<str> {
+    return http_request("POST", host, port, path, "Content-Type: text/plain\r\n", body)
 }
