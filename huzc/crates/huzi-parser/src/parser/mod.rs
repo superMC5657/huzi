@@ -106,7 +106,7 @@ impl Parser {
     /// 解析一条语句并记录其起止区间(供调试行号/断点使用)。
     /// 结束位置取解析成功后上一已消费 token 的列 +1(lexer 无 token
     /// 宽度信息,无法给出精确末列);无历史时用起始 +1 兜底,保证
-    /// `end >= start`。
+    /// 结束位置满足 `end >= start`。
     fn parse_statement(&mut self) -> Result<Spanned<Stmt>> {
         let line = self.current_line();
         let column = self.current_col();
@@ -174,7 +174,7 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<Type> {
-        // Check for array type: [T; N]
+        // 检查数组类型: [T; N]
         if self.check(&Token::LBracket) {
             self.advance(); // consume '['
             let elem_type = self.parse_type()?;
@@ -184,7 +184,7 @@ impl Parser {
             return Ok(Type::Array(Box::new(elem_type), size));
         }
 
-        // Tuple type: () is unit, (T1, T2, ...) is a tuple.
+        // 元组类型：() 为单元类型 unit，(T1, T2, ...) 为元组。
         if self.check(&Token::LParen) {
             self.advance(); // consume '('
             if self.check(&Token::RParen) {

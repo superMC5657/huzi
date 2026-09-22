@@ -6,10 +6,10 @@ use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
 use inkwell::{AddressSpace, IntPredicate};
 
 impl<'ctx> CodeGen<'ctx> {
-    /// Declare the module-level state backing the arg/EOF builtins:
-    /// `huzi_argc`/`huzi_argv` are captured from the C `main` entry
-    /// signature, `huzi_eof` is set by the read_* builtins when stdin
-    /// returns EOF, and `huzi_empty_str` backs out-of-range `arg(i)`.
+    /// 声明支持命令行参数/EOF 内置函数的模块级全局状态：
+    /// `huzi_argc`/`huzi_argv` 捕获自 C 的 `main` 入口签名，
+    /// `huzi_eof` 在 stdin 遇到 EOF 时由 read_* 内置函数置位，
+    /// `huzi_empty_str` 用于为越界的 `arg(i)` 返回共享空字符串。
     pub(super) fn declare_arg_support(&mut self) {
         let i32_type = self.context.i32_type();
         let ptr_type = self.context.ptr_type(AddressSpace::default());
@@ -40,10 +40,9 @@ impl<'ctx> CodeGen<'ctx> {
         empty_str.set_initializer(&empty_str_type.const_zero());
     }
 
-    /// Store the hidden `main(argc, argv)` parameters into the globals the
-    /// arg builtins read from. Called at the top of the entry block. On
-    /// Windows the stored ANSI values are then replaced with UTF-8 strings
-    /// converted from the Unicode command line (see `args_utf8`).
+    /// 将隐藏的 `main(argc, argv)` 形参保存到参数内置函数读取的全局变量中。
+    /// 在入口块顶部调用。在 Windows 上，存储的 ANSI 值随后会被替换为从
+    /// Unicode 命令行转换的 UTF-8 字符串（详见 `args_utf8`）。
     pub(super) fn store_main_args(&mut self, function: FunctionValue<'ctx>) {
         let argc_global = self.arg_global("huzi_argc");
         let argv_global = self.arg_global("huzi_argv");
@@ -56,7 +55,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// OR the given `eof_hit` condition (i1) into the sticky EOF flag.
+    /// 将给定的 `eof_hit` 条件（i1）按位或到粘性 EOF 标志中。
     pub(super) fn mark_eof_flag(&mut self, eof_hit: IntValue<'ctx>) {
         let eof_global = self.arg_global("huzi_eof");
         let i32_type = self.context.i32_type();
@@ -73,15 +72,14 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_store(eof_global, flag).unwrap();
     }
 
-    /// `arg_count() -> i32`: number of command-line arguments (argv[0] included).
+    /// `arg_count() -> i32`：命令行参数个数（包含 argv[0]）。
     pub(super) fn compile_arg_count(&mut self) -> Result<BasicValueEnum<'ctx>> {
         let argc = self.load_argc()?;
         Ok(argc.into())
     }
 
-    /// `arg(i) -> str`: the i-th command-line argument, or an empty string
-    /// when the index is negative or past the end. The returned pointer
-    /// aliases argv storage; it is not copied.
+    /// `arg(i) -> str`：第 i 个命令行参数；当索引为负或越界时返回空字符串。
+    /// 返回的指针为 argv 存储空间的别名，不进行深拷贝。
     pub(super) fn compile_arg(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
         if arguments.len() != 1 {
             return Err(HuziError::new_global("arg() requires exactly 1 argument"));
@@ -152,9 +150,8 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(phi.as_basic_value())
     }
 
-    /// `arg_ok(i) -> bool`: whether index `i` names a valid argv entry
-    /// (`0 <= i < arg_count()`). Use it to probe before `arg(i)` instead
-    /// of guessing from an empty string.
+    /// `arg_ok(i) -> bool`：索引 `i` 是否指向有效的 argv 项（`0 <= i < arg_count()`）。
+    /// 可在调用 `arg(i)` 前探测，而无需通过是否为空字符串来猜测。
     pub(super) fn compile_arg_ok(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
         if arguments.len() != 1 {
             return Err(HuziError::new_global("arg_ok() requires exactly 1 argument"));
@@ -163,7 +160,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(self.arg_idx_in_range(idx)?.into())
     }
 
-    /// Coerce an `arg(i)`/`arg_ok(i)` index expression to i32.
+    /// 将 `arg(i)`/`arg_ok(i)` 的索引表达式强制转换为 i32。
     fn coerce_arg_index(&mut self, expr: &Expr) -> Result<IntValue<'ctx>> {
         let i32_type = self.context.i32_type();
         match self.compile_expr(expr)? {
@@ -179,8 +176,8 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// `0 <= idx < argc` as an i1 value (negative indices fail the
-    /// signed lower-bound check, matching `arg(i)` out-of-range rules).
+    /// 计算 `0 <= idx < argc` 的 i1 值（负索引通不过有符号下界检查，
+    /// 与 `arg(i)` 的越界规则保持一致）。
     fn arg_idx_in_range(&mut self, idx: IntValue<'ctx>) -> Result<IntValue<'ctx>> {
         let i32_type = self.context.i32_type();
         let argc = self.load_argc()?;
@@ -195,7 +192,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(self.builder.build_and(ge_zero, lt_argc, "arg_in_range").unwrap())
     }
 
-    /// `is_eof() -> bool`: whether a previous read_* hit end of stdin.
+    /// `is_eof() -> bool`：先前的 read_* 是否读取到了 stdin 的末尾。
     pub(super) fn compile_is_eof(&mut self) -> Result<BasicValueEnum<'ctx>> {
         let eof_global = self.arg_global("huzi_eof");
         let flag = self

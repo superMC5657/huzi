@@ -1,5 +1,5 @@
 //! Vec 动态数组:`let v = vec(1, 2, 3)` / `let v = vec<T>()` + `push(v, x)` +
-//! `v[i]`/`v[i] = x` + `len(v)` + `for x in v` + `print(v)`。
+//! 支持索引读写 `v[i]`/`v[i] = x`、获取长度 `len(v)`、迭代遍历 `for x in v` 以及打印输出 `print(v)`。
 //! 增删操作 `pop`/`remove`/`insert`/`clear` 见 `vec_ops.rs`(同模块分文件,
 //! 保持本文件 500 行以内)。
 //!

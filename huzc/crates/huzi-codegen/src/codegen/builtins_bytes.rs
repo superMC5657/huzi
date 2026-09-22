@@ -11,7 +11,7 @@ use inkwell::values::BasicValueEnum;
 use super::CodeGen;
 
 impl<'ctx> CodeGen<'ctx> {
-    /// `str_from_bytes(bytes: vec<i32>) -> str`
+    /// 从字节数组构造字符串：`str_from_bytes(bytes: vec<i32>) -> str`
     pub(super) fn compile_str_from_bytes(
         &mut self,
         arguments: &[Expr],

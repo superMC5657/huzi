@@ -33,9 +33,8 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// `let name = [a, b, c]` — build a fixed-size array and store its
-    /// address in a pointer slot so loading the variable yields the array
-    /// address.
+    /// `let name = [a, b, c]` — 构建定长数组并将其地址存入指针槽，
+    /// 使得加载该变量时能够直接产生数组首地址。
     fn compile_let_array(&mut self, stmt: &LetStmt, elements: &[Expr], span: Span) -> Result<()> {
         if elements.is_empty() {
             return Err(HuziError::new_global("Empty array literal not supported"));
@@ -80,7 +79,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// `let name[: T] = value`.
+    /// `let name[: T] = value` 形式的变量定义。
     fn compile_let_with_value(&mut self, stmt: &LetStmt, value_expr: &Expr, span: Span) -> Result<()> {
         // 无返回值函数的调用值不可赋给变量(语句位置调用仍放行)。
         if let Some(name) = self.unit_call_name(value_expr) {
@@ -245,9 +244,9 @@ impl<'ctx> CodeGen<'ctx> {
         Ok((None, None))
     }
 
-    /// `let name: T;` — declaration without initializer, zero-initialized.
+    /// `let name: T;` — 无初值声明，初始化为零值。
     fn compile_let_uninitialized(&mut self, stmt: &LetStmt, span: Span) -> Result<()> {
-        // Requires a type annotation.
+        // 必须提供类型注解。
         let ty = match &stmt.type_annotation {
             Some(t) => self.type_to_llvm(t)?,
             None => {

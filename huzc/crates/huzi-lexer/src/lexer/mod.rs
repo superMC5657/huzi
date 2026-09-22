@@ -11,9 +11,9 @@ pub struct Lexer {
     pos: usize,
     line: usize,
     column: usize,
-    /// True when the previously emitted token was `.`. A number right after a
-    /// dot is a tuple element index (`t.0`, `t.1.2`), so it must not swallow
-    /// the following `.digit` as a float.
+    /// 当上一个生成的 Token 为 `.` 时为 true。紧跟在点号后的
+    /// 数字是元组元素索引（如 `t.0`, `t.1.2`），不能将其后的
+    /// `.digit` 误吞为浮点数。
     prev_was_dot: bool,
 }
 
@@ -112,9 +112,9 @@ impl Lexer {
                     self.line += 1;
                     self.column = 1;
                 }
-                // Support both // and # comments
+                // 同时支持 // 和 # 单行注释
                 '/' => {
-                    // Check for // comment
+                    // 检查 // 注释
                     if self.pos + 1 < self.source.len() && self.source[self.pos + 1] == '/' {
                         self.skip_line_comment();
                     } else {
@@ -133,7 +133,7 @@ impl Lexer {
         while !self.is_at_end() && self.peek() != '\n' {
             self.advance();
         }
-        // Skip the newline too
+        // 同时也跳过换行符
         if !self.is_at_end() && self.peek() == '\n' {
             self.advance();
             self.line += 1;

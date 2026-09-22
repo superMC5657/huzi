@@ -45,8 +45,8 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Single-argument libm wrappers (sqrt/sin/cos/tan/floor/ceil/round):
-    /// coerce the argument to f64, call the C function, return f64.
+    /// 单参数 libm 封装函数（sqrt/sin/cos/tan/floor/ceil/round）：
+    /// 将参数强制转换为 f64，调用 C 运行时函数，返回 f64。
     pub(super) fn compile_libm_unary(
         &mut self,
         fn_name: &str,
@@ -97,7 +97,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(result)
     }
 
-    /// Convert any numeric value to f64 for math builtins.
+    /// 为数学内置函数将任意数值转换为 f64。
     pub(super) fn to_f64(
         &self,
         arg: inkwell::values::BasicValueEnum<'ctx>,

@@ -8,7 +8,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         expr: &BinaryExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        // && and || short-circuit; handle them before evaluating operands.
+        // && 和 || 采用短路求值；在对操作数求值之前先行处理。
         match expr.operator {
             BinOp::And => return self.compile_short_circuit(&expr.left, &expr.right, true),
             BinOp::Or => return self.compile_short_circuit(&expr.left, &expr.right, false),
@@ -42,8 +42,8 @@ impl<'ctx> CodeGen<'ctx> {
                 self.build_arithmetic(&expr.operator, &left, &right)?
             }
             BinOp::Eq | BinOp::Neq | BinOp::Lt | BinOp::Le | BinOp::Gt | BinOp::Ge => {
-                // Data-carrying enums compare by tag first, then by payload
-                // fields; mismatched enum types are a compile error.
+                // 携带数据的枚举首先比对判别码 tag，再比对负载字段；
+                // 枚举类型不匹配直接报错。
                 if let Some(eq) = self.try_build_data_enum_compare(&expr.operator, &left, &right)? {
                     return Ok(eq);
                 }
@@ -67,8 +67,8 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(value)
     }
 
-    /// Mixed int/float: convert the int operand to the float operand's type.
-    /// Same-type ints: sign-extend the narrower operand to the wider width.
+    /// 整型与浮点混用：将整型操作数转换为浮点操作数的类型。
+    /// 同为整型：将位宽较窄的操作数符号扩展至位宽较宽的类型。
     fn coerce_binary_operands(
         &mut self,
         left: &mut inkwell::values::BasicValueEnum<'ctx>,

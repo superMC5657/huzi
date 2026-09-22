@@ -1,13 +1,13 @@
 use clap::Parser;
 
-/// Linker/toolchain to use for linking the final executable
+/// 用于链接最终可执行文件的链接器/工具链
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
 pub enum LinkerKind {
-    /// lld-link with MSVC/Windows SDK (auto-detects SDK libs)
+    /// lld-link 搭配 MSVC/Windows SDK（自动探测 SDK 库路径）
     Msvc,
-    /// clang driver as linker
+    /// 使用 clang 驱动作为链接器
     Clang,
-    /// MinGW-w64 (gcc driver)
+    /// MinGW-w64（gcc 驱动）
     Mingw,
 }
 
@@ -23,7 +23,7 @@ impl std::fmt::Display for LinkerKind {
 }
 
 impl LinkerKind {
-    /// Platform default: msvc on Windows, clang elsewhere.
+    /// 平台默认值：Windows 上为 msvc，其他平台为 clang。
     pub fn platform_default() -> Self {
         if cfg!(target_os = "windows") {
             LinkerKind::Msvc
@@ -35,108 +35,101 @@ impl LinkerKind {
 
 #[derive(clap::Subcommand, Clone, Debug)]
 pub enum Command {
-    /// Format Huzi source files (.hz)
+    /// 格式化 Huzi 源码文件 (.hz)
     Fmt(FmtArgs),
-    /// Build project using huzi.toml manifest
+    /// 使用 huzi.toml 清单构建项目
     Build(BuildArgs),
-    /// Add a dependency to huzi.toml
+    /// 向 huzi.toml 添加依赖
     Add(AddArgs),
-    /// Fetch and vendor dependencies
+    /// 获取并本地缓存依赖包
     Fetch(FetchArgs),
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct FmtArgs {
-    /// Check formatting without overwriting files
+    /// 仅检查格式化，不覆盖文件
     #[arg(long)]
     pub check: bool,
 
-    /// Target file or directory
+    /// 目标文件或目录
     pub path: String,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct BuildArgs {
-    /// Project directory containing huzi.toml (defaults to current directory)
+    /// 包含 huzi.toml 的项目目录（默认为当前目录）
     #[arg(short, long, default_value = ".")]
     pub path: String,
 
-    /// Output executable path
+    /// 输出的可执行文件路径
     #[arg(short, long)]
     pub output: Option<String>,
 
-    /// Linker to use
+    /// 使用的链接器
     #[arg(short, long, value_enum, default_value_t = LinkerKind::platform_default())]
     pub linker: LinkerKind,
 
-    /// Release mode
+    /// 发布模式
     #[arg(short = 'r', long)]
     pub release: bool,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct AddArgs {
-    /// Dependency package name
+    /// 依赖包名称
     pub package: String,
 
-    /// Package version (e.g. 1.0.0)
+    /// 包版本（如 1.0.0）
     #[arg(default_value = "0.1.0")]
     pub version: String,
 
-    /// Local path to package
+    /// 本地包路径
     #[arg(long)]
     pub path: Option<String>,
 }
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct FetchArgs {
-    /// Project directory containing huzi.toml
+    /// 包含 huzi.toml 的项目目录
     #[arg(short, long, default_value = ".")]
     pub path: String,
 }
 
-/// Huzi Programming Language Compiler
+/// Huzi 编程语言编译器
 #[derive(Parser, Debug)]
 #[command(name = "huzc")]
-#[command(about = "Compile Huzi source code to executable")]
+#[command(about = "将 Huzi 源码编译为可执行文件")]
 pub struct Args {
     #[command(subcommand)]
     pub command: Option<Command>,
 
-    /// Input source file (.hz)
+    /// 输入源码文件 (.hz)
     #[arg(short, long)]
     pub input: Option<String>,
 
-    /// Output file name (without extension). Defaults to the input
-    /// file stem (`--input foo/bar.hz` -> `bar[.exe]` in cwd).
+    /// 输出文件名（不含扩展名）。默认使用输入文件主干名（`--input foo/bar.hz` -> 当前目录下的 `bar[.exe]`）
     #[arg(short, long)]
     pub output: Option<String>,
 
-    /// Linker to use (defaults to msvc on Windows, clang on macOS/Linux)
+    /// 使用的链接器（Windows 默认为 msvc，macOS/Linux 默认为 clang）
     #[arg(short, long, value_enum, default_value_t = LinkerKind::platform_default())]
     pub linker: LinkerKind,
 
-    /// Release mode: optimize the IR with `opt -O2` before generating code.
-    /// Without this flag (dev mode) the IR is passed to llc unoptimized.
+    /// 发布模式：在生成代码前使用 `opt -O2` 优化 IR。未指定此标志（开发模式）时 IR 将未经优化直接传入 llc
     #[arg(short = 'r', long)]
     pub release: bool,
 
-    /// LLVM optimization level for `opt` (0-3). Overrides `--release`:
-    /// 0 keeps the IR unoptimized, 2 matches `--release`.
+    /// 供 `opt` 使用的 LLVM 优化级别 (0-3)。优先级高于 `--release`：0 保持 IR 未优化，2 对应 `--release`
     #[arg(long, value_parser = clap::value_parser!(u8).range(0..4))]
     pub opt_level: Option<u8>,
 
-    /// Debug mode: embed DWARF debug info (compile units, line tables,
-    /// variables) so the executable can be debugged with GDB/LLDB.
-    /// Implies opt level 0, since optimization scrambles line attribution.
+    /// 调试模式：嵌入 DWARF 调试信息（编译单元、行号表、局部变量），以便使用 GDB/LLDB 调试可执行文件。由于优化会扰乱行号归属，该选项隐含优化级别 0
     #[arg(short = 'g', long)]
     pub debug: bool,
 }
 
 impl Args {
-    /// Effective output base name: explicit `--output` wins, otherwise the
-    /// input file stem (`foo/bar.hz` -> `bar`). Dies when the input path
-    /// has no file stem instead of silently falling back.
+    /// 有效输出基名：显式 `--output` 优先，否则使用输入文件主干名（`foo/bar.hz` -> `bar`）。若输入路径无法推导主干名则报错退出。
     pub fn effective_output(&self) -> String {
         if let Some(out) = &self.output {
             return out.clone();
@@ -154,8 +147,7 @@ impl Args {
             })
     }
 
-    /// Effective LLVM opt level: explicit `--opt-level` wins over `--release`.
-    /// `-g` forces level 0 to keep line info accurate.
+    /// 有效 LLVM 优化级别：显式 `--opt-level` 优先于 `--release`。`-g` 强制为 0 级别以保持行号信息精确。
     pub fn effective_opt_level(&self) -> u8 {
         if self.debug {
             return 0;

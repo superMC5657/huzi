@@ -5,12 +5,11 @@ use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, IntValue, PointerValue};
 
 impl<'ctx> CodeGen<'ctx> {
-    // ==================== Scope helpers ====================
+    // ==================== 作用域辅助函数 ====================
 
-    /// Switch the Windows console to the UTF-8 code page (65001) so `printf`
-    /// shows Chinese and other non-ASCII text correctly. String literals are
-    /// stored as UTF-8 bytes; without this the console decodes them with its
-    /// default code page (e.g. GBK) and prints mojibake. No-op elsewhere.
+    /// 将 Windows 控制台切换至 UTF-8 代码页（65001），以便 `printf` 能正确显示中文及其他非 ASCII 字符。
+    /// 字符串字面量以 UTF-8 字节存储；若不切换，控制台会用其默认代码页（如 GBK）解码从而导致乱码。
+    /// 在非 Windows 平台为空操作。
     pub(super) fn emit_console_utf8_setup(&mut self) {
         if !cfg!(windows) {
             return;
@@ -129,15 +128,15 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(true)
     }
 
-    /// Append one printed value to the printf format string and argument
-    /// list, promoting/narrowing according to C varargs conventions.
+    /// 将一个待打印的值追加到 printf 格式化字符串和参数列表中，
+    /// 并按照 C 可变参数约定进行提升或窄化转换。
     pub(super) fn format_print_value(
         &mut self,
         value: inkwell::values::BasicValueEnum<'ctx>,
         format_string: &mut String,
         args: &mut Vec<inkwell::values::BasicMetadataValueEnum<'ctx>>,
     ) -> Result<()> {
-        // Tuples print as `(v1, v2, ...)` with each field formatted.
+        // 元组按 `(v1, v2, ...)` 打印，每个字段分别进行格式化。
         if let inkwell::values::BasicValueEnum::StructValue(sv) = value {
             if self.is_tuple_type(sv.get_type()) {
                 return self.format_tuple_value(sv.into(), format_string, args);
@@ -148,7 +147,7 @@ impl<'ctx> CodeGen<'ctx> {
             inkwell::values::BasicValueEnum::IntValue(iv)
                 if iv.get_type().get_bit_width() == 1 =>
             {
-                // Booleans print as true/false.
+                // 布尔值打印为 true/false。
                 let s = self.build_bool_str(iv)?;
                 format_string.push_str("%s");
                 args.push(s.into());
@@ -156,7 +155,7 @@ impl<'ctx> CodeGen<'ctx> {
             inkwell::values::BasicValueEnum::IntValue(iv) => {
                 match iv.get_type().get_bit_width() {
                     8 => {
-                        // Chars are printed as characters.
+                        // char 按字符打印。
                         format_string.push_str("%c");
                         let c = self
                             .builder
@@ -177,7 +176,7 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
             inkwell::values::BasicValueEnum::FloatValue(fv) => {
-                // varargs promote floats to double
+                // 可变参数将 float 提升为 double
                 let f64_val = if fv.get_type() == self.context.f64_type() {
                     fv
                 } else {

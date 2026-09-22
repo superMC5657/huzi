@@ -171,7 +171,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.emit_box_nest_print(ptr, nest)
     }
 
-    /// `print(box_var)` / `print(box_field)` / `print(box(...))` / `print(null)`:
+    /// 打印 Box 相关表达式：`print(box_var)` / `print(box_field)` / `print(box(...))` / `print(null)`:
     /// Box 与 null 实参则打印并返回 true;其它返回 false(调用方走常规路径)。
     pub(super) fn try_emit_box_arg(
         &mut self,

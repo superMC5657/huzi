@@ -18,7 +18,7 @@ impl<'ctx> CodeGen<'ctx> {
                 let Stmt::Export(exp) = &stmt.node else { continue };
 
                 if exp.is_wildcard {
-                    // e.g. export calc::*
+                    // 例如：export calc::*
                     let target_prefix = format!("{}::", exp.path);
 
                     let matching_structs: Vec<(String, String)> = self
@@ -51,7 +51,7 @@ impl<'ctx> CodeGen<'ctx> {
                         }
                     }
                 } else if exp.path.contains("::") {
-                    // e.g. export calc::MyStruct
+                    // 例如：export calc::MyStruct
                     let src_key = &exp.path;
                     let item_name = exp.path.rsplit("::").next().unwrap_or(&exp.path);
                     let alias_key = format!("{}::{}", pkg_prefix, item_name);
@@ -63,7 +63,7 @@ impl<'ctx> CodeGen<'ctx> {
                         self.enums.insert(alias_key, e);
                     }
                 } else {
-                    // e.g. export calc
+                    // 例如：export calc
                     let target_prefix = format!("{}::", exp.path);
 
                     let matching_structs: Vec<(String, String)> = self
@@ -111,7 +111,7 @@ impl<'ctx> CodeGen<'ctx> {
                 let Stmt::Export(exp) = &stmt.node else { continue };
 
                 if exp.is_wildcard {
-                    // e.g. export calc::*
+                    // 例如：export calc::*
                     let target_prefix = format!("{}::", exp.path);
 
                     let matching_fns: Vec<(String, String)> = self
@@ -139,7 +139,7 @@ impl<'ctx> CodeGen<'ctx> {
                         }
                     }
                 } else if exp.path.contains("::") {
-                    // e.g. export calc::add
+                    // 例如：export calc::add
                     let src_key = &exp.path;
                     let item_name = exp.path.rsplit("::").next().unwrap_or(&exp.path);
                     let alias_key = format!("{}::{}", pkg_prefix, item_name);
@@ -157,8 +157,8 @@ impl<'ctx> CodeGen<'ctx> {
                         self.fn_no_return.insert(alias_key, no_ret);
                     }
                 } else {
-                    // e.g. export calc
-                    // Re-export submodule hierarchy: calc::add -> my_math::calc::add
+                    // 例如：export calc
+                    // 重导出子模块层级：calc::add -> my_math::calc::add
                     let target_prefix = format!("{}::", exp.path);
 
                     let matching_fns: Vec<(String, String)> = self

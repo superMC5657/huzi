@@ -24,8 +24,8 @@ function resolveServerCommand(context: vscode.ExtensionContext): string {
   if (fs.existsSync(bundled)) {
     return bundled;
   }
-  // No bundled binary and no user override: rely on PATH resolution.
-  // Users can point `huzi.server.path` at a cargo-built binary instead.
+  // 既无内置二进制也无用户配置：依赖 PATH 环境变量解析。
+  // 用户也可以将 `huzi.server.path` 指向通过 cargo 编译生成的二进制文件。
   return binName;
 }
 

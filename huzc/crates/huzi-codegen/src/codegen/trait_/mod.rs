@@ -81,11 +81,11 @@ pub(super) struct TraitDesugarer {
     traits: HashMap<String, TraitDef>,
     known_types: HashSet<String>,
     struct_fields: HashMap<String, HashMap<String, Type>>,
-    /// target_type -> (method_name -> trait_name)
+    /// 目标类型 -> (方法名 -> trait 名)
     implemented_methods: HashMap<String, HashMap<String, String>>,
-    /// target_type -> (method_name -> return_type)
+    /// 目标类型 -> (方法名 -> 返回类型)
     method_return_types: HashMap<String, HashMap<String, Option<Type>>>,
-    /// function_name -> return_type
+    /// 函数名 -> 返回类型
     fn_return_types: HashMap<String, Option<Type>>,
 }
 

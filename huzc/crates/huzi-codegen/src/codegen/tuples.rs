@@ -4,15 +4,13 @@ use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 
 impl<'ctx> CodeGen<'ctx> {
-    /// True for anonymous literal structs (tuples), which are never registered
-    /// as named structs or enum bodies.
+    /// 判定是否为匿名结构体字面量（元组），它们绝不作为具名结构体或枚举体部注册。
     pub(super) fn is_tuple_type(&self, st: inkwell::types::StructType<'ctx>) -> bool {
         self.structs.values().all(|(s, _)| *s != st)
             && self.enums.values().all(|info| info.llvm != Some(st))
     }
 
-    /// `(a, b, c)` — build a literal struct from the compiled element values,
-    /// inferring the tuple type from the elements themselves.
+    /// `(a, b, c)` — 从已编译的元素值构建字面量结构体，从各元素自身推导元组类型。
     pub(super) fn compile_tuple_literal(
         &mut self,
         elements: &[Expr],
@@ -29,9 +27,8 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(self.builder.build_load(tuple_ty, tmp, "tuple_load").unwrap())
     }
 
-    /// `let name = (a, b)` / `let name: (T1, T2) = (a, b)`. With an
-    /// annotation, each element is coerced to the declared element type; the
-    /// tuple type is otherwise inferred from the element values.
+    /// `let name = (a, b)` / `let name: (T1, T2) = (a, b)`。若显式指定类型注解，
+    /// 则每个元素强制转换为声明的元素类型；否则元组类型从各元素值推导。
     pub(super) fn compile_let_tuple(
         &mut self,
         stmt: &LetStmt,
@@ -90,8 +87,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Alloca a tuple of `tuple_ty`, store each (already-compiled) value
-    /// coerced to its field type, and return the loaded tuple value.
+    /// 为 `tuple_ty` 分配栈空间，逐一存储各元素值（强制转换为字段类型），并返回指针。
     fn store_tuple_fields(
         &mut self,
         tuple_ty: inkwell::types::StructType<'ctx>,
@@ -110,7 +106,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(tmp)
     }
 
-    /// GEP to element `index` of the tuple stored at `base_ptr`.
+    /// 对存储在 `base_ptr` 的元组执行 GEP，获取第 `index` 个元素的指针。
     pub(super) fn gep_tuple_field(
         &self,
         base_ptr: PointerValue<'ctx>,
@@ -132,8 +128,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok((field_ptr, field_ty))
     }
 
-    /// Print a tuple as `(v1, v2, ...)`: spill the value to a temporary,
-    /// then format each field through `format_print_value`.
+    /// 将元组按 `(v1, v2, ...)` 格式输出：将值暂存到临时栈槽，随后通过 `format_print_value` 逐一格式化各字段。
     pub(super) fn format_tuple_value(
         &mut self,
         value: inkwell::values::BasicValueEnum<'ctx>,

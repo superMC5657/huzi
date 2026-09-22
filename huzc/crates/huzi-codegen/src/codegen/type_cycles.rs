@@ -4,9 +4,9 @@ use huzi_error::{HuziError, Result};
 use std::collections::HashMap;
 
 impl<'ctx> CodeGen<'ctx> {
-    /// Reject by-value reference cycles (A -> B -> A) among struct and enum
-    /// definitions, which have no finite layout. Array fields decay to
-    /// pointers so they cannot form one.
+    /// 拒绝结构体与枚举定义之间的按值循环引用（A -> B -> A），
+    /// 因为这种类型没有有限的内存布局。数组字段退化为指针，
+    /// 因此不会形成循环引用。
     pub(super) fn check_type_cycles(&self, structs: &[StructDef], enums: &[EnumDef]) -> Result<()> {
         let mut names: Vec<&str> = structs.iter().map(|d| d.name.as_str()).collect();
         names.extend(enums.iter().map(|d| d.name.as_str()));

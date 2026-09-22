@@ -1,20 +1,14 @@
-//! Windows-only UTF-8 argv fixup: rebuild `huzi_argc`/`huzi_argv` from the
-//! Unicode command line.
+//! 仅限 Windows 的 UTF-8 argv 修复：从 Unicode 命令行重建 `huzi_argc`/`huzi_argv`。
 //!
-//! On Windows the CRT feeds `main(argc, argv)` with ANSI-encoded bytes (the
-//! active console code page, e.g. GBK), so non-ASCII arguments arrive garbled
-//! when the program treats them as UTF-8. The IR emitted here runs at program
-//! startup, right after the ANSI args are stored, and replaces the globals
-//! with UTF-8 strings converted from `GetCommandLineW` via
-//! `CommandLineToArgvW` + `WideCharToMultiByte(CP_UTF8)`. Everything in this
-//! file is only emitted when huzc itself is compiled for Windows; the Unix
-//! path keeps the original argv untouched.
+//! 在 Windows 上，CRT 传递给 `main(argc, argv)` 的是 ANSI 编码字节（当前控制台代码页，例如 GBK），
+//! 因此当程序将其视为 UTF-8 时，非 ASCII 参数会出现乱码。此处发射的 IR 在程序启动时运行（紧跟在
+//! 存储 ANSI 参数之后），通过 `GetCommandLineW`、`CommandLineToArgvW` 与
+//! `WideCharToMultiByte(CP_UTF8)` 将命令行转换为 UTF-8 字符串并替换全局变量。
+//! 本文件中的所有内容仅在 huzc 自身为 Windows 编译时才会发射；Unix 路径保持原有的 argv 不动。
 //!
-//! Converted buffers are `malloc`'d once and live for the process lifetime,
-//! so `arg(i)` keeps its zero-copy "pointer into argv storage" semantics and
-//! out-of-range/negative indexes still yield the shared empty string. If the
-//! Unicode fetch fails, the ANSI values are kept as-is (graceful fallback);
-//! a per-argument conversion failure yields the empty string.
+//! 转换后的缓冲区仅 `malloc` 一次并在进程生命周期内常驻，因此 `arg(i)` 保持其“指向 argv 存储的指针”
+//! 这一零拷贝语义，越界或负索引仍返回共享的空字符串。如果获取 Unicode 失败，则保留 ANSI 原值（优雅降级）；
+//! 单个参数转换失败则返回空字符串。
 
 use inkwell::AddressSpace;
 use inkwell::IntPredicate;
@@ -22,32 +16,32 @@ use inkwell::values::PointerValue;
 
 use super::CodeGen;
 
-/// UTF-8 code page for `WideCharToMultiByte` (matches the console setup).
+/// 用于 `WideCharToMultiByte` 的 UTF-8 代码页（与控制台设置匹配）。
 const CP_UTF8: u64 = 65001;
 
 impl<'ctx> CodeGen<'ctx> {
-    /// Declare the argv-conversion imports (kernel32 + shell32 + libc malloc).
-    /// Called from `prelude` only when compiled for Windows.
+    /// 声明 argv 转换所需的导入函数（kernel32 + shell32 + libc malloc）。
+    /// 仅在为 Windows 编译时由 `prelude` 调用。
     pub(super) fn declare_windows_argv_imports(&mut self) {
         let i32_type = self.context.i32_type();
         let ptr_type = self.context.ptr_type(AddressSpace::default());
 
-        // LPWSTR GetCommandLineW(void);
+        // 获取命令行宽字符：LPWSTR GetCommandLineW(void);
         let cmdline_ty = ptr_type.fn_type(&[], false);
         self.module.add_function("GetCommandLineW", cmdline_ty, None);
 
-        // LPWSTR *CommandLineToArgvW(LPCWSTR, int *);
+        // 解析宽字符命令行：LPWSTR *CommandLineToArgvW(LPCWSTR, int *);
         let to_argv_ty = ptr_type.fn_type(&[ptr_type.into(), ptr_type.into()], false);
         self.module
             .add_function("CommandLineToArgvW", to_argv_ty, None);
 
-        // int WideCharToMultiByte(UINT, DWORD, LPCWCH, int, LPSTR, int, ...);
+        // 宽字符转多字节：int WideCharToMultiByte(UINT, DWORD, LPCWCH, int, LPSTR, int, ...);
         let convert_ty = i32_type.fn_type(
             &[
                 i32_type.into(), // CodePage
                 i32_type.into(), // dwFlags
                 ptr_type.into(), // lpWideCharStr
-                i32_type.into(), // cchWideChar (-1 = NUL-terminated)
+                i32_type.into(), // cchWideChar（-1 表示以 NUL 结尾）
                 ptr_type.into(), // lpMultiByteStr
                 i32_type.into(), // cbMultiByte
                 ptr_type.into(), // lpDefaultChar
@@ -58,13 +52,13 @@ impl<'ctx> CodeGen<'ctx> {
         self.module
             .add_function("WideCharToMultiByte", convert_ty, None);
 
-        // HLOCAL LocalFree(HLOCAL);
+        // 释放局部内存：HLOCAL LocalFree(HLOCAL);
         let free_ty = ptr_type.fn_type(&[ptr_type.into()], false);
         self.module.add_function("LocalFree", free_ty, None);
     }
 
-    /// Replace `huzi_argc`/`huzi_argv` with UTF-8 strings from the Unicode
-    /// command line. Emitted right after the ANSI store in `store_main_args`.
+    /// 用来自 Unicode 命令行转换的 UTF-8 字符串替换 `huzi_argc`/`huzi_argv`。
+    /// 在 `store_main_args` 中紧跟 ANSI 存储之后发射。
     pub(super) fn refresh_windows_argv_utf8(&mut self) {
         let i32_type = self.context.i32_type();
         let function = self
@@ -87,7 +81,7 @@ impl<'ctx> CodeGen<'ctx> {
             .expect("LocalFree in prelude");
         let malloc_fn = self.module.get_function("malloc").expect("malloc in prelude");
 
-        // LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &n);
+        // 解析宽字符参数：LPWSTR *wargv = CommandLineToArgvW(GetCommandLineW(), &n);
         let cmdline = self
             .builder
             .build_call(cmdline_fn, &[], "w_cmdline")
@@ -108,7 +102,7 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap_left()
             .into_pointer_value();
 
-        // NULL from CommandLineToArgvW: keep the ANSI args as-is.
+        // CommandLineToArgvW 返回 NULL 时：保留原样 ANSI 参数。
         let ok_block = self.context.append_basic_block(function, "utf8_argv_ok");
         let skip_block = self
             .context
@@ -133,9 +127,8 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.position_at_end(skip_block);
     }
 
-    /// NUL-terminate the converted array, publish it to `huzi_argv`, free the
-    /// wide-char list, and rejoin the caller's flow at `skip_block`. Emitted
-    /// at the loop-exit block left behind by `fill_argv_array`.
+    /// 以 NUL 结尾终止转换后的数组，将其发布到 `huzi_argv`，释放宽字符列表，
+    /// 并在 `skip_block` 处重新汇入调用方流程。在 `fill_argv_array` 留下的循环退出基本块处发射。
     fn publish_argv_array(
         &mut self,
         new_argv: PointerValue<'ctx>,
@@ -152,7 +145,7 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap();
     }
 
-    /// `malloc((n + 1) * 8)`: pointer slots for n UTF-8 args plus a NUL end.
+    /// `malloc((n + 1) * 8)`：为 n 个 UTF-8 参数外加一个 NUL 结尾分配指针插槽。
     fn alloc_argv_array(
         &mut self,
         malloc_fn: inkwell::values::FunctionValue<'ctx>,
@@ -175,8 +168,8 @@ impl<'ctx> CodeGen<'ctx> {
             .into_pointer_value()
     }
 
-    /// Convert each `wargv[i]` to UTF-8, publish the array, and NUL-terminate
-    /// it. Leaves the builder at the loop-exit block.
+    /// 将每个 `wargv[i]` 转换为 UTF-8，发布该数组并以 NUL 结尾。
+    /// 退出时构建器停留在循环退出块。
     fn fill_argv_array(
         &mut self,
         wargv: PointerValue<'ctx>,
@@ -234,9 +227,8 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap();
     }
 
-    /// Convert `wargv[i]` to UTF-8 and store it into `new_argv[i]`. Returns
-    /// the next index. The conversion's merge block becomes the builder's
-    /// position, so the trailing stores land in the loop body.
+    /// 将 `wargv[i]` 转换为 UTF-8 并存入 `new_argv[i]`。返回下一个索引。
+    /// 转换的合并块成为构建器的当前位置，因此后续存储会落在循环体内。
     fn copy_one_arg(
         &mut self,
         wargv: PointerValue<'ctx>,
@@ -255,7 +247,7 @@ impl<'ctx> CodeGen<'ctx> {
             .build_load(ptr_type, wslot, "w_str")
             .unwrap()
             .into_pointer_value();
-        // Conversion blocks splice in here; the builder lands on their merge.
+        // 转换基本块在此插入；构建器停留在其 merge 块。
         let u8str = self.convert_wstr_to_utf8(wstr);
         let dslot = unsafe {
             self.builder
@@ -268,9 +260,8 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap()
     }
 
-    /// Convert one NUL-terminated UTF-16 string to a malloc'd UTF-8 buffer.
-    /// Conversion failure yields the shared empty string. Leaves the builder
-    /// positioned at the merge block; the returned pointer is valid there.
+    /// 将单个以 NUL 结尾的 UTF-16 字符串转换为 malloc 分配的 UTF-8 缓冲区。
+    /// 转换失败则返回共享空字符串。构建器停留在 merge 块；返回的指针在该处有效。
     fn convert_wstr_to_utf8(&mut self, wstr: PointerValue<'ctx>) -> PointerValue<'ctx> {
         let i32_type = self.context.i32_type();
         let ptr_type = self.context.ptr_type(AddressSpace::default());
@@ -285,7 +276,7 @@ impl<'ctx> CodeGen<'ctx> {
             .expect("WideCharToMultiByte in prelude");
         let malloc_fn = self.module.get_function("malloc").expect("malloc in prelude");
 
-        // int need = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, ...);
+        // 查询所需缓冲区大小：int need = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, ...);
         let null_out = ptr_type.const_null();
         let need = self.emit_wctmb_call(convert_fn, wstr, null_out, i32_type.const_zero(), "u8_need");
 
@@ -337,8 +328,8 @@ impl<'ctx> CodeGen<'ctx> {
         phi.as_basic_value().into_pointer_value()
     }
 
-    /// Emit one `WideCharToMultiByte(CP_UTF8, 0, wstr, -1, out, out_len, ...)`
-    /// call and return its i32 result (required size, or bytes written).
+    /// 发射一次 `WideCharToMultiByte(CP_UTF8, 0, wstr, -1, out, out_len, ...)` 调用，
+    /// 并返回其 i32 结果（所需大小或写入的字节数）。
     fn emit_wctmb_call(
         &mut self,
         convert_fn: inkwell::values::FunctionValue<'ctx>,
@@ -370,7 +361,7 @@ impl<'ctx> CodeGen<'ctx> {
             .into_int_value()
     }
 
-    /// Address of an arg-support global (`huzi_argc` / `huzi_argv`).
+    /// 获取参数支持全局变量的地址（`huzi_argc` / `huzi_argv`）。
     fn windows_arg_global(&self, name: &str) -> PointerValue<'ctx> {
         self.module
             .get_global(name)
@@ -378,7 +369,7 @@ impl<'ctx> CodeGen<'ctx> {
             .as_pointer_value()
     }
 
-    /// Store a pointer value into an arg-support global.
+    /// 向参数支持全局变量中存储一个指针值。
     fn windows_arg_global_store(&mut self, name: &str, value: PointerValue<'ctx>) {
         let global = self.windows_arg_global(name);
         self.builder.build_store(global, value).unwrap();

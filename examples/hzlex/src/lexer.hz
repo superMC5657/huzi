@@ -9,7 +9,7 @@
 //   * 标识符:[A-Za-z_][A-Za-z0-9_]*(非 ASCII 字节归入标识符,不丢字节)
 //
 // 输出为平行数组 kinds/texts/lines/cols;kind ∈
-//   kw | ident | int | float | string | char | punct | eof
+//   种类集合：kw | ident | int | float | string | char | punct | eof
 
 fn is_digit(c: i32) -> bool {
     return c >= 48 && c <= 57
@@ -114,7 +114,7 @@ fn skip_trivia(src: str, from: i32, from_line: i32, from_col: i32) -> (i32, i32,
 }
 
 /// 字符串字面量(假定 src[i] == '"');成功时推入 token 并返回
-/// (true, i, line, col)。
+/// 成功四元组：(true, i, line, col)。
 fn lex_string(src: str, from: i32, from_line: i32, from_col: i32, kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, i32, i32, i32) {
     let n = len(src)
     let mut i = from + 1

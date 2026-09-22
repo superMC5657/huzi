@@ -71,7 +71,7 @@ pub enum Token {
     Eof,
 }
 
-/// A token together with its source position (1-based line/column).
+/// 携带源码位置（基于 1 的行列号）的词法单元。
 #[derive(Debug, Clone, PartialEq)]
 pub struct SpannedToken {
     pub token: Token,

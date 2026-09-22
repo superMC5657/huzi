@@ -12,7 +12,7 @@ use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
 use super::CodeGen;
 
 impl<'ctx> CodeGen<'ctx> {
-    /// `spawn(func, [arg]) -> i64`
+    /// 启动新线程：`spawn(func, [arg]) -> i64`
     pub(super) fn compile_spawn(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
         if arguments.is_empty() || arguments.len() > 2 {
             return Err(HuziError::new_global(
@@ -219,7 +219,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// `join(handle: i64) -> i32`
+    /// 等待线程结束：`join(handle: i64) -> i32`
     pub(super) fn compile_join(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
         if arguments.len() != 1 {
             return Err(HuziError::new_global("join() requires 1 argument: (handle: i64)"));

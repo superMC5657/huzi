@@ -8,7 +8,7 @@ impl Parser {
         matches!(self.peek_at(1), Some(Token::Ident(_))) && matches!(self.peek_at(2), Some(Token::Colon))
     }
 
-    /// Parse `{ field: expr, ... }` after the struct name was consumed.
+    /// 在结构体名称被消费后，解析 `{ field: expr, ... }`。
     pub(super) fn parse_struct_literal(&mut self, name: &str) -> Result<Expr> {
         let fields = self.parse_struct_fields()?;
         Ok(Expr::StructLiteral(StructLiteralExpr {
@@ -70,7 +70,7 @@ impl Parser {
         }
         self.advance(); // consume '>'
 
-        // Generic function call: name<T1, T2>(args)
+        // 泛型函数调用：name<T1, T2>(args)
         if self.check(&Token::LParen) {
             self.advance(); // consume '('
             let mut arguments = Vec::new();
@@ -88,7 +88,7 @@ impl Parser {
             })));
         }
 
-        // Generic struct literal: name<T1, T2> { field: value }
+        // 泛型结构体字面量：name<T1, T2> { field: value }
         if self.check(&Token::LBrace) && self.looks_like_struct_literal() {
             let fields = self.parse_struct_fields()?;
             return Ok(Some(Expr::StructLiteral(StructLiteralExpr {

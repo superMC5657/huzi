@@ -6,7 +6,7 @@ use huzi_lexer::Token;
 
 impl Parser {
     pub(super) fn parse_expression(&mut self) -> Result<Expr> {
-        // Assignment is the lowest-precedence expression: `x = ...`, `arr[i] = ...`
+        // 赋值表达式优先级最低：`x = ...`, `arr[i] = ...`
         let expr = self.parse_or_expression()?;
 
         if self.check(&Token::Equal) {
@@ -193,7 +193,7 @@ impl Parser {
     fn parse_call_expression(&mut self) -> Result<Expr> {
         let mut expr = self.parse_primary_expression()?;
 
-        // Postfix operations can chain and interleave: points[1].x, p.vals[0],
+        // 后缀操作可链式与交错调用：points[1].x, p.vals[0],
         // f(a).field, ...
         loop {
             if self.check(&Token::LBracket) {
@@ -206,8 +206,8 @@ impl Parser {
                 });
             } else if self.check(&Token::Dot) {
                 self.advance();
-                // Tuple element access: `t.0`, `t.1`, ... — a digit after the
-                // dot is an element index, not a field name.
+                // 元组元素访问：`t.0`、`t.1`... — 点号后的数字
+                // 是元素索引，而非字段名。
                 let index = if self.is_at_end() {
                     None
                 } else {
@@ -323,13 +323,13 @@ impl Parser {
                         return Ok(expr);
                     }
                 }
-                // Generic call `id<i32>(42)` or struct literal `Pair<i32, str> { ... }`.
+                // 泛型调用 `id<i32>(42)` 或结构体字面量 `Pair<i32, str> { ... }`。
                 if self.check(&Token::Less) {
                     if let Some(expr) = self.try_parse_generic(&name)? {
                         return Ok(expr);
                     }
                 }
-                // `Enum::Variant` / `Enum::Variant(args)` / `pkg::sub::fn(args)`
+                // 路径限定符号，如 `Enum::Variant` / `Enum::Variant(args)` / `pkg::sub::fn(args)`
                 if self.check(&Token::PathSep) {
                     self.advance();
                     let mut variant = self.expect_ident("Expected variant or symbol name after '::'")?;
@@ -359,8 +359,8 @@ impl Parser {
                         args,
                     }));
                 }
-                // `Point { x: 1, ... }` — a struct literal, recognized only when
-                // `{` is followed by `field:`, so bare blocks still parse.
+                // `Point { x: 1, ... }` — 结构体字面量，仅在 `{` 后紧跟 `field:` 时识别，
+                // 确保独立代码块仍能正常解析。
                 if self.check(&Token::LBrace) && self.looks_like_struct_literal() {
                     return self.parse_struct_literal(&name);
                 }
@@ -371,7 +371,7 @@ impl Parser {
                 self.parse_paren_or_tuple()
             }
             Token::LBracket => {
-                // Array literal: [1, 2, 3]
+                // 数组字面量: [1, 2, 3]
                 self.advance(); // consume '['
                 let mut elements = Vec::new();
                 if !self.check(&Token::RBracket) {
@@ -397,8 +397,8 @@ impl Parser {
         }
     }
 
-    /// After `(` is consumed: `(a, b)` is a tuple literal, a bare `(expr)` is
-    /// just grouping.
+    /// 消费 `(` 之后：`(a, b)` 为元组字面量，单独的 `(expr)`
+    /// 仅作为优先级括号。
     fn parse_paren_or_tuple(&mut self) -> Result<Expr> {
         let first = self.parse_expression()?;
 

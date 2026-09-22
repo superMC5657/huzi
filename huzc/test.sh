@@ -1,10 +1,10 @@
 #!/bin/bash
-# Regression test: compile and run every example, assert exit code AND stdout.
-# Negative tests must fail: *.compile_fail.hz at compile time,
-# *.runtime_fail.hz at run time.
-# Platform: needs a Bash environment (bash/diff, optional timeout) and a writable
-# /tmp. On Windows run under Git Bash / MSYS2 / WSL, not plain PowerShell or cmd.
-# LLVM tools (llc/opt) and a platform linker must be on PATH.
+# 回归测试：编译并运行所有用例，断言退出码以及标准输出 stdout。
+# 负例测试必须失败：*.compile_fail.hz 在编译期失败，
+# *.runtime_fail.hz 在运行期失败。
+# 运行环境：需要 Bash 环境（bash/diff，可选 timeout）以及可写的
+# /tmp。Windows 用户请在 Git Bash / MSYS2 / WSL 下运行，勿使用纯 PowerShell 或 cmd。
+# LLVM 工具链（llc/opt）及平台链接器必须位于 PATH 中。
 set -u
 cd "$(dirname "$0")" || exit 1
 

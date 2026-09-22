@@ -13,14 +13,14 @@ impl<'ctx> CodeGen<'ctx> {
             return Err(HuziError::new_global("match must have at least one arm"));
         }
 
-        // Address of the scrutinee (rvalues are spilled to a temporary).
+        // 待匹配项的地址（右值会溢出暂存到临时变量）。
         let (scrut_addr, scrut_ty) = self.compile_addr(&expr.scrutinee)?;
 
-        // The enum being matched, named by the first variant pattern.
+        // 正在匹配的枚举，由首个变体模式命名。
         let pat_enum_name = Self::match_pattern_enum(&expr.arms);
 
-        // Data-carrying enums keep their tag in field 0 of the struct; simple
-        // enums ARE the i32 tag, so the scrutinee value is the tag itself.
+        // 携带数据的枚举将其判别码 tag 保存在结构体的字段 0；简单枚举
+        // 本身就是 i32 判别码，因此待匹配项的值即为判别码本身。
         if let Some(info) = self.enum_data_by_type(scrut_ty) {
             if let Some(pat) = pat_enum_name {
                 if pat != info.name {
@@ -75,8 +75,8 @@ impl<'ctx> CodeGen<'ctx> {
         ))
     }
 
-    /// Compile the arm chain recursively: each variant arm branches on the tag
-    /// and falls through to the remaining arms on mismatch.
+    /// 递归编译分支链：每个变体分支根据判别码进行分支，
+    /// 不匹配时向下落入剩余分支。
     pub(super) fn compile_match_arms(
         &mut self,
         tag: inkwell::values::IntValue<'ctx>,
@@ -108,8 +108,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Compile a variant arm that has following arms: mismatch falls through
-    /// to the remaining arm chain.
+    /// 编译后随其他分支的变体分支：不匹配时落入剩余分支链。
     fn compile_variant_arm(
         &mut self,
         tag: inkwell::values::IntValue<'ctx>,
@@ -125,7 +124,7 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         let (then_bb, else_bb, merge_bb) = self.emit_match_branch(tag, vinfo.tag)?;
 
-        // Matching arm: optionally bind the payload, evaluate the body.
+        // 匹配分支：可选绑定负载，求值分支体。
         self.builder.position_at_end(then_bb);
         let then_val = self.compile_match_arm_body(data, info, vinfo, bindings, body)?;
 
@@ -136,7 +135,7 @@ impl<'ctx> CodeGen<'ctx> {
             .build_unconditional_branch(merge_bb)
             .unwrap();
 
-        // Remaining arms run when the tag does not match.
+        // 判别码不匹配时运行剩余分支。
         self.builder.position_at_end(else_bb);
         let else_val = self.compile_match_arms(tag, data, Some(info), rest)?;
         let else_val = self.coerce_value(result_ty, else_val)?;
@@ -153,8 +152,8 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(result)
     }
 
-    /// Compile the final variant arm of an exhaustive match: mismatch is
-    /// statically unreachable (exhaustiveness was checked up front).
+    /// 编译穷尽匹配的最后一个变体分支：不匹配在静态上不可达
+    /// （前面已完成穷尽性检查）。
     fn compile_last_variant_arm(
         &mut self,
         tag: inkwell::values::IntValue<'ctx>,
@@ -189,7 +188,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(result)
     }
 
-    /// Emit the tag comparison and the then/else/merge blocks for one arm.
+    /// 发射单个分支的判别码比较以及 then/else/merge 基本块。
     fn emit_match_branch(
         &self,
         tag: inkwell::values::IntValue<'ctx>,
@@ -218,7 +217,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok((then_bb, else_bb, merge_bb))
     }
 
-    /// The enum named by the first variant pattern, if any.
+    /// 首个变体模式所指定的枚举名称（若存在）。
     fn match_pattern_enum(arms: &[MatchArm]) -> Option<&str> {
         arms.iter().find_map(|arm| match &arm.pattern {
             Pattern::Variant { enum_name, .. } => Some(enum_name.as_str()),
@@ -226,8 +225,8 @@ impl<'ctx> CodeGen<'ctx> {
         })
     }
 
-    /// Exhaustiveness analysis: a wildcard arm covers everything; otherwise
-    /// every variant of the matched enum must appear in the arm list.
+    /// 穷尽性分析：通配符分支覆盖所有情况；否则被匹配枚举的
+    /// 每个变体都必须在分支列表中出现。
     fn check_match_exhaustiveness(
         arms: &[MatchArm],
         info: Option<&EnumInfo<'ctx>>,
@@ -263,7 +262,7 @@ impl<'ctx> CodeGen<'ctx> {
         )))
     }
 
-    /// Every variant arm must name the enum being matched.
+    /// 每个变体分支必须指明正在匹配的枚举。
     fn check_arm_enum_names(arms: &[MatchArm], info: Option<&EnumInfo<'ctx>>) -> Result<()> {
         let Some(info) = info else {
             return Ok(());
@@ -281,8 +280,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Bind the payload fields (if the pattern names bindings) and evaluate
-    /// the arm body on the matching branch.
+    /// 在匹配成功的分支上绑定负载字段（若模式指定了绑定变量）并求值分支体。
     fn compile_match_arm_body(
         &mut self,
         data: Option<(
@@ -304,8 +302,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(value)
     }
 
-    /// Enter a scope with the pattern bindings bound to the variant's
-    /// payload fields, in declaration order.
+    /// 进入新作用域，按声明顺序将模式绑定变量绑定到变体的负载字段。
     pub(super) fn bind_match_payload(
         &mut self,
         data: Option<(inkwell::types::StructType<'ctx>, PointerValue<'ctx>)>,
@@ -359,7 +356,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Bind one name to a single-payload variant's slot.
+    /// 将单个名称绑定到单负载变体的插槽。
     fn bind_single_payload(
         &mut self,
         ast_ty: &Type,
@@ -367,7 +364,7 @@ impl<'ctx> CodeGen<'ctx> {
         slot_ptr: PointerValue<'ctx>,
         binding: &str,
     ) -> Result<()> {
-        // Arrays decay to pointers; keep the element type for indexing.
+        // 数组退化为指针；保留元素类型以便索引。
         let elem = match ast_ty {
             Type::Array(elem_ty, _) => Some(self.type_to_llvm(elem_ty)?),
             Type::Str => Some(self.context.i8_type().into()),
@@ -394,7 +391,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Bind each name to its field of a multi-payload variant's field struct.
+    /// 将各个名称绑定到多负载变体字段结构体中对应的字段。
     fn bind_multi_payload_fields(
         &mut self,
         payload_ty: inkwell::types::BasicTypeEnum<'ctx>,
@@ -436,7 +433,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 }
 
-/// Find the variant info for `variant` inside `info`.
+/// 在 `info` 中查找变体 `variant` 的信息。
 fn find_variant<'ctx, 'a>(
     info: &'a EnumInfo<'ctx>,
     variant: &str,

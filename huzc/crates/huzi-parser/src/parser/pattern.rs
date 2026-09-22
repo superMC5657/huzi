@@ -4,8 +4,8 @@ use huzi_error::Result;
 use huzi_lexer::Token;
 
 impl Parser {
-    /// `match expr { pattern => body, ... }` — each arm body is a block or a
-    /// single expression.
+    /// `match expr { pattern => body, ... }` — 每个分支体为一个语句块或
+    /// 单个表达式。
     pub(super) fn parse_match_expression(&mut self) -> Result<Expr> {
         self.advance();
         let scrutinee = self.parse_expression()?;
@@ -41,10 +41,10 @@ impl Parser {
         }))
     }
 
-    /// `Enum::Variant`, `Enum::Variant(x)`, `Enum::Variant(x, y)`, or `_`.
+    /// `Enum::Variant`、`Enum::Variant(x)`、`Enum::Variant(x, y)` 或 `_`。
     fn parse_pattern(&mut self) -> Result<Pattern> {
-        // Note: `check` matches any Ident against Token::Ident, so the
-        // wildcard must be detected by comparing the actual name.
+        // 注意：`check` 会将任意 Ident 匹配为 Token::Ident，因此
+        // 通配符必须通过比对实际名称 `_` 来识别。
         if let Token::Ident(name) = self.peek() {
             if name == "_" {
                 self.advance();

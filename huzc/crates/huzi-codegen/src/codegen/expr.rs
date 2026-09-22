@@ -42,7 +42,7 @@ impl<'ctx> CodeGen<'ctx> {
     pub(super) fn compile_literal(&self, lit: &Literal) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         match lit {
             Literal::Int(n) => {
-                // Integers that fit in i32 use i32; larger ones use i64.
+                // 能容纳在 i32 内的整数使用 i32；更大的使用 i64。
                 if *n >= i32::MIN as i64 && *n <= i32::MAX as i64 {
                     Ok(self.context.i32_type().const_int(*n as u64, false).into())
                 } else {
@@ -85,7 +85,7 @@ impl<'ctx> CodeGen<'ctx> {
                 .unwrap();
         }
 
-        // Short-circuit branch: result is false (for &&) or true (for ||).
+        // 短路分支：对于 && 结果为 false，对于 || 结果为 true。
         self.builder.position_at_end(short_block);
         let short_val = self.context.bool_type().const_int(!is_and as u64, false);
         self.builder.build_store(result_ptr, short_val).unwrap();
@@ -93,7 +93,7 @@ impl<'ctx> CodeGen<'ctx> {
             .build_unconditional_branch(end_block)
             .unwrap();
 
-        // Evaluate the right operand only when needed.
+        // 仅在必要时才对右操作数求值。
         self.builder.position_at_end(rhs_block);
         let rhs_value = self.compile_expr(right)?;
         let rhs = self.to_i1(rhs_value)?;
@@ -155,7 +155,7 @@ impl<'ctx> CodeGen<'ctx> {
             _ => return Err(HuziError::new_global("Expected function name")),
         };
 
-        // Built-in functions
+        // 内置函数
         match callee_name.as_str() {
             "print" => return self.compile_print(&expr.arguments),
             "read_line" => return self.compile_read_line(),
