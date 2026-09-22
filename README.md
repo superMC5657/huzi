@@ -51,21 +51,22 @@ huzi-src/
 │   └── jsonq/
 │       └── lib.hz     # JSON 底层原语与嵌套查询层 (\uXXXX → UTF-8)
 └── test/              # 库单元与集成自测试
-    ├── core_test.hz
-    ├── package_entry_test.hz
-    ├── vec_algo_test.hz
-    ├── stringx_test.hz
-    ├── fsx_test.hz
-    ├── http_test.hz
-    ├── timex_test.hz
-    ├── env_cli_test.hz
-    ├── csv_test.hz
-    ├── json_test.hz
-    ├── framing_test.hz
-    ├── mapx_test.hz
-    ├── queue_test.hz
-    ├── log_test.hz
-    └── kv_store_test.hz
+    └── cases/         # 自测用例(与 huzc/test/cases 布局对齐)
+        ├── core_test.hz
+        ├── package_entry_test.hz
+        ├── vec_algo_test.hz
+        ├── stringx_test.hz
+        ├── fsx_test.hz
+        ├── http_test.hz
+        ├── timex_test.hz
+        ├── env_cli_test.hz
+        ├── csv_test.hz
+        ├── json_test.hz
+        ├── framing_test.hz
+        ├── mapx_test.hz
+        ├── queue_test.hz
+        ├── log_test.hz
+        └── kv_store_test.hz
 ```
 
 ## 架构边界说明

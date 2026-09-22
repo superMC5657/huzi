@@ -32,7 +32,7 @@ fi
 pass=0
 fail=0
 
-for f in test/*_test.hz; do
+for f in test/cases/*_test.hz; do
   [ -e "$f" ] || continue
   name=$(basename "$f" .hz)
 
