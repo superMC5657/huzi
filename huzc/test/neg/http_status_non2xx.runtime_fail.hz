@@ -1,0 +1,12 @@
+# 负例:http_parse 非 2xx 必须返回 Err,误用为成功即 panic(运行 exit != 0)。
+import core.result
+import std.http
+
+fn main() -> i32 {
+    let r = http::http_parse("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+    if result::is_err(r) {
+        panic(result::err_msg(r))
+    }
+    print(result::unwrap_or(r, ""))
+    return 0
+}
