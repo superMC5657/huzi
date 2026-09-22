@@ -1,0 +1,44 @@
+# Rust 构建产物
+**/target/
+**/*.rs.bk
+
+# 测试与编译产物
+out/
+*.out
+*.exe
+*.ll
+*.bc
+*.obj
+*.o
+*.pdb
+
+# 日志与覆盖率
+*.log
+coverage/
+*.profraw
+*.profdata
+
+# 发版包
+releases/
+*.tar.gz
+
+# IDE 与工具链缓存
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.#*
+.codegraph/
+.zcode/
+
+# Agent 运行时状态(保留 plans 设计文档)
+.omo/run-continuation/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 其他
+nul
+.env
