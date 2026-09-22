@@ -1,0 +1,16 @@
+.vscode/**
+.vscode-test/**
+.idea/**
+src/**
+scripts/**
+.gitignore
+tsconfig.json
+**/*.map
+**/*.ts
+*.vsix
+node_modules/**
+
+# Keep the compiled output and bundled server binaries in the package.
+!out/**
+!server/huzi-lsp
+!server/huzi-lsp.exe
