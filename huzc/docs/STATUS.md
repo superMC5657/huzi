@@ -50,7 +50,7 @@
 - [x] IR 优化：`--release` / `--opt-level 0-3`
 - [x] 调试：`-g/--debug` DWARF，GDB/LLDB 按源码行调试
 - [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
-- [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接；个别位置如结构体字段间可能整体偏移但不丢失），`fmt --check test/cases` 门禁恢复可用
+- [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接），`fmt --check test/cases` 门禁恢复可用
 - [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）
 - [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲
 - [x] 跨平台：Windows(`lld-link/msvc/mingw`)、Linux/macOS(`clang`)——按编译器宿主平台选择运行时 API 与链接器，支持各平台本机编译，暂不支持交叉编译
