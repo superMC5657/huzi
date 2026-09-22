@@ -1,0 +1,172 @@
+# parser/typ —— 类型(数组/元组/具名含泛型实参与参数表)，仅依赖 cursor。
+# 源自 parser.hz 类型区段与语句区参数表三函数逐行搬移。
+import cursor
+
+# ---- 类型 ----
+# 数组类型 `[T; N]`(调用时 `[` 已消费)。
+fn pz_array_type(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    if !pz_type(kinds, texts, pos, errs) {
+        return false
+    }
+    if !cursor::pz_at(kinds, texts, pos, ";") {
+        return cursor::pz_fail(errs, texts, pos, "expected ';' in array type")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at_kind(kinds, pos, "int") {
+        return cursor::pz_fail(errs, texts, pos, "expected array size")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, "]") {
+        return cursor::pz_fail(errs, texts, pos, "expected ']' in array type")
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+# 元组类型 `(T, ...)` / 空元组 `()`(调用时 `(` 已消费)。
+fn pz_tuple_type(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    if cursor::pz_at(kinds, texts, pos, ")") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if !pz_type(kinds, texts, pos, errs) {
+        return false
+    }
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if !pz_type(kinds, texts, pos, errs) {
+            return false
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, ")") {
+        return cursor::pz_fail(errs, texts, pos, "expected ')' in tuple type")
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+# 具名类型 `a::b<T, ...>`(调用时位于首标识)。
+fn pz_named_type(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    cursor::pz_next(pos)
+    while cursor::pz_at(kinds, texts, pos, "::") {
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected name after '::'")
+        }
+        cursor::pz_next(pos)
+    }
+    if cursor::pz_at(kinds, texts, pos, "<") {
+        cursor::pz_next(pos)
+        if !pz_type(kinds, texts, pos, errs) {
+            return false
+        }
+        while cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+            if !pz_type(kinds, texts, pos, errs) {
+                return false
+            }
+        }
+        if !cursor::pz_at(kinds, texts, pos, ">") {
+            return cursor::pz_fail(errs, texts, pos, "expected '>' in type args")
+        }
+        cursor::pz_next(pos)
+    }
+    return true
+}
+
+fn pz_type(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    if cursor::pz_at(kinds, texts, pos, "[") {
+        cursor::pz_next(pos)
+        return pz_array_type(kinds, texts, pos, errs)
+    }
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        cursor::pz_next(pos)
+        return pz_tuple_type(kinds, texts, pos, errs)
+    }
+    if cursor::pz_is_ident(kinds, texts, pos) {
+        return pz_named_type(kinds, texts, pos, errs)
+    }
+    return cursor::pz_fail(errs, texts, pos, "expected type")
+}
+
+# 参数表(形参/实参位类型 Ashley:调用时位于 `(` / `<` 处)，随类型搬移。
+fn pz_one_param(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected parameter name")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, ":") {
+        return cursor::pz_fail(errs, texts, pos, "expected ':' after parameter name")
+    }
+    cursor::pz_next(pos)
+    return pz_type(kinds, texts, pos, errs)
+}
+
+# 参数表(调用时位于 `(` 处):allow_self 时首参可为 bare `self`。
+fn pz_params(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, allow_self: bool) -> bool {
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, ")") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if allow_self && cursor::pz_is_ident(kinds, texts, pos) && cursor::pz_at_word(texts, pos, "self") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ":") {
+            cursor::pz_next(pos)
+            if !pz_type(kinds, texts, pos, errs) {
+                return false
+            }
+        }
+        if cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+            if cursor::pz_at(kinds, texts, pos, ")") {
+                cursor::pz_next(pos)
+                return true
+            }
+        } else {
+            if !cursor::pz_at(kinds, texts, pos, ")") {
+                return cursor::pz_fail(errs, texts, pos, "expected ')' after parameters")
+            }
+            cursor::pz_next(pos)
+            return true
+        }
+    }
+    if !pz_one_param(kinds, texts, pos, errs) {
+        return false
+    }
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ")") {
+            break
+        }
+        if !pz_one_param(kinds, texts, pos, errs) {
+            return false
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, ")") {
+        return cursor::pz_fail(errs, texts, pos, "expected ')' after parameters")
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+# 泛型形参表 `<T, ...>`(调用时位于 `<` 处)。
+fn pz_typarams(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected type parameter name")
+    }
+    cursor::pz_next(pos)
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected type parameter name")
+        }
+        cursor::pz_next(pos)
+    }
+    if !cursor::pz_at(kinds, texts, pos, ">") {
+        return cursor::pz_fail(errs, texts, pos, "expected '>' after type parameters")
+    }
+    cursor::pz_next(pos)
+    return true
+}
