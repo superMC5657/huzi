@@ -1,0 +1,55 @@
+// models.hz - 任务与调度分析核心数据模型、枚举与 Trait 抽象
+
+struct Task {
+    id: i32,
+    name: str,
+    category: str,
+    priority: i32,
+    amount: i32,
+}
+
+enum TaskState {
+    Pending,
+    Processing(str),
+    Done(i32, str),
+    Failed(str),
+}
+
+trait Formattable {
+    fn format_summary(self) -> str
+}
+
+trait Prioritizable {
+    fn is_urgent(self) -> bool
+}
+
+impl Formattable for Task {
+    fn format_summary(self: Task) -> str {
+        return concat("Task#", to_string(self.id), " [", self.name, "] (", self.category, ", 业务量: ", to_string(self.amount), ")")
+    }
+}
+
+impl Prioritizable for Task {
+    fn is_urgent(self: Task) -> bool {
+        return self.priority >= 4
+    }
+}
+
+fn create_task(id: i32, name: str, category: str, priority: i32, amount: i32) -> Task {
+    return Task {
+        id: id,
+        name: name,
+        category: category,
+        priority: priority,
+        amount: amount,
+    }
+}
+
+fn describe_state(state: TaskState) -> str {
+    return match state {
+        TaskState::Pending => "待调度",
+        TaskState::Processing(worker) => concat("执行中 [", worker, "]"),
+        TaskState::Done(cost_ms, note) => concat("成功 (", to_string(cost_ms), "ms, ", note, ")"),
+        TaskState::Failed(reason) => concat("失败 (", reason, ")"),
+    }
+}

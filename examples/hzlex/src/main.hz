@@ -1,0 +1,64 @@
+// hzlex 入口:--selftest 跑内置断言;<file.hz> 把词法结果逐行打印为
+// "行:列 类型 文本"。
+import lexer
+import core.assert
+
+fn selftest() -> i32 {
+    let mut b = vec<i32>()
+    push(b, 92)
+    push(b, 110)
+    let nl_esc = str_from_bytes(b)
+    let src = concat("fn main() -> i32 { let s = \"hi", nl_esc, "\" ; let f = 3.14 ; let r = 1..2 }")
+    let lr = lexer::lex(src)
+    assert::assert_true(lr.0)
+    let kinds = lr.1
+    let texts = lr.2
+    assert::assert_eq_str(kinds[0], "kw")
+    assert::assert_eq_str(texts[0], "fn")
+    assert::assert_eq_str(kinds[1], "ident")
+    assert::assert_eq_str(texts[1], "main")
+    assert::assert_eq_str(texts[4], "->")
+    assert::assert_eq_str(texts[5], "i32")
+    assert::assert_eq_str(kinds[10], "string")
+    assert::assert_eq_str(texts[10], concat("hi", "\n"))
+    assert::assert_eq_str(texts[15], "3.14")
+    assert::assert_eq_str(kinds[15], "float")
+    assert::assert_eq_str(texts[20], "1")
+    assert::assert_eq_str(texts[21], "..")
+    assert::assert_eq_str(texts[22], "2")
+    assert::assert_eq_str(kinds[24], "eof")
+    print("hzlex selftest passed")
+    return 0
+}
+
+fn main() -> i32 {
+    if arg_count() < 2 {
+        print("usage: hzlex <file.hz> | hzlex --selftest")
+        return 1
+    }
+    let a = arg(1)
+    if a == "--selftest" {
+        return selftest()
+    }
+    let content = read_file(a)
+    if !read_file_ok(a) {
+        print(concat("hzlex: cannot read ", a))
+        return 1
+    }
+    let r = lexer::lex(content)
+    if !r.0 {
+        print(concat("hzlex: lex error in ", a))
+        return 1
+    }
+    let kinds = r.1
+    let texts = r.2
+    let lines = r.3
+    let cols = r.4
+    let total = len(kinds)
+    let mut i = 0
+    while i < total {
+        print(concat(to_string(lines[i]), ":", to_string(cols[i]), " ", kinds[i], " ", texts[i]))
+        i = i + 1
+    }
+    return 0
+}
