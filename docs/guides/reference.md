@@ -172,4 +172,4 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 
 - `reference.md` 补签名：按第 4 节分组追加 `签名 + 语义 + 返回约定`。
 - `STATUS.md` 打勾：在"标准库内置"清单对应分组同步勾选。
-- `test/examples/` 补示例：正例可运行、非法输入不 abort（配负例）。
+- `test/cases/` 补示例：正例可运行、非法输入不 abort（配负例）。

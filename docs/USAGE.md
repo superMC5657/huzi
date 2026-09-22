@@ -27,7 +27,7 @@ cargo build --release
 ./target/debug/huzc --input <源文件.hz> -o <输出名称>
 
 # 示例：编译示例程序
-./target/debug/huzc --input test/examples/01_variables_ops.hz -o test/out/01_variables_ops
+./target/debug/huzc --input test/cases/01_variables_ops.hz -o test/out/01_variables_ops
 ```
 
 ### 3.3 运行程序
@@ -64,10 +64,10 @@ Huzc 内置轻量级代码格式化工具，基于 AST 语法树 pretty-print �
 huzc fmt path/to/file.hz
 
 # 递归格式化整个目录下的所有 .hz 文件
-huzc fmt test/examples
+huzc fmt test/cases
 
 # 仅检查是否已符合格式（不修改文件，有未格式化文件时退出码为 1）
-huzc fmt --check test/examples
+huzc fmt --check test/cases
 ```
 
 > **注释保留与归一化范围说明**：

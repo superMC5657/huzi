@@ -53,9 +53,9 @@ huzi-codegen/src/codegen/
 ## 验证流程(重构/改动的验收标准)
 
 1. `cargo build --workspace` — **零错误、零警告**。
-2. 编译并运行 test/examples/ 下全部非交互示例,确认 exit=0;交互类示例(如 `10_guess_number_game.hz`)跳过(可直接运行 `bash test.sh`)。
+2. 编译并运行 test/cases/ 下全部非交互示例,确认 exit=0;交互类示例(如 `10_guess_number_game.hz`)跳过(可直接运行 `bash test.sh`)。
 3. `git diff` 复核:确认是纯搬移(删除行与新增行内容对应),没有夹带逻辑改动。
-4. 新增 builtin 必须同提交同步文档:docs/guides/reference.md 补签名 → docs/STATUS.md 打勾 → test/examples/ 补示例,缺一即未通过。
+4. 新增 builtin 必须同提交同步文档:docs/guides/reference.md 补签名 → docs/STATUS.md 打勾 → test/cases/ 补示例,缺一即未通过。
 
 > 本项目不配置 CI(GitHub Actions workflow 已移除,后续不做 CI):上述门禁全部在本地执行,提交前自行跑完 1-3。
 

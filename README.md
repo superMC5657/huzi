@@ -47,8 +47,8 @@ bash test.sh
 ### 3. 代码格式化
 
 ```bash
-./target/debug/huzc fmt test/examples
-./target/debug/huzc fmt --check test/examples
+./target/debug/huzc fmt test/cases
+./target/debug/huzc fmt --check test/cases
 ```
 
 ## 文档指引

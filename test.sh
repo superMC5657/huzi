@@ -36,7 +36,7 @@ printf 'a\nb\n' > test/out/pipe_input.txt
 export HUZI_TEST_ENV="huzi_env_ok"
 
 # 10_guess_number_game 是交互式示例(等待键盘猜数),回归中跳过。
-for f in test/examples/*.hz; do
+for f in test/cases/*.hz; do
   name=$(basename "$f" .hz)
   if [ "$name" = "10_guess_number_game" ]; then
     echo "SKIP(interactive): $name"

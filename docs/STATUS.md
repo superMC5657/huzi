@@ -50,7 +50,7 @@
 - [x] IR 优化：`--release` / `--opt-level 0-3`
 - [x] 调试：`-g/--debug` DWARF，GDB/LLDB 按源码行调试
 - [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
-- [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接；个别位置如结构体字段间可能整体偏移但不丢失），`fmt --check test/examples` 门禁恢复可用
+- [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接；个别位置如结构体字段间可能整体偏移但不丢失），`fmt --check test/cases` 门禁恢复可用
 - [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）
 - [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲
 - [x] 跨平台：Windows(`lld-link/msvc/mingw`)、Linux/macOS(`clang`)——按编译器宿主平台选择运行时 API 与链接器，支持各平台本机编译，暂不支持交叉编译
@@ -58,7 +58,7 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 集成回归：`bash test.sh`（60 示例 + 57 负例测试全部通过，交互示例跳过）
+- [x] 集成回归：`bash test.sh`（62 示例 + 60 负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（huzi release / Rust -O <= 2.0x）
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
@@ -78,5 +78,5 @@
 | 架构/流水线/模块职责 | `dev/开发文档.md` |
 | 泛型冻结规则 | `rfc/rfc_p4_generics.md` |
 | 历史规划 7 项的 IN/OUT | `../.omo/plans/section3-roadmap-plan.md`（内部） |
-| 新增 builtin 同步规则 | `../AGENTS.md` 验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → test/examples 示例，同提交） |
+| 新增 builtin 同步规则 | `../AGENTS.md` 验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → test/cases 示例，同提交） |
 | 本文件 | 只看状态，不看方法 |
