@@ -31,7 +31,7 @@
 - [x] 数学：`abs/sqrt/pow/sin/cos/tan/floor/ceil/round`（含 `math::` 前缀）
 - [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms`
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
-- [x] 内存：`free_str/free_vec/free_box/ref_count`（支持手动打破循环引用）
+- [x] 内存：`free_str/free_vec/free_box/ref_count`（支持手动打破循环引用；类型不匹配编译期拒绝，负例 `free_str_non_str`）
 - [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len/map_keys`
 - [x] TCP：`tcp_connect/send/recv/close/listen/accept`
 - [x] 线程：`spawn/join`
@@ -59,7 +59,7 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；62 示例 + 62 负例测试全部通过，交互示例跳过）
+- [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；62 示例 + 63 负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/4] 抽查
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
