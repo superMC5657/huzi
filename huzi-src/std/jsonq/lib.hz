@@ -1,0 +1,439 @@
+// JSON 底层原语与嵌套查询层 —— 供 std/json 与本模块查询 API 使用。
+//
+// 查询按点分路径在原始 JSON 文本上取值,不做 DOM:路径形如
+// "user.tags.0"(对象键 / 数组下标混用);空路径为整个文档;
+// 键名含 '.' 的场景不支持。
+//
+// UTF-8:字符串值按字节透传;\uXXXX 转义解码为 UTF-8 字节
+// (基本多文种平面,不含代理对)。
+
+import alloc.stringx
+
+fn is_ws(ch: str) -> bool {
+    if ch == " " {
+        return true
+    }
+    if ch == "\t" {
+        return true
+    }
+    if ch == "\n" {
+        return true
+    }
+    if ch == "\r" {
+        return true
+    }
+    return false
+}
+
+fn skip_ws(s: str, start: i32) -> i32 {
+    let n = len(s)
+    let mut i = start
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if is_ws(ch) {
+            i = i + 1
+        } else {
+            return i
+        }
+    }
+    return i
+}
+
+fn escape_json_str(s: str) -> str {
+    let n = len(s)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if ch == "\"" {
+            res = concat(res, "\\\"")
+        } elif ch == "\\" {
+            res = concat(res, "\\\\")
+        } elif ch == "\n" {
+            res = concat(res, "\\n")
+        } elif ch == "\r" {
+            res = concat(res, "\\r")
+        } elif ch == "\t" {
+            res = concat(res, "\\t")
+        } else {
+            res = concat(res, ch)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+/// 单个十六进制字符 → 0..=15,非法返回 -1。
+fn hex_val(c: str) -> i32 {
+    if c == "0" { return 0 }
+    if c == "1" { return 1 }
+    if c == "2" { return 2 }
+    if c == "3" { return 3 }
+    if c == "4" { return 4 }
+    if c == "5" { return 5 }
+    if c == "6" { return 6 }
+    if c == "7" { return 7 }
+    if c == "8" { return 8 }
+    if c == "9" { return 9 }
+    if c == "a" || c == "A" { return 10 }
+    if c == "b" || c == "B" { return 11 }
+    if c == "c" || c == "C" { return 12 }
+    if c == "d" || c == "D" { return 13 }
+    if c == "e" || c == "E" { return 14 }
+    if c == "f" || c == "F" { return 15 }
+    return -1
+}
+
+/// 从 pos 起读 4 个十六进制数字为一个码点;非法返回 -1。
+fn hex4(s: str, pos: i32) -> i32 {
+    let n = len(s)
+    if pos + 4 > n {
+        return -1
+    }
+    let mut cp = 0
+    let mut k = 0
+    while k < 4 {
+        let d = hex_val(substring(s, pos + k, pos + k + 1))
+        if d < 0 {
+            return -1
+        }
+        cp = cp * 16 + d
+        k = k + 1
+    }
+    return cp
+}
+
+/// 码点 → UTF-8 字节串(1-4 字节;代理对区按字面编码,未做配对)。
+fn utf8_encode(cp: i32) -> str {
+    let mut b = vec<i32>()
+    if cp < 128 {
+        push(b, cp)
+    } elif cp < 2048 {
+        push(b, 192 + cp / 64)
+        push(b, 128 + cp % 64)
+    } elif cp < 65536 {
+        push(b, 224 + cp / 4096)
+        push(b, 128 + (cp / 64) % 64)
+        push(b, 128 + cp % 64)
+    } else {
+        push(b, 240 + cp / 262144)
+        push(b, 128 + (cp / 4096) % 64)
+        push(b, 128 + (cp / 64) % 64)
+        push(b, 128 + cp % 64)
+    }
+    return str_from_bytes(b)
+}
+
+/// 解析 JSON 字符串字面量(含转义;\\uXXXX 解码为 UTF-8 字节),
+/// 返回 (成功?, 内容, 结束下标[引号后一位])。
+fn parse_json_string(s: str, start: i32) -> (bool, str, i32) {
+    let n = len(s)
+    if start >= n {
+        return (false, "", start)
+    }
+    if substring(s, start, start + 1) != "\"" {
+        return (false, "", start)
+    }
+    let mut i = start + 1
+    let mut res = ""
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if ch == "\"" {
+            return (true, res, i + 1)
+        } elif ch == "\\" {
+            if i + 1 >= n {
+                return (false, "", start)
+            }
+            let esc = substring(s, i + 1, i + 2)
+            if esc == "\"" {
+                res = concat(res, "\"")
+            } elif esc == "\\" {
+                res = concat(res, "\\")
+            } elif esc == "n" {
+                res = concat(res, "\n")
+            } elif esc == "r" {
+                res = concat(res, "\r")
+            } elif esc == "t" {
+                res = concat(res, "\t")
+            } elif esc == "u" {
+                let cp = hex4(s, i + 2)
+                if cp < 0 {
+                    return (false, "", start)
+                }
+                res = concat(res, utf8_encode(cp))
+                i = i + 4
+            } else {
+                res = concat(res, esc)
+            }
+            i = i + 2
+        } else {
+            res = concat(res, ch)
+            i = i + 1
+        }
+    }
+    return (false, "", start)
+}
+
+/// 跳过一个完整 JSON 值(对象/数组递归),返回值结束位置(不含尾部空白)。
+fn json_skip_value(s: str, pos: i32) -> (bool, i32) {
+    let n = len(s)
+    let i = skip_ws(s, pos)
+    if i >= n {
+        return (false, i)
+    }
+    let c = substring(s, i, i + 1)
+    if c == "\"" {
+        let r = parse_json_string(s, i)
+        return (r.0, r.2)
+    }
+    if c == "{" || c == "[" {
+        let close = if c == "{" { "}" } else { "]" }
+        let mut j = skip_ws(s, i + 1)
+        if substring(s, j, j + 1) == close {
+            return (true, j + 1)
+        }
+        while j < n {
+            if c == "{" {
+                let kr = parse_json_string(s, j)
+                if !kr.0 {
+                    return (false, j)
+                }
+                j = skip_ws(s, kr.2)
+                if substring(s, j, j + 1) != ":" {
+                    return (false, j)
+                }
+                j = skip_ws(s, j + 1)
+            }
+            let vr = json_skip_value(s, j)
+            if !vr.0 {
+                return (false, vr.1)
+            }
+            j = skip_ws(s, vr.1)
+            let t = substring(s, j, j + 1)
+            if t == "," {
+                j = skip_ws(s, j + 1)
+            } elif t == close {
+                return (true, j + 1)
+            } else {
+                return (false, j)
+            }
+        }
+        return (false, j)
+    }
+    // number / true / false / null:扫到分隔符为止。
+    let mut j = i
+    while j < n {
+        let ch = substring(s, j, j + 1)
+        if ch == "," || ch == "}" || ch == "]" || is_ws(ch) {
+            break
+        }
+        j = j + 1
+    }
+    return (true, j)
+}
+
+/// 按路径取值的原文:(找到?, 原文)。空路径为整个文档。
+fn get_raw(s: str, path: str) -> (bool, str) {
+    let mut i = skip_ws(s, 0)
+    if len(path) == 0 {
+        let vr = json_skip_value(s, i)
+        if !vr.0 {
+            return (false, "")
+        }
+        return (true, substring(s, i, vr.1))
+    }
+    let segs = split(path, ".")
+    let n_seg = len(segs)
+    let n = len(s)
+    let mut k = 0
+    while k < n_seg {
+        let seg = segs[k]
+        if i >= n {
+            return (false, "")
+        }
+        let c = substring(s, i, i + 1)
+        if c == "{" {
+            let mut j = skip_ws(s, i + 1)
+            if substring(s, j, j + 1) == "}" {
+                return (false, "")
+            }
+            let mut found = false
+            while j < n {
+                let kr = parse_json_string(s, j)
+                if !kr.0 {
+                    return (false, "")
+                }
+                j = skip_ws(s, kr.2)
+                if substring(s, j, j + 1) != ":" {
+                    return (false, "")
+                }
+                j = skip_ws(s, j + 1)
+                if kr.1 == seg {
+                    i = j
+                    found = true
+                    break
+                }
+                let vr = json_skip_value(s, j)
+                if !vr.0 {
+                    return (false, "")
+                }
+                j = skip_ws(s, vr.1)
+                if substring(s, j, j + 1) == "," {
+                    j = skip_ws(s, j + 1)
+                } else {
+                    return (false, "")
+                }
+            }
+            if !found {
+                return (false, "")
+            }
+        } elif c == "[" {
+            let idxr = parse_int(seg)
+            if !idxr.0 {
+                return (false, "")
+            }
+            let want = idxr.1
+            let mut j = skip_ws(s, i + 1)
+            if substring(s, j, j + 1) == "]" {
+                return (false, "")
+            }
+            let mut cur = 0
+            let mut found = false
+            while j < n {
+                if cur == want {
+                    i = j
+                    found = true
+                    break
+                }
+                let vr = json_skip_value(s, j)
+                if !vr.0 {
+                    return (false, "")
+                }
+                j = skip_ws(s, vr.1)
+                if substring(s, j, j + 1) == "," {
+                    j = skip_ws(s, j + 1)
+                    cur = cur + 1
+                } else {
+                    return (false, "")
+                }
+            }
+            if !found {
+                return (false, "")
+            }
+        } else {
+            return (false, "")
+        }
+        k = k + 1
+    }
+    let vr = json_skip_value(s, i)
+    if !vr.0 {
+        return (false, "")
+    }
+    return (true, substring(s, i, vr.1))
+}
+
+/// 字符串值的解码内容(路径处的值必须是 JSON 字符串)。
+fn get_str(s: str, path: str) -> (bool, str) {
+    let raw = get_raw(s, path)
+    if !raw.0 {
+        return (false, "")
+    }
+    let r = parse_json_string(raw.1, 0)
+    if !r.0 {
+        return (false, "")
+    }
+    return (true, r.1)
+}
+
+/// 数值(路径处的值必须是 JSON 数字)。
+fn get_int(s: str, path: str) -> (bool, i32) {
+    let raw = get_raw(s, path)
+    if !raw.0 {
+        return (false, 0)
+    }
+    let r = parse_int(raw.1)
+    if !r.0 {
+        return (false, 0)
+    }
+    return (true, r.1)
+}
+
+/// 布尔值(路径处的值必须是 true/false)。
+fn get_bool(s: str, path: str) -> (bool, bool) {
+    let raw = get_raw(s, path)
+    if !raw.0 {
+        return (false, false)
+    }
+    if raw.1 == "true" {
+        return (true, true)
+    }
+    if raw.1 == "false" {
+        return (true, false)
+    }
+    return (false, false)
+}
+
+/// 数组长度(路径处的值必须是 JSON 数组)。
+fn array_len(s: str, path: str) -> (bool, i32) {
+    let raw = get_raw(s, path)
+    if !raw.0 {
+        return (false, 0)
+    }
+    if substring(raw.1, 0, 1) != "[" {
+        return (false, 0)
+    }
+    let n = len(raw.1)
+    let mut j = skip_ws(raw.1, 1)
+    if substring(raw.1, j, j + 1) == "]" {
+        return (true, 0)
+    }
+    let mut count = 0
+    while j < n {
+        let vr = json_skip_value(raw.1, j)
+        if !vr.0 {
+            return (false, 0)
+        }
+        count = count + 1
+        j = skip_ws(raw.1, vr.1)
+        let t = substring(raw.1, j, j + 1)
+        if t == "," {
+            j = skip_ws(raw.1, j + 1)
+        } elif t == "]" {
+            return (true, count)
+        } else {
+            return (false, 0)
+        }
+    }
+    return (false, 0)
+}
+
+/// 值类型:"object"/"array"/"string"/"number"/"bool"/"null"/""(未知)。
+fn type_of(s: str, path: str) -> str {
+    let raw = get_raw(s, path)
+    if !raw.0 {
+        return ""
+    }
+    let c = substring(raw.1, 0, 1)
+    if c == "{" {
+        return "object"
+    }
+    if c == "[" {
+        return "array"
+    }
+    if c == "\"" {
+        return "string"
+    }
+    if stringx::starts_with(raw.1, "true") || stringx::starts_with(raw.1, "false") {
+        return "bool"
+    }
+    if stringx::starts_with(raw.1, "null") {
+        return "null"
+    }
+    if c >= "0" && c <= "9" {
+        return "number"
+    }
+    if c == "-" {
+        return "number"
+    }
+    return ""
+}

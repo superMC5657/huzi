@@ -1,0 +1,32 @@
+import std.timex
+
+fn format_record(level: str, ts: str, msg: str) -> str {
+    return concat("[", level, "] ", ts, " - ", msg)
+}
+
+fn info_with_ts(msg: str, ts: str) -> i32 {
+    print(format_record("INFO", ts, msg))
+    return 0
+}
+
+fn warn_with_ts(msg: str, ts: str) -> i32 {
+    print(format_record("WARN", ts, msg))
+    return 0
+}
+
+fn error_with_ts(msg: str, ts: str) -> i32 {
+    print(format_record("ERROR", ts, msg))
+    return 0
+}
+
+fn info(msg: str) -> i32 {
+    return info_with_ts(msg, timex::now_str)
+}
+
+fn warn(msg: str) -> i32 {
+    return warn_with_ts(msg, timex::now_str)
+}
+
+fn error(msg: str) -> i32 {
+    return error_with_ts(msg, timex::now_str)
+}

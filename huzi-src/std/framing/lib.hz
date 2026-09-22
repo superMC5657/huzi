@@ -1,0 +1,62 @@
+fn send_line(fd: i32, msg: str) -> bool {
+    let payload = concat(msg, "\n")
+    let sent = tcp_send(fd, payload)
+    return sent == len(payload)
+}
+
+fn recv_line(fd: i32) -> (bool, str) {
+    let mut line = ""
+    while true {
+        let chunk = tcp_recv(fd, 1)
+        if len(chunk) == 0 {
+            if len(line) > 0 {
+                return (true, line)
+            }
+            return (false, "")
+        }
+        if chunk == "\n" {
+            let l = len(line)
+            if l > 0 {
+                if substring(line, l - 1, l) == "\r" {
+                    return (true, substring(line, 0, l - 1))
+                }
+            }
+            return (true, line)
+        }
+        line = concat(line, chunk)
+    }
+    return (false, "")
+}
+
+fn send_prefixed(fd: i32, msg: str) -> bool {
+    let l = len(msg)
+    let payload = concat(to_string(l), "\n", msg)
+    let sent = tcp_send(fd, payload)
+    return sent == len(payload)
+}
+
+fn recv_prefixed(fd: i32) -> (bool, str) {
+    let header = recv_line(fd)
+    if !header.0 {
+        return (false, "")
+    }
+    let p = parse_int(header.1)
+    if !p.0 {
+        return (false, "")
+    }
+    let expected = p.1
+    if expected <= 0 {
+        return (true, "")
+    }
+    let mut data = ""
+    let mut remaining = expected
+    while remaining > 0 {
+        let chunk = tcp_recv(fd, remaining)
+        if len(chunk) == 0 {
+            return (false, "")
+        }
+        data = concat(data, chunk)
+        remaining = remaining - len(chunk)
+    }
+    return (true, data)
+}

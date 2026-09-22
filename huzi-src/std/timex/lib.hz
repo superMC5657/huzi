@@ -1,0 +1,16 @@
+fn now_ts() -> i64 {
+    return time()
+}
+
+fn format_ts(ts: i64) -> str {
+    return localtime(ts)
+}
+
+fn now_str() -> str {
+    return localtime(time())
+}
+
+fn elapsed_ms(start_ts: i64) -> i64 {
+    let diff = time() - start_ts
+    return diff * 1000
+}

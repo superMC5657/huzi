@@ -1,0 +1,40 @@
+import core.assert
+import std.env_cli
+
+fn main() -> i32 {
+    let fallback = env_cli::env_or("NON_EXISTING_ENV_12345", "default_val")
+    assert::assert_eq_str(fallback, "default_val")
+    let has_missing = env_cli::env_has("NON_EXISTING_ENV_12345")
+    assert::assert_true(!has_missing)
+    let test_env = env_cli::env_or("HUZI_TEST_ENV", "fallback_val")
+    assert::assert_eq_str(test_env, "huzi_env_ok")
+    let mut args = vec<str>()
+    push(args, "build")
+    push(args, "--release")
+    push(args, "-v")
+    push(args, "target.hz")
+    let parsed = env_cli::parse_args_vec(args)
+    assert::assert_eq_str(parsed.0, "build")
+    assert::assert_true(env_cli::has_flag(parsed.1, "release"))
+    assert::assert_true(env_cli::has_flag(parsed.1, "v"))
+    assert::assert_true(!env_cli::has_flag(parsed.1, "debug"))
+    let pos: vec<str> = parsed.2
+    assert::assert_eq_i32(len(pos), 1)
+    assert::assert_eq_str(pos[0], "target.hz")
+    let mut args2 = vec<str>()
+    push(args2, "cat")
+    push(args2, "-")
+    push(args2, "--")
+    push(args2, "-x")
+    push(args2, "extra.txt")
+    let parsed2 = env_cli::args_parse(args2)
+    assert::assert_eq_str(parsed2.0, "cat")
+    assert::assert_true(!env_cli::has_flag(parsed2.1, "x"))
+    let pos2: vec<str> = parsed2.2
+    assert::assert_eq_i32(len(pos2), 3)
+    assert::assert_eq_str(pos2[0], "-")
+    assert::assert_eq_str(pos2[1], "-x")
+    assert::assert_eq_str(pos2[2], "extra.txt")
+    print("env_cli_test: ok")
+    return 0
+}

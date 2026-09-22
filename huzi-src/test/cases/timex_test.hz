@@ -1,0 +1,20 @@
+import core.assert
+import std.log
+import std.timex
+
+fn main() -> i32 {
+    let t = timex::now_ts
+    assert::assert_true(t > 0)
+    let cur = timex::now_str
+    assert::assert_eq_i32(len(cur), 19)
+    let ts0 = timex::format_ts(0)
+    assert::assert_eq_i32(len(ts0), 19)
+    let el = timex::elapsed_ms(t)
+    assert::assert_true(el >= 0)
+    let rec = log::format_record("INFO", "2026-01-01 00:00:00", "test message")
+    assert::assert_eq_str(rec, "[INFO] 2026-01-01 00:00:00 - test message")
+    let r1 = log::info_with_ts("system startup", "2026-01-01 00:00:00")
+    assert::assert_eq_i32(r1, 0)
+    print("timex_test: ok")
+    return 0
+}

@@ -1,0 +1,20 @@
+fn assert_true(cond: bool) -> i32 {
+    if !cond {
+        panic("assertion failed: condition is false")
+    }
+    return 0
+}
+
+fn assert_eq_i32(a: i32, b: i32) -> i32 {
+    if a != b {
+        panic("assertion failed: i32 values are not equal")
+    }
+    return 0
+}
+
+fn assert_eq_str(a: str, b: str) -> i32 {
+    if a != b {
+        panic("assertion failed: str values are not equal")
+    }
+    return 0
+}

@@ -1,0 +1,15 @@
+import core.assert
+import std.log
+
+fn main() -> i32 {
+    let r_info = log::info("service running")
+    assert::assert_eq_i32(r_info, 0)
+    let r_warn = log::warn("high load")
+    assert::assert_eq_i32(r_warn, 0)
+    let r_err = log::error("connection reset")
+    assert::assert_eq_i32(r_err, 0)
+    let rec = log::format_record("DEBUG", "2026-01-01 00:00:00", "debug trace")
+    assert::assert_eq_str(rec, "[DEBUG] 2026-01-01 00:00:00 - debug trace")
+    print("log_test: ok")
+    return 0
+}

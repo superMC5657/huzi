@@ -1,0 +1,89 @@
+fn escape_quotes(s: str) -> str {
+    let n = len(s)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if ch == "\"" {
+            res = concat(res, "\"\"")
+        } else {
+            res = concat(res, ch)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn stringify_field(f: str) -> str {
+    let has_comma = contains(f, ",")
+    let has_quote = contains(f, "\"")
+    let has_nl = contains(f, "\n")
+    let has_cr = contains(f, "\r")
+    if has_quote {
+        let esc = escape_quotes(f)
+        return concat("\"", esc, "\"")
+    } elif has_comma {
+        return concat("\"", f, "\"")
+    } elif has_nl {
+        return concat("\"", f, "\"")
+    } elif has_cr {
+        return concat("\"", f, "\"")
+    } else {
+        return f
+    }
+}
+
+fn stringify(row: vec<str>) -> str {
+    let n = len(row)
+    if n == 0 {
+        return ""
+    }
+    let mut res = stringify_field(row[0])
+    let mut i = 1
+    while i < n {
+        let sf = stringify_field(row[i])
+        res = concat(res, ",", sf)
+        i = i + 1
+    }
+    return res
+}
+
+fn parse_line(line: str) -> vec<str> {
+    let mut fields = vec<str>()
+    let n = len(line)
+    let mut curr = ""
+    let mut in_quotes = false
+    let mut i = 0
+    while i < n {
+        let ch = substring(line, i, i + 1)
+        if in_quotes {
+            if ch == "\"" {
+                if i + 1 < n {
+                    let next_ch = substring(line, i + 1, i + 2)
+                    if next_ch == "\"" {
+                        curr = concat(curr, "\"")
+                        i = i + 1
+                    } else {
+                        in_quotes = false
+                    }
+                } else {
+                    in_quotes = false
+                }
+            } else {
+                curr = concat(curr, ch)
+            }
+        } else {
+            if ch == "\"" {
+                in_quotes = true
+            } elif ch == "," {
+                push(fields, curr)
+                curr = ""
+            } else {
+                curr = concat(curr, ch)
+            }
+        }
+        i = i + 1
+    }
+    push(fields, curr)
+    return fields
+}

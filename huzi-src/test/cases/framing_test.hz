@@ -1,0 +1,61 @@
+import core.assert
+import alloc.stringx
+import std.framing
+
+fn server_worker(server_fd: i32) -> i32 {
+    let client_fd = tcp_accept(server_fd)
+    if client_fd < 0 {
+        return 1
+    }
+    let l1 = framing::recv_line(client_fd)
+    if l1.0 {
+        framing::send_line(client_fd, concat("ACK:", l1.1))
+    }
+    let p1 = framing::recv_prefixed(client_fd)
+    if p1.0 {
+        framing::send_prefixed(client_fd, concat("PREFIX_ACK:", p1.1))
+    }
+    let p2 = framing::recv_prefixed(client_fd)
+    if p2.0 {
+        framing::send_prefixed(client_fd, concat("BIG_ECHO:", p2.1))
+    }
+    tcp_close(client_fd)
+    return 0
+}
+
+fn main() -> i32 {
+    let port = 28095
+    let server_fd = tcp_listen(port)
+    if server_fd < 0 {
+        print("listen failed")
+        return 1
+    }
+    let th = spawn(server_worker, server_fd)
+    sleep_ms(30)
+    let client_fd = tcp_connect("127.0.0.1", port)
+    if client_fd < 0 {
+        print("connect failed")
+        return 1
+    }
+    let ok1 = framing::send_line(client_fd, "ping line")
+    assert::assert_true(ok1)
+    let reply1 = framing::recv_line(client_fd)
+    assert::assert_true(reply1.0)
+    assert::assert_eq_str(reply1.1, "ACK:ping line")
+    let ok2 = framing::send_prefixed(client_fd, "prefixed body")
+    assert::assert_true(ok2)
+    let reply2 = framing::recv_prefixed(client_fd)
+    assert::assert_true(reply2.0)
+    assert::assert_eq_str(reply2.1, "PREFIX_ACK:prefixed body")
+    let big_msg = stringx::repeat("0123456789ABCDEF", 256)
+    let ok3 = framing::send_prefixed(client_fd, big_msg)
+    assert::assert_true(ok3)
+    let reply3 = framing::recv_prefixed(client_fd)
+    assert::assert_true(reply3.0)
+    assert::assert_eq_str(reply3.1, concat("BIG_ECHO:", big_msg))
+    tcp_close(client_fd)
+    join(th)
+    tcp_close(server_fd)
+    print("framing_test: ok")
+    return 0
+}
