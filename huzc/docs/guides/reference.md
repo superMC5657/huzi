@@ -144,6 +144,14 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 
 **Box 循环引用**：RC 无法回收互相引用的 `Box`（A → B → A），其计数永不归零，需在适当时机手动 `free_box` 打破环，可用 `ref_count` 辅助诊断残留引用。编译器仅在类型定义层面拦截按值无限递归（A → B → A 的结构体 / 枚举字段），不检测运行时的 `Box` 环。
 
+### 4.11 HTTP 客户端（自举标准库 `std.http`，基于 TCP）
+
+- `http_build_request(host: str, path: str) -> str`：构造 GET 请求报文（`path` 为空时取 `/`）。
+- `http_status_code(resp: str) -> i32`：解析响应首行状态码；非 HTTP 响应或无法解析返回 `0`。
+- `http_body(resp: str) -> str`：取 `\r\n\r\n` 之后的 body；未找到头部结束符返回空串。
+- `http_parse(resp: str) -> Result<str>`：状态码 2xx 返回 `Ok(body)`，否则返回 `Err("http status <code>")`；**非 2xx 不得当成功使用**（负例 `http_status_non2xx`）。
+- `http_get(host: str, port: i32, path: str) -> Result<str>`：发起 GET 请求，返回完整 body（2xx）或错误信息。
+
 ---
 
 ## 5. 运行时错误列表
