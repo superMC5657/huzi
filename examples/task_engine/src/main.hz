@@ -1,0 +1,158 @@
+import models
+import std.log
+import std.timex
+import std.fsx
+import std.json
+import alloc.vec_algo
+import alloc.stringx
+import alloc.queue
+import core.assert
+
+fn main() -> i32 {
+    let start_ts = timex::now_ts()
+    log::info(concat("=== 任务引擎与多维指标分析流水线启动 [", timex::now_str(), "] ==="))
+
+    // 1. defer 延迟善后 (保证逆序执行与确定性资源清理)
+    defer log::info(concat("=== 任务引擎工作流安全关闭，总耗时: ", to_string(timex::elapsed_ms(start_ts)), " ms ==="))
+    defer log::info("--- [DEFER] 释放工作流锁与内存缓存池 ---")
+
+    // 2. 批量创建任务实体 (使用 struct 和 models::create_task)
+    let t1: Task = models::create_task(101, "SyncUsers", "network", 5, 250)
+    let t2: Task = models::create_task(102, "CalcPayroll", "finance", 4, 800)
+    let t3: Task = models::create_task(103, "CompressLog", "io", 2, 120)
+    let t4: Task = models::create_task(104, "TrainModel", "compute", 5, 1500)
+    let t5: Task = models::create_task(105, "AuditLedger", "finance", 3, 430)
+    let t6: Task = models::create_task(106, "RenderVideo", "compute", 4, 960)
+
+    // 3. Trait 接口方法调用 (静态分发验证)
+    log::info("--- [Trait] 测试实体摘要与优先级判定 ---")
+    log::info(t1.format_summary())
+    log::info(concat("  -> 是否紧急任务: ", to_string(t1.is_urgent())))
+    log::info(t3.format_summary())
+    log::info(concat("  -> 是否紧急任务: ", to_string(t3.is_urgent())))
+
+    // 4. 工作流队列调度 (使用 alloc.queue 实现先进先出 FIFO 调度)
+    log::info("--- [Queue] 任务推入 FIFO 调度队列 ---")
+    let mut task_queue = vec<i32>()
+    queue::queue_push(task_queue, 101)
+    queue::queue_push(task_queue, 102)
+    queue::queue_push(task_queue, 103)
+    queue::queue_push(task_queue, 104)
+    queue::queue_push(task_queue, 105)
+    queue::queue_push(task_queue, 106)
+    log::info(concat("队列初始化就绪，待调度任务数: ", to_string(len(task_queue))))
+
+    // 模拟调度循环出队
+    let mut dispatched_count = 0
+    while len(task_queue) > 0 {
+        let pop_res = queue::queue_pop(task_queue)
+        if pop_res.0 {
+            dispatched_count = dispatched_count + 1
+        }
+    }
+    log::info(concat("队列调度完毕，成功派发任务数: ", to_string(dispatched_count)))
+    assert::assert_eq_i32(dispatched_count, 6)
+
+    // 5. 枚举与代数数据类型模式匹配 (match on TaskState with Payload)
+    log::info("--- [Enum & Match] 任务状态机流转与模式匹配 ---")
+    let s_pending = TaskState::Pending
+    let s_running = TaskState::Processing("Worker-Alpha")
+    let s_done = TaskState::Done(88, "数据校验和验证通过")
+    let s_failed = TaskState::Failed("上游网关连接超时")
+
+    log::info(concat("状态测试 1: ", models::describe_state(s_pending)))
+    log::info(concat("状态测试 2: ", models::describe_state(s_running)))
+    log::info(concat("状态测试 3: ", models::describe_state(s_done)))
+    log::info(concat("状态测试 4: ", models::describe_state(s_failed)))
+
+    // 6. 数值算法指标分析 (使用 alloc.vec_algo)
+    log::info("--- [vec_algo] 业务指标快速排序、求和、极值与二分查找 ---")
+    let mut amounts = vec(250, 800, 120, 1500, 430, 960)
+    let total_amount = vec_algo::vec_sum_i32(amounts)
+    let max_val_res = vec_algo::vec_max_i32(amounts)
+    let min_val_res = vec_algo::vec_min_i32(amounts)
+
+    log::info(concat("业务量总和: ", to_string(total_amount)))
+    log::info(concat("单笔最大值: ", to_string(max_val_res.1)))
+    log::info(concat("单笔最小值: ", to_string(min_val_res.1)))
+    assert::assert_eq_i32(total_amount, 4060)
+
+    // 原地快速排序
+    vec_algo::vec_sort_i32(amounts)
+    let last_idx = len(amounts) - 1
+    log::info(concat("快速排序完成，升序首项: ", to_string(amounts[0]), "，末项: ", to_string(amounts[last_idx])))
+    assert::assert_eq_i32(amounts[0], 120)
+    assert::assert_eq_i32(amounts[last_idx], 1500)
+
+    // 二分查找目标值 800
+    let found_idx = vec_algo::vec_binary_search_i32(amounts, 800)
+    log::info(concat("二分查找业务量 800 的目标索引: ", to_string(found_idx)))
+    assert::assert_true(found_idx >= 0)
+    assert::assert_eq_i32(amounts[found_idx], 800)
+
+    // 7. 哈希字典分类汇总 (Map)
+    log::info("--- [Map] 业务类别多维聚合 ---")
+    let mut cat_map = map_new()
+    map_put(cat_map, "network", t1.amount)
+    map_put(cat_map, "finance", t2.amount + t5.amount)
+    map_put(cat_map, "io", t3.amount)
+    map_put(cat_map, "compute", t4.amount + t6.amount)
+
+    log::info(concat("聚合类别数: ", to_string(map_len(cat_map))))
+    let fin_val = map_get(cat_map, "finance")
+    log::info(concat("金融类别合计: ", to_string(fin_val.1)))
+    assert::assert_eq_i32(fin_val.1, 1230)
+
+    // 8. JSON 序列化与文件 I/O (std.json & std.fsx)
+    log::info("--- [JSON & File I/O] 报表持久化与还原校验 ---")
+    let mut json_keys = vec<str>()
+    push(json_keys, "compute")
+    push(json_keys, "finance")
+    push(json_keys, "io")
+    push(json_keys, "network")
+
+    let json_str = json::stringify_map(cat_map, json_keys)
+    log::info(concat("生成的聚合报表 JSON: ", json_str))
+
+    let report_file = "task_report.json"
+    let mut report_content = vec<str>()
+    push(report_content, json_str)
+    let write_success = fsx::write_lines(report_file, report_content)
+    assert::assert_true(write_success)
+    log::info(concat("报表已写入: ", report_file))
+
+    // 读回文件并反序列化验证
+    let read_res = fsx::read_lines(report_file)
+    assert::assert_true(read_res.0)
+    let loaded_lines: vec<str> = read_res.1
+    let parse_res = json::parse_i32_map(loaded_lines[0])
+    assert::assert_true(parse_res.0)
+    let parsed_map: Map = parse_res.1
+
+    let compute_val = map_get(parsed_map, "compute")
+    assert::assert_true(compute_val.0)
+    assert::assert_eq_i32(compute_val.1, 2460)
+    log::info("磁盘报表读取并解析校验成功，数据完整无误！")
+
+    // 9. 使用 stringx 打印终端精美看板
+    print("")
+    print(stringx::repeat("=", 70))
+    print("                智能任务调度与指标分析看板")
+    print(stringx::repeat("=", 70))
+    print(concat(stringx::pad_right("ID", 8, " "), stringx::pad_right("任务名", 16, " "), stringx::pad_right("类别", 12, " "), stringx::pad_right("业务量", 10, " "), stringx::pad_right("紧急度", 10, " "), "状态"))
+    print(stringx::repeat("-", 70))
+
+    print(concat(stringx::pad_right(to_string(t1.id), 8, " "), stringx::pad_right(t1.name, 16, " "), stringx::pad_right(t1.category, 12, " "), stringx::pad_right(to_string(t1.amount), 10, " "), stringx::pad_right(to_string(t1.priority), 10, " "), "已完成"))
+    print(concat(stringx::pad_right(to_string(t2.id), 8, " "), stringx::pad_right(t2.name, 16, " "), stringx::pad_right(t2.category, 12, " "), stringx::pad_right(to_string(t2.amount), 10, " "), stringx::pad_right(to_string(t2.priority), 10, " "), "已完成"))
+    print(concat(stringx::pad_right(to_string(t3.id), 8, " "), stringx::pad_right(t3.name, 16, " "), stringx::pad_right(t3.category, 12, " "), stringx::pad_right(to_string(t3.amount), 10, " "), stringx::pad_right(to_string(t3.priority), 10, " "), "已完成"))
+    print(concat(stringx::pad_right(to_string(t4.id), 8, " "), stringx::pad_right(t4.name, 16, " "), stringx::pad_right(t4.category, 12, " "), stringx::pad_right(to_string(t4.amount), 10, " "), stringx::pad_right(to_string(t4.priority), 10, " "), "已完成"))
+    print(concat(stringx::pad_right(to_string(t5.id), 8, " "), stringx::pad_right(t5.name, 16, " "), stringx::pad_right(t5.category, 12, " "), stringx::pad_right(to_string(t5.amount), 10, " "), stringx::pad_right(to_string(t5.priority), 10, " "), "已完成"))
+    print(concat(stringx::pad_right(to_string(t6.id), 8, " "), stringx::pad_right(t6.name, 16, " "), stringx::pad_right(t6.category, 12, " "), stringx::pad_right(to_string(t6.amount), 10, " "), stringx::pad_right(to_string(t6.priority), 10, " "), "已完成"))
+
+    print(stringx::repeat("-", 70))
+    print(concat("汇总指标 | 任务总数: 6 | 总业务量: ", to_string(total_amount), " | 单笔极值: ", to_string(max_val_res.1), " | 状态: 全部正常"))
+    print(stringx::repeat("=", 70))
+    print("")
+
+    return 0
+}

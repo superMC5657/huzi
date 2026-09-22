@@ -1,0 +1,320 @@
+// hzlex —— 用 Huzi 写的 Huzi 词法器(自举演示)。
+//
+// 与 huzc/crates/huzi-lexer 同一前端语义:
+//   * 注释:`//` 与 `#` 到行尾
+//   * 双字符运算符:== != <= >= && || -> => :: ..
+//   * 数字:整数 / 小数(小数点后须有数字;`1..2` 为 int + .. + int)
+//   * 字符串:"...";转义 \n \t \r \" \\ \0,其余转义取该字节本身
+//   * 字符:'x' / '\n' 等
+//   * 标识符:[A-Za-z_][A-Za-z0-9_]*(非 ASCII 字节归入标识符,不丢字节)
+//
+// 输出为平行数组 kinds/texts/lines/cols;kind ∈
+//   kw | ident | int | float | string | char | punct | eof
+fn is_digit(c: i32) -> bool {
+    return c >= 48 && c <= 57
+}
+
+fn is_ident_start(c: i32) -> bool {
+    if c >= 97 && c <= 122 {
+        return true
+    }
+    if c >= 65 && c <= 90 {
+        return true
+    }
+    if c == 95 {
+        return true
+    }
+    if c < 0 {
+        return true
+    }
+    return false
+}
+
+fn is_ident_cont(c: i32) -> bool {
+    if is_ident_start(c) {
+        return true
+    }
+    return is_digit(c)
+}
+
+fn is_kw(name: str) -> bool {
+    if name == "fn" {
+        return true
+    }
+    if name == "struct" {
+        return true
+    }
+    if name == "enum" {
+        return true
+    }
+    if name == "match" {
+        return true
+    }
+    if name == "let" {
+        return true
+    }
+    if name == "mut" {
+        return true
+    }
+    if name == "if" {
+        return true
+    }
+    if name == "else" {
+        return true
+    }
+    if name == "elif" {
+        return true
+    }
+    if name == "for" {
+        return true
+    }
+    if name == "in" {
+        return true
+    }
+    if name == "while" {
+        return true
+    }
+    if name == "return" {
+        return true
+    }
+    if name == "import" {
+        return true
+    }
+    if name == "export" {
+        return true
+    }
+    if name == "break" {
+        return true
+    }
+    if name == "continue" {
+        return true
+    }
+    if name == "defer" {
+        return true
+    }
+    if name == "trait" {
+        return true
+    }
+    if name == "impl" {
+        return true
+    }
+    if name == "true" {
+        return true
+    }
+    if name == "false" {
+        return true
+    }
+    return false
+}
+
+/// 转义字节的语义值(输入为反斜杠后的那个字节)。
+fn escape_byte(e: i32) -> i32 {
+    if e == 110 {
+        return 10
+    }
+    if e == 116 {
+        return 9
+    }
+    if e == 114 {
+        return 13
+    }
+    if e == 48 {
+        return 0
+    }
+    return e
+}
+
+/// 跳过空白与注释;返回 (i, line, col)。
+fn skip_trivia(src: str, from: i32, from_line: i32, from_col: i32) -> (i32, i32, i32) {
+    let n = len(src)
+    let mut i = from
+    let mut line = from_line
+    let mut col = from_col
+    while i < n {
+        let c = src[i]
+        if c == 32 || c == 9 || c == 13 {
+            i = i + 1
+            col = col + 1
+        } elif c == 10 {
+            i = i + 1
+            line = line + 1
+            col = 1
+        } elif c == 47 && i + 1 < n && src[i + 1] == 47 {
+            while i < n && src[i] != 10 {
+                i = i + 1
+                col = col + 1
+            }
+        } elif c == 35 {
+            while i < n && src[i] != 10 {
+                i = i + 1
+                col = col + 1
+            }
+        } else {
+            break
+        }
+    }
+    return (i, line, col)
+}
+
+/// 字符串字面量(假定 src[i] == '"');成功时推入 token 并返回
+/// (true, i, line, col)。
+fn lex_string(src: str, from: i32, from_line: i32, from_col: i32, kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, i32, i32, i32) {
+    let n = len(src)
+    let mut i = from + 1
+    let mut col = from_col + 1
+    let mut bytes = vec<i32>()
+    let mut closed = false
+    while i < n {
+        let d = src[i]
+        if d == 10 {
+            break
+        }
+        if d == 34 {
+            closed = true
+            i = i + 1
+            col = col + 1
+            break
+        }
+        if d == 92 && i + 1 < n {
+            push(bytes, escape_byte(src[i + 1]))
+            i = i + 2
+            col = col + 2
+        } else {
+            push(bytes, d)
+            i = i + 1
+            col = col + 1
+        }
+    }
+    if !closed {
+        return (false, i, from_line, col)
+    }
+    push(kinds, "string")
+    push(texts, str_from_bytes(bytes))
+    push(lines, from_line)
+    push(cols, from_col)
+    return (true, i, from_line, col)
+}
+
+/// 字符字面量(假定 src[i] == '\'')。
+fn lex_char(src: str, from: i32, from_line: i32, from_col: i32, kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, i32, i32, i32) {
+    let n = len(src)
+    let mut i = from + 1
+    let mut col = from_col + 1
+    if i >= n {
+        return (false, i, from_line, col)
+    }
+    let mut val = 0
+    if src[i] == 92 && i + 1 < n {
+        val = escape_byte(src[i + 1])
+        i = i + 2
+        col = col + 2
+    } else {
+        val = src[i]
+        i = i + 1
+        col = col + 1
+    }
+    if i >= n || src[i] != 39 {
+        return (false, i, from_line, col)
+    }
+    i = i + 1
+    col = col + 1
+    push(kinds, "char")
+    push(texts, to_string(val))
+    push(lines, from_line)
+    push(cols, from_col)
+    return (true, i, from_line, col)
+}
+
+fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
+    let mut kinds = vec<str>()
+    let mut texts = vec<str>()
+    let mut lines = vec<i32>()
+    let mut cols = vec<i32>()
+    let mut i = 0
+    let mut line = 1
+    let mut col = 1
+    let mut ok = true
+    let n = len(src)
+    while i < n && ok {
+        let t = skip_trivia(src, i, line, col)
+        i = t.0
+        line = t.1
+        col = t.2
+        if i >= n {
+            break
+        }
+        let c = src[i]
+        let start_col = col
+        if is_ident_start(c) {
+            let start = i
+            while i < n && is_ident_cont(src[i]) {
+                i = i + 1
+                col = col + 1
+            }
+            let name = substring(src, start, i)
+            push(kinds, if is_kw(name) { "kw" } else { "ident" })
+            push(texts, name)
+            push(lines, line)
+            push(cols, start_col)
+        } elif is_digit(c) {
+            let start = i
+            let mut is_float = false
+            while i < n && is_digit(src[i]) {
+                i = i + 1
+                col = col + 1
+            }
+            if i + 1 < n && src[i] == 46 && src[i + 1] != 46 && is_digit(src[i + 1]) {
+                is_float = true
+                i = i + 1
+                col = col + 1
+                while i < n && is_digit(src[i]) {
+                    i = i + 1
+                    col = col + 1
+                }
+            }
+            push(kinds, if is_float { "float" } else { "int" })
+            push(texts, substring(src, start, i))
+            push(lines, line)
+            push(cols, start_col)
+        } elif c == 34 {
+            let r = lex_string(src, i, line, col, kinds, texts, lines, cols)
+            ok = r.0
+            i = r.1
+            col = r.3
+        } elif c == 39 {
+            let r = lex_char(src, i, line, col, kinds, texts, lines, cols)
+            ok = r.0
+            i = r.1
+            col = r.3
+        } else {
+            let mut two = ""
+            if i + 1 < n {
+                two = substring(src, i, i + 2)
+            }
+            if two == "==" || two == "!=" || two == "<=" || two == ">=" || two == "&&" || two == "||" || two == "->" || two == "=>" || two == "::" || two == ".." {
+                push(kinds, "punct")
+                push(texts, two)
+                push(lines, line)
+                push(cols, start_col)
+                i = i + 2
+                col = col + 2
+            } elif c == 40 || c == 41 || c == 123 || c == 125 || c == 91 || c == 93 || c == 44 || c == 58 || c == 59 || c == 46 || c == 43 || c == 45 || c == 42 || c == 47 || c == 37 || c == 61 || c == 60 || c == 62 || c == 33 || c == 38 || c == 124 || c == 63 {
+                push(kinds, "punct")
+                push(texts, substring(src, i, i + 1))
+                push(lines, line)
+                push(cols, start_col)
+                i = i + 1
+                col = col + 1
+            } else {
+                ok = false
+            }
+        }
+    }
+    if ok {
+        push(kinds, "eof")
+        push(texts, "")
+        push(lines, line)
+        push(cols, col)
+    }
+    return (ok, kinds, texts, lines, cols)
+}

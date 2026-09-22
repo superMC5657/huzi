@@ -1,0 +1,156 @@
+# hzparse 入口:--selftest 跑内置断言 + 全语料自解析;<file.hz> 打印单文件解析摘要。
+import lexer
+import parser
+import corpus
+import core.assert
+
+# 对源码串做“词法 + 语法”两段;返回 (lex_ok, parse_ok, stats, errs)。
+fn check_src(src: str) -> (bool, bool, vec<i32>, vec<str>) {
+    let lr = lexer::lex(src)
+    if !lr.0 {
+        let mut empty_stats = vec(0, 0, 0, 0, 0, 0, 0, 0, 0)
+        let mut lex_err = vec<str>()
+        push(lex_err, "lex failed")
+        return (false, false, empty_stats, lex_err)
+    }
+    let pr = parser::parse(lr.1, lr.2)
+    return (true, pr.0, pr.1, pr.2)
+}
+
+fn check_ok(src: str) -> vec<i32> {
+    let r = check_src(src)
+    assert::assert_true(r.0)
+    assert::assert_true(r.1)
+    return r.2
+}
+
+fn selftest_units() -> i32 {
+    # 词法复用断言(与 hzlex 自测一致的 token 约定)。
+    let mut b = vec<i32>()
+    push(b, 92)
+    push(b, 110)
+    let nl_esc = str_from_bytes(b)
+    let src = concat("fn main() -> i32 { let s = \"hi", nl_esc, "\" ; let f = 3.14 ; let r = 1..2 }")
+    let lr = lexer::lex(src)
+    assert::assert_true(lr.0)
+    let kinds = lr.1
+    let texts = lr.2
+    assert::assert_eq_str(kinds[0], "kw")
+    assert::assert_eq_str(texts[0], "fn")
+    assert::assert_eq_str(texts[4], "->")
+    assert::assert_eq_str(kinds[10], "string")
+    # 表达式 + fn 子集:单函数计数与嵌套深度。
+    let st = check_ok("fn add(a: i32, b: i32) -> i32 { return a + b }")
+    assert::assert_eq_i32(st[0], 1)
+    assert::assert_true(st[8] >= 1)
+    # 优先级链混排:比较 / 逻辑 / 算术 / 一元仍是一条合法表达式。
+    let st2 = check_ok("fn f() -> bool { return 1 + 2 * 3 == 7 && !false || -1 < 0 }")
+    assert::assert_eq_i32(st2[0], 1)
+    # struct/enum/trait/impl/let/match 全套顶层形状。
+    let shape = concat("struct Task { id: i32, name: str } ", "enum S { Pending, Done(i32, str) } ", "trait T { fn m(self) -> str } ", "impl T for Task { fn m(self: Task) -> str { return self.name } } ", "fn g(s: S) -> i32 { let e = S::Pending let n = match s { S::Pending => { 0 }, S::Done(c, _) => c, _ => 9 } return n }")
+    let st3 = check_ok(shape)
+    assert::assert_eq_i32(st3[0], 2)
+    assert::assert_eq_i32(st3[1], 1)
+    assert::assert_eq_i32(st3[2], 1)
+    assert::assert_eq_i32(st3[3], 1)
+    assert::assert_eq_i32(st3[4], 1)
+    # 泛型 / 空 vec / box / null / ? / 方法调用 / 元组下标 / if 表达式 / for-range。
+    let adv = concat("struct Pair<K, V> { key: K, val: V } ", "fn id<T>(x: T) -> T { return x } ", "fn h() -> i32 { let mut v = vec<i32>() ", "let p = Pair<i32, str> { key: 1, val: \"one\" } ", "let q = id<i32>(p.key) ", "let b2 = box(Pair<i32, i32> { key: 7, val: 8 }) ", "let t = parse_int(\"3\") ", "let u = t.1 + b2.key + q ", "let w = if u > 0 { u } else { 0 } ", "for i in 0..w { v[i] = i } ", "while w > 100 { w = w - 1 } ", "let n2 = box(1) ", "let nn: Box<Box<Node>> = null ", "return u + w }")
+    let st4 = check_ok(adv)
+    assert::assert_eq_i32(st4[0], 2)
+    assert::assert_eq_i32(st4[1], 1)
+    # import/export 与 defer/break/continue。
+    let st5 = check_ok("import std.log import alloc.stringx export assert export assert::* fn f() -> i32 { defer print(\"x\") while true { break } return 0 }")
+    assert::assert_eq_i32(st5[5], 2)
+    assert::assert_eq_i32(st5[6], 2)
+    # 负例:残缺函数定义必须失败。
+    let bad = check_src("fn broken( { ")
+    assert::assert_true(bad.0)
+    assert::assert_true(!bad.1)
+    print("hzparse units passed")
+    return 0
+}
+
+fn detect_root() -> str {
+    if read_file_ok("huzc/test/cases/01_variables_ops.hz") {
+        return ""
+    }
+    return "../../"
+}
+
+fn selftest_corpus(root: str) -> i32 {
+    let files = corpus::corpus_files(root)
+    let total = len(files)
+    let mut ok_count = 0
+    let mut fail_count = 0
+    let mut i = 0
+    while i < total {
+        let p = files[i]
+        if !read_file_ok(p) {
+            print(concat("missing ", p))
+            fail_count = fail_count + 1
+        } else {
+            let content = read_file(p)
+            let lr = lexer::lex(content)
+            if !lr.0 {
+                print(concat("lex-fail ", p))
+                fail_count = fail_count + 1
+            } else {
+                let pr = parser::parse(lr.1, lr.2)
+                if !pr.0 {
+                    let perrs = pr.2
+                    print(concat("parse-fail ", p, " :: ", perrs[0]))
+                    fail_count = fail_count + 1
+                } else {
+                    print(concat("ok ", p, " ", parser::summarize(pr.1)))
+                    ok_count = ok_count + 1
+                }
+            }
+        }
+        i = i + 1
+    }
+    print(concat("hzparse corpus: ", to_string(ok_count), " ok, ", to_string(fail_count), " failed"))
+    assert::assert_eq_i32(fail_count, 0)
+    assert::assert_true(ok_count >= corpus::corpus_min)
+    return 0
+}
+
+fn selftest() -> i32 {
+    selftest_units()
+    let root = detect_root()
+    if !read_file_ok(concat(root, "huzc/test/cases/01_variables_ops.hz")) {
+        print("hzparse: corpus not found; run from repo root or examples/hzparse")
+        return 1
+    }
+    selftest_corpus(root)
+    print("hzparse selftest passed")
+    return 0
+}
+
+fn main() -> i32 {
+    if arg_count() < 2 {
+        print("usage: hzparse <file.hz> | hzparse --selftest")
+        return 1
+    }
+    let a = arg(1)
+    if a == "--selftest" {
+        return selftest()
+    }
+    let content = read_file(a)
+    if !read_file_ok(a) {
+        print(concat("hzparse: cannot read ", a))
+        return 1
+    }
+    let r = check_src(content)
+    if !r.0 {
+        print(concat("hzparse: lex error in ", a))
+        return 1
+    }
+    if !r.1 {
+        let rerrs = r.3
+        print(concat("hzparse: parse error in ", a, " :: ", rerrs[0]))
+        return 1
+    }
+    print(concat("ok ", a, " ", parser::summarize(r.2)))
+    return 0
+}
