@@ -126,7 +126,7 @@
 
 ### 4.9 多线程并发 (Threading)
 - `spawn(func, arg: i32|i64) -> i64`: 创建子线程并传入参数，返回线程句柄。
-- `join(handle: i64) -> i32`: 等待子线程结束并获取返回值。
+- `join(handle: i64) -> i32`: 等待子线程结束并获取返回值；句柄须为整数，否则编译期拒绝（负例 `join_bad_type`）。
 - `chan_new(cap: i32) -> i64`: 创建字符串通道（容量收敛到 1..=4096），返回句柄。
 - `chan_send(ch: i64, msg: str) -> bool`: 发送消息；缓冲满时阻塞直至有空间；句柄为 null 返回 false（非 null 无效句柄未做校验，勿传垃圾值）；句柄/消息类型不匹配编译期拒绝（负例 `chan_send_bad_handle`）。
 - `chan_recv(ch: i64) -> str`: 接收消息；缓冲空时阻塞直至有消息；句柄为 null 返回空串（非 null 无效句柄未做校验，勿传垃圾值）。

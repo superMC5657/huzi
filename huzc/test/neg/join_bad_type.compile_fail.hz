@@ -1,0 +1,5 @@
+# 负例:join 句柄必须为整数,传 str 编译必须失败(exit != 0)。
+fn main() -> i32 {
+    join("bad")
+    return 0
+}
