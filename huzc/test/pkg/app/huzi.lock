@@ -1,0 +1,4 @@
+# huzi.lock 由 `huzc fetch` 生成,请勿手动编辑。
+[[package]]
+name = "my_math"
+version = "1.0.0"
