@@ -4,11 +4,12 @@ Huzi 是一种简洁、强类型、注重人体工学的静态编译型编程语
 
 `huzc` 是 Huzi 语言的官方参考编译器与工具链工程。
 
-## 工作区全景
+## 工作区全景（cwd=仓库根；`huzc/` 为当前目录）
 
 ```
 huzi/
-├── huzc/               # 编译器主工程（当前目录）
+├── check.sh            # 仓库统一本地门禁入口（四阶段聚合，cwd=仓库根，见下文“一键全部门禁”）
+├── huzc/               # 编译器主工程（当前目录，cwd=huzc 执行本文件命令）
 │   ├── crates/         # 编译器前端、后端、错误诊断与 LSP 服务
 │   ├── docs/           # 文档（USAGE 为入口，余下按主题分类）
 │   │   ├── USAGE.md / STATUS.md
@@ -16,12 +17,14 @@ huzi/
 │   │   ├── dev/          # 开发文档.md 技术架构
 │   │   └── rfc/          # 泛型设计冻结文档
 │   ├── test/           # 特性示例、标准输出快照与负例集
-│   └── test.sh         # 全自动集成测试与性能基准脚本
+│   └── test.sh         # 全自动集成测试与性能基准脚本（cwd=huzc）
+├── examples/           # Huzi 自举示例（hzlex/hzparse/task_engine，与编译器仓库同级）
 ├── editors/            # 编辑器支持与插件
 │   ├── README.md       # 编辑器支持矩阵与不支持清单说明
 │   └── vscode/         # VS Code 官方语法与 LSP 插件工程
-└── huzi-src/           # Huzi 自举标准库源码（core/alloc/std + test 自测）
-    └── README.md       # 标准库分层架构与版本索引
+├── huzi-src/           # Huzi 自举标准库源码（core/alloc/std + test 自测）
+│   └── README.md       # 标准库分层架构与版本索引
+└── .omo/               # 内部计划与会话续跑记录（plans/ + run-continuation/，只看不用、勿删）
 ```
 
 ## 快速开始
@@ -32,7 +35,7 @@ huzi/
 cargo build --workspace
 ```
 
-### 2. 运行回归测试
+### 2. 运行回归测试（cwd=huzc；仓库根请用 `bash huzc/test.sh`）
 
 ```bash
 bash test.sh
@@ -44,7 +47,7 @@ bash test.sh
 
 > **一键全部门禁**：仓库根目录的 [`../check.sh`](../check.sh) 聚合本回归脚本、`huzi-src/test.sh`、`fmt --check` 与性能抽查，提交前在根目录运行 `bash check.sh` 即可。
 
-### 3. 代码格式化
+### 3. 代码格式化（cwd=huzc；仓库根请在路径前加 `huzc/`，如 `huzc fmt --check huzc/test/cases`）
 
 ```bash
 ./target/debug/huzc fmt test/cases

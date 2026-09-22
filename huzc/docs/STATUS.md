@@ -8,7 +8,7 @@
 * 核心语言 + 编译器后端 + 工具链已闭环，可构建、可发版。
 * 路线图 7 项已全部完成：`defer` / `fmt` / `RC` / `泛型` / `Trait` / `包管理` / `网络并发`（明细见 git 历史中的 `TODO.md`）。
 * `Roadmap Q0 / Q1 / Q2` 全部达成：CI 全量门禁、性能基准门禁、边界负例补齐、泛型实参自动推导、循环引用打破示例、vec/map 参数与字段支持、生态目录去误导与手册拆分。
-* CI 状态：GitHub Actions workflow 已移除，项目后续**不做 CI**；质量门禁以本地 `bash test.sh`（回归）与 `test/bench_compare.py`（性能基准）手动执行为准。
+* CI 状态：GitHub Actions workflow 已移除，项目后续**不做 CI**；质量门禁以本地门禁为准：cwd=`huzc` 执行 `bash test.sh`（回归）与 `test/bench_compare.py`（性能基准），或 cwd=仓库根执行 `bash check.sh` / `bash huzc/test.sh`（路径前加 `huzc/` 前缀）。
 
 ## 2. 已完成清单
 
@@ -50,7 +50,7 @@
 - [x] IR 优化：`--release` / `--opt-level 0-3`
 - [x] 调试：`-g/--debug` DWARF，GDB/LLDB 按源码行调试
 - [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
-- [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接），`fmt --check test/cases` 门禁恢复可用
+- [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接），`fmt --check test/cases`（cwd=`huzc`；仓库根请用 `fmt --check huzc/test/cases`）门禁恢复可用
 - [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）
 - [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲
 - [x] 跨平台：Windows(`lld-link/msvc/mingw`)、Linux/macOS(`clang`)——按编译器宿主平台选择运行时 API 与链接器，支持各平台本机编译，暂不支持交叉编译
@@ -58,8 +58,8 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 集成回归：`bash test.sh`（62 示例 + 60 负例测试全部通过，交互示例跳过）
-- [x] 性能门禁：`test/bench_compare.py`（huzi release / Rust -O <= 2.0x）
+- [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；62 示例 + 60 负例测试全部通过，交互示例跳过）
+- [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x）
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
 
@@ -78,5 +78,5 @@
 | 架构/流水线/模块职责 | `dev/开发文档.md` |
 | 泛型冻结规则 | `rfc/rfc_p4_generics.md` |
 | 历史规划 7 项的 IN/OUT | `../.omo/plans/section3-roadmap-plan.md`（内部） |
-| 新增 builtin 同步规则 | `../AGENTS.md` 验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → test/cases 示例，同提交） |
+| 新增 builtin 同步规则 | `../AGENTS.md`（即 `huzc/AGENTS.md`，仓库根视角；cwd=`huzc/docs` 视角为 `../AGENTS.md`）验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → test/cases 示例，同提交） |
 | 本文件 | 只看状态，不看方法 |
