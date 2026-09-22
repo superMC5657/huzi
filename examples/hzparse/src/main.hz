@@ -13,7 +13,7 @@ fn check_src(src: str) -> (bool, bool, vec<i32>, vec<str>) {
         push(lex_err, "lex failed")
         return (false, false, empty_stats, lex_err)
     }
-    let pr = parser::parse(lr.1, lr.2)
+    let pr = parser::parse(lr.1, lr.2, lr.3, lr.4)
     return (true, pr.0, pr.1, pr.2)
 }
 
@@ -22,6 +22,46 @@ fn check_ok(src: str) -> vec<i32> {
     assert::assert_true(r.0)
     assert::assert_true(r.1)
     return r.2
+}
+
+# 报错串须携带行列 `line:col`(数字冒号数字);锁住报错质量。
+fn has_line_col(s: str) -> bool {
+    let n = len(s)
+    let mut i = 0
+    while i < n {
+        if s[i] == 58 {
+            if i > 0 && i + 1 < n {
+                let a = s[i - 1]
+                let b = s[i + 1]
+                if a >= 48 && a <= 57 && b >= 48 && b <= 57 {
+                    return true
+                }
+            }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+# 负例断言:词法须过、解析须败、首错须带行列;返回首错串。
+fn assert_neg(src: str) -> str {
+    let r = check_src(src)
+    assert::assert_true(r.0)
+    assert::assert_true(!r.1)
+    let errs = r.3
+    assert::assert_true(len(errs) > 0)
+    assert::assert_true(has_line_col(errs[0]))
+    return errs[0]
+}
+
+fn selftest_neg() -> i32 {
+    let e1 = assert_neg("fn f() -> i32 { return (1 + 2 }")
+    print(concat("neg unclosed-paren :: ", e1))
+    let e2 = assert_neg("fn f(a: i32 { return a }")
+    print(concat("neg broken-fn-head :: ", e2))
+    let e3 = assert_neg("fn f() -> i32 { return 1 + }")
+    print(concat("neg bad-token :: ", e3))
+    return 0
 }
 
 fn selftest_units() -> i32 {
@@ -63,10 +103,10 @@ fn selftest_units() -> i32 {
     let st5 = check_ok("import std.log import alloc.stringx export assert export assert::* fn f() -> i32 { defer print(\"x\") while true { break } return 0 }")
     assert::assert_eq_i32(st5[5], 2)
     assert::assert_eq_i32(st5[6], 2)
-    # 负例:残缺函数定义必须失败。
-    let bad = check_src("fn broken( { ")
-    assert::assert_true(bad.0)
-    assert::assert_true(!bad.1)
+    # 负例:残缺函数定义必须失败且首错携带行列。
+    let bad_err = assert_neg("fn broken( { ")
+    print(concat("neg broken-fn :: ", bad_err))
+    selftest_neg()
     print("hzparse units passed")
     return 0
 }
@@ -96,7 +136,7 @@ fn selftest_corpus(root: str) -> i32 {
                 print(concat("lex-fail ", p))
                 fail_count = fail_count + 1
             } else {
-                let pr = parser::parse(lr.1, lr.2)
+                let pr = parser::parse(lr.1, lr.2, lr.3, lr.4)
                 if !pr.0 {
                     let perrs = pr.2
                     print(concat("parse-fail ", p, " :: ", perrs[0]))

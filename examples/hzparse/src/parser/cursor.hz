@@ -82,8 +82,24 @@ fn pz_next_kind(kinds: vec<str>, pos: vec<i32>, off: i32, k: str) -> bool {
     return kinds[j] == k
 }
 
-fn pz_fail(errs: vec<str>, texts: vec<str>, pos: vec<i32>, msg: str) -> bool {
-    push(errs, concat(msg, " @tok", to_string(pos[0]), " <", pz_text(texts, pos), ">"))
+# 当前 token 的行列文本 `line:col`(越界时回退到末 token 行列)。
+fn pz_loc(lines: vec<i32>, cols: vec<i32>, pos: vec<i32>) -> str {
+    let n = len(lines)
+    if n == 0 {
+        return "1:1"
+    }
+    let mut j = pos[0]
+    if j < 0 {
+        j = 0
+    }
+    if j >= n {
+        j = n - 1
+    }
+    return concat(to_string(lines[j]), ":", to_string(cols[j]))
+}
+
+fn pz_fail(errs: vec<str>, texts: vec<str>, pos: vec<i32>, lines: vec<i32>, cols: vec<i32>, msg: str) -> bool {
+    push(errs, concat(msg, " @tok", to_string(pos[0]), " <", pz_text(texts, pos), "> ", pz_loc(lines, cols, pos)))
     return false
 }
 
