@@ -1,0 +1,6 @@
+# 负例:tcp_send 需 2 个实参(sock, data),缺参编译必须失败(exit != 0)。
+fn main() -> i32 {
+    let sock = tcp_connect("127.0.0.1", 28081)
+    tcp_send(sock)
+    return 0
+}

@@ -120,7 +120,7 @@
 - `tcp_connect(host: str, port: i32) -> i32`: 连接服务器，返回套接字描述符（失败返回 `-1`）。
 - `tcp_listen(port: i32) -> i32`: 开启 TCP 监听。
 - `tcp_accept(listener: i32) -> i32`: 接受传入连接。
-- `tcp_send(sock: i32, data: str) -> i32`: 发送字符串。
+- `tcp_send(sock: i32, data: str) -> i32`: 发送字符串；实参个数/类型不匹配编译期拒绝（负例 `tcp_send_arity`）。
 - `tcp_recv(sock: i32, max_len: i32) -> str`: 接收最多指定字节数。
 - `tcp_close(sock: i32)`: 关闭套接字。
 
