@@ -1,0 +1,101 @@
+# parser/cursor —— 游标原语(位置/种类/文本探针、前进、失败与回溯点)，无依赖。
+# 源自 parser.hz 同名区段逐行搬移，仅加本文件头注释。
+# ---- 游标原语 ----
+fn pz_eof(kinds: vec<str>, pos: vec<i32>) -> bool {
+    return pos[0] >= len(kinds)
+}
+
+fn pz_kind(kinds: vec<str>, pos: vec<i32>) -> str {
+    if pos[0] >= len(kinds) {
+        return "eof"
+    }
+    return kinds[pos[0]]
+}
+
+fn pz_text(texts: vec<str>, pos: vec<i32>) -> str {
+    if pos[0] >= len(texts) {
+        return ""
+    }
+    return texts[pos[0]]
+}
+
+fn pz_at(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, t: str) -> bool {
+    if pos[0] >= len(kinds) {
+        return false
+    }
+    if kinds[pos[0]] != "punct" {
+        return false
+    }
+    return texts[pos[0]] == t
+}
+
+# 纯文本比较(标识拼写专用):调用方须已用 kind 门控(ident/kw)。
+fn pz_at_word(texts: vec<str>, pos: vec<i32>, t: str) -> bool {
+    if pos[0] >= len(texts) {
+        return false
+    }
+    return texts[pos[0]] == t
+}
+
+fn pz_at_kind(kinds: vec<str>, pos: vec<i32>, k: str) -> bool {
+    if pos[0] >= len(kinds) {
+        return false
+    }
+    return kinds[pos[0]] == k
+}
+
+fn pz_kw(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, w: str) -> bool {
+    if pos[0] >= len(kinds) {
+        return false
+    }
+    return kinds[pos[0]] == "kw" && texts[pos[0]] == w
+}
+
+fn pz_is_ident(kinds: vec<str>, texts: vec<str>, pos: vec<i32>) -> bool {
+    if pos[0] >= len(kinds) {
+        return false
+    }
+    return kinds[pos[0]] == "ident"
+}
+
+fn pz_next(pos: vec<i32>) -> i32 {
+    pos[0] = pos[0] + 1
+    return pos[0]
+}
+
+fn pz_next_at(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, off: i32, t: str) -> bool {
+    let j = pos[0] + off
+    if j >= len(texts) {
+        return false
+    }
+    if kinds[j] != "punct" {
+        return false
+    }
+    return texts[j] == t
+}
+
+fn pz_next_kind(kinds: vec<str>, pos: vec<i32>, off: i32, k: str) -> bool {
+    let j = pos[0] + off
+    if j >= len(kinds) {
+        return false
+    }
+    return kinds[j] == k
+}
+
+fn pz_fail(errs: vec<str>, texts: vec<str>, pos: vec<i32>, msg: str) -> bool {
+    push(errs, concat(msg, " @tok", to_string(pos[0]), " <", pz_text(texts, pos), ">"))
+    return false
+}
+
+# 回溯点:投机解析(`vec<T>` / 泛型)失败时连同错误表一起回滚,
+# 避免把试探期的错误泄漏为正式错误。
+fn pz_mark(errs: vec<str>) -> i32 {
+    return len(errs)
+}
+
+fn pz_rollback(errs: vec<str>, mark: i32) -> i32 {
+    while len(errs) > mark {
+        pop(errs)
+    }
+    return mark
+}
