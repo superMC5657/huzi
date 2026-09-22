@@ -10,7 +10,7 @@ Huzi 编程语言（`.hz`）的 VS Code 语法高亮与基础语言配置。当�
 - 括号/引号自动闭合，`{}` 块自动缩进
 - 扩展图标
 
-关键字与内置函数表与 `huzc` 的 `huzi-lexer`（`crates/huzi-lexer/src/token.rs`）及 `docs/USAGE.md` 标准库章节对齐；编译器加新关键字或内置函数时请同步 `syntaxes/huzi.tmLanguage.json` 的对应正则。
+关键字与内置函数表与 `huzc` 的 `huzi-lexer`（`huzc/crates/huzi-lexer/src/token.rs`，仓库根相对路径）及项目级文档 `docs/guides/reference.md`（仓库根相对路径，本目录视角为 `../../docs/guides/reference.md`）对齐；编译器加新关键字或内置函数时请同步 `syntaxes/huzi.tmLanguage.json` 的对应正则。
 
 ## 本地安装（开发版）
 
