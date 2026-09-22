@@ -1,0 +1,429 @@
+# parser/stmt —— 语句(顶层定义/控制流/块/分发)，依赖 cursor/typ/expr/atom。
+# 源自 parser.hz 语句区段(参数表三函数已随类型搬移至 typ.hz)逐行搬移。
+import cursor
+import typ
+import expr
+import atom
+
+fn pz_fn_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected function name")
+    }
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "<") {
+        if !typ::pz_typarams(kinds, texts, pos, errs) {
+            return false
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "(") {
+        return cursor::pz_fail(errs, texts, pos, "expected '(' after function name")
+    }
+    if !typ::pz_params(kinds, texts, pos, errs, false) {
+        return false
+    }
+    if cursor::pz_at(kinds, texts, pos, "->") {
+        cursor::pz_next(pos)
+        if !typ::pz_type(kinds, texts, pos, errs) {
+            return false
+        }
+    }
+    if !pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    stats[0] = stats[0] + 1
+    return true
+}
+
+fn pz_struct_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected struct name")
+    }
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "<") {
+        if !typ::pz_typarams(kinds, texts, pos, errs) {
+            return false
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return cursor::pz_fail(errs, texts, pos, "expected '{' after struct name")
+    }
+    cursor::pz_next(pos)
+    while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_eof(kinds, pos) {
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected field name")
+        }
+        cursor::pz_next(pos)
+        if !cursor::pz_at(kinds, texts, pos, ":") {
+            return cursor::pz_fail(errs, texts, pos, "expected ':' after field name")
+        }
+        cursor::pz_next(pos)
+        if !typ::pz_type(kinds, texts, pos, errs) {
+            return false
+        }
+        if cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+        } else {
+            break
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return cursor::pz_fail(errs, texts, pos, "expected '}' after struct fields")
+    }
+    cursor::pz_next(pos)
+    stats[1] = stats[1] + 1
+    return true
+}
+
+fn pz_enum_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected enum name")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return cursor::pz_fail(errs, texts, pos, "expected '{' after enum name")
+    }
+    cursor::pz_next(pos)
+    while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_eof(kinds, pos) {
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected variant name")
+        }
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "(") {
+            cursor::pz_next(pos)
+            if !cursor::pz_at(kinds, texts, pos, ")") {
+                if !typ::pz_type(kinds, texts, pos, errs) {
+                    return false
+                }
+                while cursor::pz_at(kinds, texts, pos, ",") {
+                    cursor::pz_next(pos)
+                    if cursor::pz_at(kinds, texts, pos, ")") {
+                        break
+                    }
+                    if !typ::pz_type(kinds, texts, pos, errs) {
+                        return false
+                    }
+                }
+            }
+            if !cursor::pz_at(kinds, texts, pos, ")") {
+                return cursor::pz_fail(errs, texts, pos, "expected ')' after variant payloads")
+            }
+            cursor::pz_next(pos)
+        }
+        if cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+        } else {
+            break
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return cursor::pz_fail(errs, texts, pos, "expected '}' after enum variants")
+    }
+    cursor::pz_next(pos)
+    stats[2] = stats[2] + 1
+    return true
+}
+
+fn pz_trait_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected trait name")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return cursor::pz_fail(errs, texts, pos, "expected '{' after trait name")
+    }
+    cursor::pz_next(pos)
+    while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_eof(kinds, pos) {
+        if !cursor::pz_kw(kinds, texts, pos, "fn") {
+            return cursor::pz_fail(errs, texts, pos, "expected 'fn' in trait definition")
+        }
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected method name in trait")
+        }
+        cursor::pz_next(pos)
+        if !cursor::pz_at(kinds, texts, pos, "(") {
+            return cursor::pz_fail(errs, texts, pos, "expected '(' after method name")
+        }
+        if !typ::pz_params(kinds, texts, pos, errs, true) {
+            return false
+        }
+        if cursor::pz_at(kinds, texts, pos, "->") {
+            cursor::pz_next(pos)
+            if !typ::pz_type(kinds, texts, pos, errs) {
+                return false
+            }
+        }
+        if cursor::pz_at(kinds, texts, pos, ";") {
+            cursor::pz_next(pos)
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return cursor::pz_fail(errs, texts, pos, "expected '}' after trait methods")
+    }
+    cursor::pz_next(pos)
+    stats[3] = stats[3] + 1
+    return true
+}
+
+fn pz_impl_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected trait name after 'impl'")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_kw(kinds, texts, pos, "for") {
+        return cursor::pz_fail(errs, texts, pos, "expected 'for' after trait name")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected target type after 'for'")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return cursor::pz_fail(errs, texts, pos, "expected '{' after target type")
+    }
+    cursor::pz_next(pos)
+    while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_eof(kinds, pos) {
+        if !cursor::pz_kw(kinds, texts, pos, "fn") {
+            return cursor::pz_fail(errs, texts, pos, "expected 'fn' in impl block")
+        }
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected method name in impl")
+        }
+        cursor::pz_next(pos)
+        if !cursor::pz_at(kinds, texts, pos, "(") {
+            return cursor::pz_fail(errs, texts, pos, "expected '(' after method name")
+        }
+        if !typ::pz_params(kinds, texts, pos, errs, true) {
+            return false
+        }
+        if cursor::pz_at(kinds, texts, pos, "->") {
+            cursor::pz_next(pos)
+            if !typ::pz_type(kinds, texts, pos, errs) {
+                return false
+            }
+        }
+        if !pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+        stats[0] = stats[0] + 1
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return cursor::pz_fail(errs, texts, pos, "expected '}' after impl block")
+    }
+    cursor::pz_next(pos)
+    stats[4] = stats[4] + 1
+    return true
+}
+
+fn pz_import(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected module name after 'import'")
+    }
+    cursor::pz_next(pos)
+    while cursor::pz_at(kinds, texts, pos, ".") || cursor::pz_at(kinds, texts, pos, "::") {
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected name after '.' in import")
+        }
+        cursor::pz_next(pos)
+    }
+    stats[5] = stats[5] + 1
+    return true
+}
+
+fn pz_export(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected name after 'export'")
+    }
+    cursor::pz_next(pos)
+    while cursor::pz_at(kinds, texts, pos, ".") || cursor::pz_at(kinds, texts, pos, "::") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "*") {
+            cursor::pz_next(pos)
+            break
+        }
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, "expected name after '.' in export")
+        }
+        cursor::pz_next(pos)
+    }
+    if cursor::pz_at(kinds, texts, pos, ";") {
+        cursor::pz_next(pos)
+    }
+    stats[6] = stats[6] + 1
+    return true
+}
+
+fn pz_let(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if cursor::pz_kw(kinds, texts, pos, "mut") {
+        cursor::pz_next(pos)
+    }
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected variable name")
+    }
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, ":") {
+        cursor::pz_next(pos)
+        if !typ::pz_type(kinds, texts, pos, errs) {
+            return false
+        }
+    }
+    if cursor::pz_at(kinds, texts, pos, "=") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+    }
+    stats[7] = stats[7] + 1
+    return true
+}
+
+fn pz_if_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    if !pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    while cursor::pz_kw(kinds, texts, pos, "elif") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+        if !pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+    }
+    if cursor::pz_kw(kinds, texts, pos, "else") {
+        cursor::pz_next(pos)
+        if !pz_block(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+    }
+    return true
+}
+
+fn pz_for_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, "expected loop variable name")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_kw(kinds, texts, pos, "in") {
+        return cursor::pz_fail(errs, texts, pos, "expected 'in' after loop variable")
+    }
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    if cursor::pz_at(kinds, texts, pos, "..") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+    }
+    return pz_block(kinds, texts, pos, errs, stats, dep, maxd)
+}
+
+fn pz_while_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    return pz_block(kinds, texts, pos, errs, stats, dep, maxd)
+}
+
+fn pz_block(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return cursor::pz_fail(errs, texts, pos, "expected '{'")
+    }
+    cursor::pz_next(pos)
+    while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_eof(kinds, pos) {
+        if cursor::pz_at_kind(kinds, pos, "eof") {
+            return cursor::pz_fail(errs, texts, pos, "unexpected end in block")
+        }
+        if !pz_stmt(kinds, texts, pos, errs, stats, dep, maxd) {
+            return false
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return cursor::pz_fail(errs, texts, pos, "expected '}'")
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+fn pz_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>) -> bool {
+    if cursor::pz_at_kind(kinds, pos, "eof") {
+        return cursor::pz_fail(errs, texts, pos, "unexpected end of file")
+    }
+    if cursor::pz_kw(kinds, texts, pos, "import") {
+        return pz_import(kinds, texts, pos, errs, stats)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "export") {
+        return pz_export(kinds, texts, pos, errs, stats)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "fn") {
+        return pz_fn_def(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "struct") {
+        return pz_struct_def(kinds, texts, pos, errs, stats)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "enum") {
+        return pz_enum_def(kinds, texts, pos, errs, stats)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "trait") {
+        return pz_trait_def(kinds, texts, pos, errs, stats)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "impl") {
+        return pz_impl_def(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "let") {
+        return pz_let(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "return") {
+        cursor::pz_next(pos)
+        if atom::pz_expr_start(kinds, texts, pos) {
+            return expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd)
+        }
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "if") {
+        return pz_if_stmt(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "for") {
+        return pz_for_stmt(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "while") {
+        return pz_while_stmt(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "break") || cursor::pz_kw(kinds, texts, pos, "continue") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "defer") {
+        cursor::pz_next(pos)
+        return pz_stmt(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if cursor::pz_at(kinds, texts, pos, "{") {
+        return pz_block(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd) {
+        return false
+    }
+    if cursor::pz_at(kinds, texts, pos, "=") {
+        cursor::pz_next(pos)
+        return expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd)
+    }
+    return true
+}
