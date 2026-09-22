@@ -31,6 +31,9 @@ struct Monomorphizer {
     instantiated_structs: HashMap<String, StructDef>,
     instantiated_fns: HashMap<String, (FnStmt, Span)>,
     inferrer: infer::TypeInferrer,
+    /// 当前正在遍历的语句位置(调用点诊断用):进入每条语句前更新,
+    /// 诊断构造时回填行列,保证错误含 span 位置。
+    current_span: Option<Span>,
 }
 
 impl Monomorphizer {
@@ -49,6 +52,15 @@ impl Monomorphizer {
             instantiated_structs: HashMap::new(),
             instantiated_fns: HashMap::new(),
             inferrer: infer::TypeInferrer::new(),
+            current_span: None,
+        }
+    }
+
+    /// 以当前语句位置构造诊断:有位置则带行列,无则退回全局错误。
+    fn diag(&self, message: String) -> HuziError {
+        match self.current_span {
+            Some(span) => HuziError::new(message, span.line, span.column),
+            None => HuziError::new_global(message),
         }
     }
 
@@ -58,22 +70,24 @@ impl Monomorphizer {
                 for a in args.iter_mut() {
                     self.monomorphize_type(a)?;
                 }
-                if name == "vec" {
+                // 内置容器不做单态化:`vec<T>` 与 `Map<K,V>` 直接放行。
+                if name == "vec" || name == "map" || name == "Map" || name == "HashMap" {
                     return Ok(());
                 }
                 let template = self.struct_templates.get(name).cloned().ok_or_else(|| {
                     let hint = did_you_mean(name, self.struct_templates.keys().map(|s| s.as_str()));
-                    match hint {
-                        Some(h) => HuziError::new_global(format!(
-                            "Unknown generic struct '{}', did you mean '{}'?",
-                            name, h
-                        )),
-                        None => HuziError::new_global(format!("Unknown generic struct '{}'", name)),
+                    let mut message = format!(
+                        "未知泛型结构体 '{}':期望已定义的泛型结构体,实际未找到",
+                        name
+                    );
+                    if let Some(h) = hint {
+                        message.push_str(&format!(";帮助:{}", h));
                     }
+                    self.diag(message)
                 })?;
                 if args.len() != template.type_params.len() {
-                    return Err(HuziError::new_global(format!(
-                        "Generic struct '{}' expects {} type argument(s), got {}",
+                    return Err(self.diag(format!(
+                        "泛型结构体 '{}' 类型实参数量不匹配:期望 {} 个,实际 {} 个",
                         name,
                         template.type_params.len(),
                         args.len()
@@ -145,9 +159,13 @@ impl Monomorphizer {
         // 实参类型推导：未提供显式类型实参时尝试推导
         if type_args.is_empty() {
             if let Some((template, _)) = self.fn_template_for(callee_name) {
-                let inferred =
-                    self.inferrer
-                        .infer_call_type_args(callee_name, template, arguments)?;
+                let inferred = self
+                    .inferrer
+                    .infer_call_type_args(callee_name, template, arguments)
+                    .map_err(|e| match self.current_span {
+                        Some(span) => e.with_position(span.line, span.column),
+                        None => e,
+                    })?;
                 *type_args = inferred;
             }
         }
@@ -163,23 +181,23 @@ impl Monomorphizer {
             .cloned()
             .ok_or_else(|| {
                 let hint = did_you_mean(callee_name, self.fn_templates.keys().map(|s| s.as_str()));
-                match hint {
-                    Some(h) => HuziError::new_global(format!(
-                        "Unknown generic function '{}', did you mean '{}'?",
-                        callee_name, h
-                    )),
-                    None => HuziError::new_global(format!(
-                        "Unknown generic function '{}'",
-                        callee_name
-                    )),
+                let mut message = format!(
+                    "未知泛型函数 '{}':期望已定义的泛型函数,实际未找到",
+                    callee_name
+                );
+                if let Some(h) = hint {
+                    message.push_str(&format!(";帮助:{}", h));
                 }
+                self.diag(message)
             })?;
         if type_args.len() != template.type_params.len() {
-            return Err(HuziError::new_global(format!(
-                "Generic function '{}' expects {} type argument(s), got {}",
+            return Err(self.diag(format!(
+                "泛型函数 '{}' 类型实参数量不匹配:期望 {} 个,实际 {} 个;请写成 `{}<{}>(...)`",
                 callee_name,
                 template.type_params.len(),
-                type_args.len()
+                type_args.len(),
+                bare_callee,
+                template.type_params.join(", ")
             )));
         }
         for a in type_args.iter() {
@@ -290,6 +308,7 @@ fn monomorphize_statements(
     statements: &mut [Spanned<Stmt>],
 ) -> Result<()> {
     for s in statements {
+        mono.current_span = Some(s.span);
         if let Stmt::Fn(f) = &mut s.node {
             if f.type_params.is_empty() {
                 for p in &mut f.params {

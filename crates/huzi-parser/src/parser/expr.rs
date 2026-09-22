@@ -12,6 +12,7 @@ impl Parser {
         if self.check(&Token::Equal) {
             let target = match &expr {
                 Expr::Ident(_) | Expr::ArrayIndex(_) | Expr::FieldAccess(_) => expr,
+                Expr::Unary(u) if u.operator == UnOp::Deref => expr,
                 _ => {
                     return Err(HuziError::new(
                         "Invalid assignment target",
@@ -137,13 +138,17 @@ impl Parser {
     fn parse_multiplicative_expression(&mut self) -> Result<Expr> {
         let mut left = self.parse_unary_expression()?;
 
-        while self.check(&Token::Star) || self.check(&Token::Slash) || self.check(&Token::Percent) {
-            let op = if self.check(&Token::Star) {
+        // 行首 `*` 优先为前缀解引用(不与上一行粘连成乘法);`/`/`%`
+        // 不能起始新语句,保持原跨行合并行为不变。
+        loop {
+            let op = if self.check(&Token::Star) && self.current_line() == self.prev_line() {
                 BinOp::Mul
             } else if self.check(&Token::Slash) {
                 BinOp::Div
-            } else {
+            } else if self.check(&Token::Percent) {
                 BinOp::Mod
+            } else {
+                break;
             };
             self.advance();
             let right = self.parse_unary_expression()?;
@@ -163,6 +168,14 @@ impl Parser {
             let operand = self.parse_unary_expression()?;
             Ok(Expr::Unary(UnaryExpr {
                 operator: UnOp::Not,
+                operand: Box::new(operand),
+            }))
+        } else if self.check(&Token::Star) {
+            // 前缀解引用 `*b`(与乘法 `*` 复用 Star token,此处为一元位置)。
+            self.advance();
+            let operand = self.parse_unary_expression()?;
+            Ok(Expr::Unary(UnaryExpr {
+                operator: UnOp::Deref,
                 operand: Box::new(operand),
             }))
         } else if self.check(&Token::Minus) {

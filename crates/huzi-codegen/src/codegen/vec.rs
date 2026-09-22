@@ -263,6 +263,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable: stmt.mutable,
                 box_inner: None,
+                map_kind: None,
             },
         );
         self.declare_local(&stmt.name, alloca, vec_ty, span);
@@ -306,6 +307,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable: stmt.mutable,
                 box_inner: None,
+                map_kind: None,
             },
         );
         self.declare_local(&stmt.name, alloca, vec_ty, span);

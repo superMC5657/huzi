@@ -18,6 +18,7 @@ mod exports;
 mod args;
 mod args_utf8;
 mod box_nest;
+mod box_deref;
 mod box_print;
 mod boxed;
 mod builtins;
@@ -40,6 +41,8 @@ mod expr;
 mod expr_binary;
 mod expr_place;
 mod map;
+mod map_kind;
+mod map_rehash;
 mod map_ops;
 mod map_keys;
 mod match_expr;
@@ -60,6 +63,18 @@ pub(super) mod generic;
 pub(super) mod trait_;
 
 
+/// Map 键值特化种类:当前支持三种单态化形态。
+/// 复用泛型单态化/修饰名思路,每种对应一套条目布局。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum MapKind {
+    /// `str -> i32`(默认,裸 `Map` 即此种)。
+    StrI32,
+    /// `str -> str`。
+    StrStr,
+    /// `i32 -> i32`。
+    I32I32,
+}
+
 /// A variable slot: `ptr` always holds a pointer whose loaded value has type
 /// `ty`. For arrays, `ptr` holds the address of the array data (loaded as a
 /// `ptr`), and `elem` records the element type for GEP/indexing. For
@@ -74,6 +89,8 @@ struct VarSlot<'ctx> {
     array_len: Option<u32>,
     mutable: bool,
     box_inner: Option<box_nest::BoxNest<'ctx>>,
+    /// Map 槽的键值特化(非 map 为 None)。
+    map_kind: Option<MapKind>,
 }
 
 /// A registered struct field. `ast_ty` keeps the original AST type because

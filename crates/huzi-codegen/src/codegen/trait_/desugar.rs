@@ -1,6 +1,6 @@
 use super::TraitDesugarer;
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::{HuziError, Result, did_you_mean};
 use std::collections::HashMap;
 
 impl TraitDesugarer {
@@ -93,7 +93,9 @@ impl TraitDesugarer {
     ) -> Result<()> {
         let mut scope_env = env.clone();
         for stmt in &mut block.statements {
-            self.resolve_stmt_scoped(&mut stmt.node, &mut scope_env)?;
+            let span = stmt.span;
+            self.resolve_stmt_scoped(&mut stmt.node, &mut scope_env)
+                .map_err(|e| e.with_position(span.line, span.column))?;
         }
         Ok(())
     }
@@ -108,7 +110,7 @@ impl TraitDesugarer {
 
                 let receiver_ty = self.infer_expr_type(&mc.receiver, env).ok_or_else(|| {
                     HuziError::new_global(format!(
-                        "Cannot resolve receiver type for method call '{}'",
+                        "无法确定方法 '{}' 接收者类型:期望具名结构体变量,实际推导失败;帮助:检查接收者变量是否已定义并标注类型",
                         mc.method
                     ))
                 })?;
@@ -117,23 +119,39 @@ impl TraitDesugarer {
                     Type::Named(n) => n.clone(),
                     _ => {
                         return Err(HuziError::new_global(format!(
-                            "Method call '{}' requires a named struct type (got '{}')",
+                            "方法调用 '{}' 需要具名结构体接收者:期望如 'Point',实际为 '{}'",
                             mc.method, receiver_ty
                         )));
                     }
                 };
 
-                let has_method = self
-                    .implemented_methods
-                    .get(&type_name)
+                let implemented = self.implemented_methods.get(&type_name);
+                let has_method = implemented
                     .and_then(|m| m.get(&mc.method))
                     .is_some();
 
                 if !has_method {
-                    return Err(HuziError::new_global(format!(
-                        "Type '{}' has no method '{}'",
-                        type_name, mc.method
-                    )));
+                    let available: Vec<&str> = implemented
+                        .map(|m| m.keys().map(|k| k.as_str()).collect())
+                        .unwrap_or_default();
+                    let hint = did_you_mean(&mc.method, available.iter().copied());
+                    let mut message = if available.is_empty() {
+                        format!(
+                            "类型 '{}' 没有方法 '{}':期望已实现的方法,实际该类型尚未实现任何方法",
+                            type_name, mc.method
+                        )
+                    } else {
+                        format!(
+                            "类型 '{}' 没有方法 '{}':期望为 [{}] 之一,实际未找到",
+                            type_name,
+                            mc.method,
+                            available.join(", ")
+                        )
+                    };
+                    if let Some(h) = hint {
+                        message.push_str(&format!(";帮助:{}", h));
+                    }
+                    return Err(HuziError::new_global(message));
                 }
 
                 let mangled_callee = format!("{}__{}", type_name, mc.method);

@@ -115,6 +115,10 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         expr: &UnaryExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        // 解引用独占路径(内部自行编译操作数并逐层空检查)。
+        if expr.operator == UnOp::Deref {
+            return self.compile_deref(&expr.operand);
+        }
         let operand = self.compile_expr(&expr.operand)?;
 
         let value = match expr.operator {
@@ -135,6 +139,8 @@ impl<'ctx> CodeGen<'ctx> {
                 let cond = self.to_i1(operand)?;
                 self.builder.build_not(cond, "not").unwrap().into()
             }
+            // 解引用已在函数入口独占返回,此处不可达。
+            UnOp::Deref => unreachable!("deref handled above"),
         };
 
         Ok(value)
@@ -287,6 +293,17 @@ impl<'ctx> CodeGen<'ctx> {
                             name
                         )));
                     }
+                    // Map 键值特化须一致(`Map<str,str>` 实参不可进 `Map` 形参)。
+                    if let Some(expected_kind) = super::MapKind::from_ast(expected_ty) {
+                        let actual_kind = slot.map_kind.unwrap_or(super::MapKind::StrI32);
+                        if actual_kind != expected_kind {
+                            return Err(HuziError::new_global(format!(
+                                "Type mismatch: expected Map({}), found Map({})",
+                                expected_kind.display(),
+                                actual_kind.display()
+                            )));
+                        }
+                    }
                 } else {
                     if !Self::is_vec_slot(&slot) {
                         return Err(HuziError::new_global(format!(
@@ -314,6 +331,23 @@ impl<'ctx> CodeGen<'ctx> {
                     return Err(HuziError::new_global(
                         "Type mismatch: field is not a container",
                     ));
+                }
+                // 字段为 map 时校验键值特化一致。
+                if is_map {
+                    if let Some(field_ast) = self.field_ast_type(&fa.base, &fa.field) {
+                        if let (Some(exp_k), Some(act_k)) = (
+                            super::MapKind::from_ast(expected_ty),
+                            super::MapKind::from_ast(&field_ast),
+                        ) {
+                            if exp_k != act_k {
+                                return Err(HuziError::new_global(format!(
+                                    "Type mismatch: expected Map({}), found Map({})",
+                                    exp_k.display(),
+                                    act_k.display()
+                                )));
+                            }
+                        }
+                    }
                 }
                 Ok(field_ptr)
             }

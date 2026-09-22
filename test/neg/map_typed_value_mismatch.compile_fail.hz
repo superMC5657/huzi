@@ -1,0 +1,5 @@
+fn main() -> i32 {
+    let mut m: Map<str, str> = map_new()
+    map_put(m, "k", 123)
+    return 0
+}

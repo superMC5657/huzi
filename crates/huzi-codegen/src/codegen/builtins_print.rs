@@ -235,7 +235,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 单次 printf 调用(无换行),返回调用值。
-    fn call_printf(
+    pub(super) fn call_printf(
         &mut self,
         format: &str,
         args: Vec<BasicMetadataValueEnum<'ctx>>,

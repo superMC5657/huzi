@@ -25,8 +25,11 @@ pub fn desugar_traits(program: &Program, modules: &mut [ModuleCode]) -> Result<P
     // 1. 生成所有 impl 脱糖出的顶层函数并对其方法体执行脱糖
     let mut generated_fns = desugarer.generate_impl_functions(program, modules)?;
     for (f, span) in &mut generated_fns {
+        let span_copy = *span;
         let mut fn_stmt = Stmt::Fn(f.clone());
-        desugarer.resolve_stmt(&mut fn_stmt)?;
+        desugarer
+            .resolve_stmt(&mut fn_stmt)
+            .map_err(|e| e.with_position(span_copy.line, span_copy.column))?;
         if let Stmt::Fn(resolved) = fn_stmt {
             *f = resolved;
         }
@@ -42,7 +45,10 @@ pub fn desugar_traits(program: &Program, modules: &mut [ModuleCode]) -> Result<P
                     Stmt::Trait(_) | Stmt::Impl(_) => {}
                     _ => {
                         let mut cloned = s.clone();
-                        desugarer.resolve_stmt(&mut cloned.node)?;
+                        let span = s.span;
+                        desugarer
+                            .resolve_stmt(&mut cloned.node)
+                            .map_err(|e| e.with_position(span.line, span.column))?;
                         mod_stmts.push(cloned);
                     }
                 }
@@ -57,7 +63,10 @@ pub fn desugar_traits(program: &Program, modules: &mut [ModuleCode]) -> Result<P
             Stmt::Trait(_) | Stmt::Impl(_) => {}
             _ => {
                 let mut cloned = s.clone();
-                desugarer.resolve_stmt(&mut cloned.node)?;
+                let span = s.span;
+                desugarer
+                    .resolve_stmt(&mut cloned.node)
+                    .map_err(|e| e.with_position(span.line, span.column))?;
                 new_statements.push(cloned);
             }
         }

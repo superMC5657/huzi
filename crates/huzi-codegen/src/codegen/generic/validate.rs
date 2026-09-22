@@ -14,7 +14,9 @@ impl Monomorphizer {
                         .struct_defs
                         .insert(d.name.clone(), d.clone());
                     if !d.type_params.is_empty() {
-                        self.validate_struct_template(d)?;
+                        let span = s.span;
+                        self.validate_struct_template(d)
+                            .map_err(|e| e.with_position(span.line, span.column))?;
                         self.struct_templates.insert(d.name.clone(), d.clone());
                     }
                 }
@@ -24,7 +26,9 @@ impl Monomorphizer {
                 }
                 Stmt::Fn(f) => {
                     if !f.type_params.is_empty() {
-                        self.validate_fn_template(f)?;
+                        let span = s.span;
+                        self.validate_fn_template(f)
+                            .map_err(|e| e.with_position(span.line, span.column))?;
                         self.fn_templates
                             .insert(f.name.clone(), (f.clone(), s.span));
                     } else {
@@ -74,13 +78,13 @@ impl Monomorphizer {
                         .map(|s| s.as_str())
                         .chain(self.known_types.iter().map(|s| s.as_str()));
                     let hint = did_you_mean(n, candidates);
-                    let msg = match hint {
-                        Some(h) => format!(
-                            "Undefined type variable '{}' in '{}', did you mean '{}'?",
-                            n, def_name, h
-                        ),
-                        None => format!("Undefined type variable '{}' in '{}'", n, def_name),
-                    };
+                    let mut msg = format!(
+                        "'{}' 中出现未定义的类型 '{}':期望为类型形参 {:?} 或已知类型,实际未找到",
+                        def_name, n, in_scope
+                    );
+                    if let Some(h) = hint {
+                        msg.push_str(&format!(";帮助:{}", h));
+                    }
                     return Err(HuziError::new_global(msg));
                 }
             }
@@ -106,11 +110,14 @@ impl Monomorphizer {
             Type::Named(n) => {
                 if !self.known_types.contains(n) && !self.instantiated_structs.contains_key(n) {
                     let hint = did_you_mean(n, self.known_types.iter().map(|s| s.as_str()));
-                    let msg = match hint {
-                        Some(h) => format!("Unknown type '{}', did you mean '{}'?", n, h),
-                        None => format!("Unknown type '{}'", n),
-                    };
-                    return Err(HuziError::new_global(msg));
+                    let mut msg = format!(
+                        "未知类型 '{}':期望已知类型或已实例化的泛型,实际未找到",
+                        n
+                    );
+                    if let Some(h) = hint {
+                        msg.push_str(&format!(";帮助:{}", h));
+                    }
+                    return Err(self.diag(msg));
                 }
             }
             Type::Box(inner) => self.validate_type_arg(inner)?,

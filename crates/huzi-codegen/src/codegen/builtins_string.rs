@@ -16,7 +16,7 @@ impl<'ctx> CodeGen<'ctx> {
             if let Some(slot) = self.scope_lookup(name) {
                 if Self::is_map_slot(&slot) {
                     return Err(HuziError::new_global(
-                        "len() does not support HashMap; use map_len() (HashMap is str->i32 only)",
+                        "len() does not support HashMap; use map_len()",
                     ));
                 }
                 if Self::is_vec_slot(&slot) {
@@ -284,6 +284,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable: stmt.mutable,
                 box_inner: None,
+                map_kind: None,
             },
         );
         self.declare_local(&stmt.name, alloca, vec_ty, span);

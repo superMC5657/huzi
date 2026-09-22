@@ -133,6 +133,21 @@ impl TypeInferrer {
         match u.operator {
             UnOp::Not => Some(Type::Named("bool".to_string())),
             UnOp::Neg => self.infer_expr_type(&u.operand),
+            // 前缀解引用 `*b`:穿透全部 Box 层直达最内层(与 codegen 一致),
+            // 其它情形返回 None 交由调用点报"无法推导"(不放宽检查)。
+            UnOp::Deref => {
+                let mut cur = self.infer_expr_type(&u.operand)?;
+                let mut peeled = false;
+                while let Type::Box(inner) = cur {
+                    cur = *inner;
+                    peeled = true;
+                }
+                if peeled {
+                    Some(cur)
+                } else {
+                    None
+                }
+            },
         }
     }
 
@@ -228,7 +243,7 @@ impl TypeInferrer {
     ) -> Result<Vec<Type>> {
         if args.len() != template.params.len() {
             return Err(HuziError::new_global(format!(
-                "Generic function '{}' expects {} argument(s), got {}",
+                "泛型函数 '{}' 实参数量不匹配:期望 {} 个,实际 {} 个",
                 callee_name,
                 template.params.len(),
                 args.len()
@@ -236,11 +251,14 @@ impl TypeInferrer {
         }
 
         let mut inferred: HashMap<String, Type> = HashMap::new();
-        for (param, arg) in template.params.iter().zip(args.iter()) {
+        for (idx, (param, arg)) in template.params.iter().zip(args.iter()).enumerate() {
             let arg_ty = self.infer_expr_type(arg).ok_or_else(|| {
                 HuziError::new_global(format!(
-                    "Cannot infer type of argument for generic function '{}', please specify explicitly with {}<{}>",
+                    "泛型函数 '{}' 第 {} 个实参类型无法推导:形参为 '{}: {}',请显式指定类型实参,如 `{}<{}>(...)`",
                     callee_name,
+                    idx + 1,
+                    param.name,
+                    param.param_type,
                     callee_name,
                     template.type_params.join(", ")
                 ))
@@ -259,10 +277,8 @@ impl TypeInferrer {
                 result.push(ty.clone());
             } else {
                 return Err(HuziError::new_global(format!(
-                    "Cannot infer type argument '{}' for generic function '{}', please specify explicitly with {}<{}>",
-                    tp,
-                    callee_name,
-                    callee_name,
+                    "泛型函数 '{}' 的类型形参 '{}' 无法推导:期望由实参确定,实际没有对应推导来源;请显式指定,如 `{}<{}>(...)`",
+                    callee_name, tp, callee_name,
                     template.type_params.join(", ")
                 )));
             }
@@ -283,7 +299,7 @@ impl TypeInferrer {
                 if let Some(existing) = inferred.get(name) {
                     if existing != arg_ty {
                         return Err(HuziError::new_global(format!(
-                            "Type inference conflict for '{}': deduced both '{}' and '{}'",
+                            "类型形参 '{}' 推导冲突:期望各实参推导结果一致,实际先后为 '{}' 与 '{}';帮助:统一对应实参类型,或显式写出类型实参",
                             name, existing, arg_ty
                         )));
                     }

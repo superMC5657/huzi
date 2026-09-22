@@ -120,6 +120,7 @@ impl<'ctx> CodeGen<'ctx> {
                     array_len,
                     mutable: true,
                     box_inner,
+                    map_kind: super::MapKind::from_ast(&param.param_type),
                 },
             );
         }

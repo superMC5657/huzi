@@ -231,6 +231,7 @@ impl Monomorphizer {
 
     pub(super) fn monomorphize_block(&mut self, block: &mut Block) -> Result<()> {
         for stmt in &mut block.statements {
+            self.current_span = Some(stmt.span);
             self.monomorphize_stmt(&mut stmt.node)?;
         }
         Ok(())

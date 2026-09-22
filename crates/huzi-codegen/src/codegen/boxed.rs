@@ -1,13 +1,17 @@
-//! `Box<T>` + `null`:堆分配智能指针,支持自引用结构体(典型用例:单链表)
-//! 与嵌套 `Box<Box<Node>>`(每层仍是指针,堆单元逐层持有下一层指针)。
+//! `Box<T>` + `null`:堆分配智能指针,支持自引用结构体(典型用例:单链表)、
+//! 基础类型(`i32`/`i64`/`f64`/`bool`/`str`)与嵌套 `Box<Box<T>>`
+//! (每层仍是指针,堆单元逐层持有下一层指针)。
 //!
 //! 表示:`Box<T>` 降为普通指针(`ty` 为 ptr),嵌套层数与最内层 pointee
-//! 结构体记录在变量槽的 `box_inner: BoxNest`(变量)或字段的 `ast_ty`
-//! (结构体字段,按需解析)中。`box(expr)` 求值后 `malloc` 存入并返回
-//! 指针(复用 `vec.rs` 的堆分配模式);`null` 为空指针常量,只能出现在
-//! `Box<T>` 期望位置。字段读写逐层自动解引用;`==`/`!=` 支持 Box vs
-//! null(判空)与 Box vs Box(比指针)。不做 `free`/GC(泄漏可接受,见 USAGE)。
-//! 中间层 Box 不可具名取出:嵌套整体判空/打印/直达最内层字段,保持不透明。
+//! (结构体或标量)记录在变量槽的 `box_inner: BoxNest`(变量)或字段的
+//! `ast_ty` (结构体字段,按需解析)中。`box(expr)` 求值后 `malloc`
+//! 存入并返回指针(复用 `vec.rs` 的堆分配模式);`null` 为空指针常量,
+//! 只能出现在 `Box<T>` 期望位置。结构体字段读写逐层自动解引用,
+//! 标量经前缀 `*b` 显式解引用(直达最内层,逐层空检查);`==`/`!=`
+//! 支持 Box vs null(判空)与 Box vs Box(比指针)。RC 语义见 `runtime.rs`
+//! (分配点计数为 1,退出点统一 release)。不做 `free`/GC(泄漏可接受,
+//! 见 USAGE)。中间层 Box 不可具名取出:嵌套整体判空/打印/直达最内层,
+//! 保持不透明。
 
 use super::{box_nest::BoxNest, CodeGen, VarSlot};
 use huzi_ast::*;
@@ -163,7 +167,7 @@ impl<'ctx> CodeGen<'ctx> {
             None => {
                 let content = self.box_content_nest(inner).ok_or_else(|| {
                     HuziError::new_global(format!(
-                        "box() requires a struct value (found '{}'); write box(Node {{ ... }})",
+                        "box() requires a struct or scalar value (i32/i64/f64/bool/str) (found '{}'); write box(Node {{ ... }}) or box(42)",
                         val.get_type()
                     ))
                 })?;
@@ -350,6 +354,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable: stmt.mutable,
                 box_inner,
+                map_kind: None,
             },
         );
         self.declare_local(&stmt.name, alloca, ptr_ty, span);
@@ -394,6 +399,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable,
                 box_inner: Some(nest),
+                map_kind: None,
             },
         );
         self.declare_local(name, alloca, slot_ty, span);

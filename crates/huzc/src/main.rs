@@ -105,7 +105,7 @@ fn main() {
         codegen.add_module(&module.name, module.program.as_ref(), module_path.as_deref());
     }
     if let Err(e) = codegen.compile(&program) {
-        die(format!("Compile error: {}", e));
+        die(huzi_error::render(&e, &source, "Compile error"));
     }
 
     // [4/5] Verifying

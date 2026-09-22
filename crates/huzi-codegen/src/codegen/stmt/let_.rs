@@ -73,6 +73,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: Some(values.len() as u32),
                 mutable: stmt.mutable,
                 box_inner: None,
+                map_kind: None,
             },
         );
         self.declare_local(&stmt.name, slot_ptr, ptr_ty.into(), span);
@@ -119,6 +120,8 @@ impl<'ctx> CodeGen<'ctx> {
 
         let alloca = self.alloc_let_slot(stmt, value_expr, value, var_type, box_inner.is_some())?;
 
+        // Map 拷贝透传种类:标注优先,否则随源变量/字段/返回类型。
+        let map_kind = self.infer_let_map_kind(stmt, value_expr);
         self.scope_insert(
             stmt.name.clone(),
             VarSlot {
@@ -128,6 +131,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len,
                 mutable: stmt.mutable,
                 box_inner,
+                map_kind,
             },
         );
         self.declare_local(&stmt.name, alloca, var_type, span);
@@ -275,6 +279,11 @@ impl<'ctx> CodeGen<'ctx> {
         };
         self.builder.build_store(alloca, ty.const_zero()).unwrap();
 
+        // 无初值声明的 map 种类由标注决定。
+        let map_kind = stmt
+            .type_annotation
+            .as_ref()
+            .and_then(super::super::MapKind::from_ast);
         self.scope_insert(
             stmt.name.clone(),
             VarSlot {
@@ -284,9 +293,39 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable: stmt.mutable,
                 box_inner,
+                map_kind,
             },
         );
         self.declare_local(&stmt.name, alloca, ty, span);
         Ok(())
+    }
+
+    /// 推断 `let` 的 map 种类:显式标注优先,否则随源变量/字段/函数返回。
+    fn infer_let_map_kind(
+        &self,
+        stmt: &LetStmt,
+        value_expr: &Expr,
+    ) -> Option<super::super::MapKind> {
+        if let Some(ann) = &stmt.type_annotation {
+            if let Some(k) = super::super::MapKind::from_ast(ann) {
+                return Some(k);
+            }
+        }
+        match value_expr {
+            Expr::Ident(name) => self.scope_lookup(name).and_then(|s| s.map_kind),
+            Expr::FieldAccess(fa) => self
+                .field_ast_type(&fa.base, &fa.field)
+                .and_then(|t| super::super::MapKind::from_ast(&t)),
+            Expr::Call(c) => match &*c.callee {
+                Expr::Ident(fname) => {
+                    let key = self.qualify_name(fname);
+                    self.fn_return_ast
+                        .get(&key)
+                        .and_then(super::super::MapKind::from_ast)
+                }
+                _ => None,
+            },
+            _ => None,
+        }
     }
 }

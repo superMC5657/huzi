@@ -97,6 +97,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         match &*expr.target {
             Expr::Ident(name) => self.compile_assign_ident(name, expr, value),
+            Expr::Unary(u) if u.operator == UnOp::Deref => self.compile_deref_store(u, value),
             Expr::ArrayIndex(idx_expr) => {
                 self.ensure_mutable(&expr.target)?;
                 let (elem_ptr, elem_type) =
@@ -282,6 +283,7 @@ impl<'ctx> CodeGen<'ctx> {
             }
             Expr::FieldAccess(fa) => self.ensure_mutable(&fa.base),
             Expr::ArrayIndex(idx) => self.ensure_mutable(&idx.array),
+            Expr::Unary(u) if u.operator == UnOp::Deref => self.ensure_mutable(&u.operand),
             _ => Ok(()),
         }
     }

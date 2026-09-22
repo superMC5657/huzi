@@ -15,9 +15,10 @@ pub enum Type {
     Named(String),
     Array(Box<Type>, usize), // Array<ElementType, Size>
     Tuple(Vec<Type>),
-    /// 堆分配智能指针:`Box<Node>`(具名结构体)或嵌套 `Box<Box<Node>>`
-    /// (每层仍是指针,最内层须为具名结构体);`Box<i32>` 等非结构体
-    /// 直接包装与 `vec` 字段类型不受支持。
+    /// 堆分配智能指针:`Box<Node>`(具名结构体)、`Box<i32>` 等
+    /// 基础类型(`i32`/`i64`/`f64`/`bool`/`str`)或嵌套
+    /// `Box<Box<T>>`(每层仍是指针,最内层为结构体或基础类型);
+    /// `vec` 字段类型不受支持。
     Box(Box<Type>),
     Generic(String),
     Applied(String, Vec<Type>),
@@ -480,4 +481,6 @@ pub enum BinOp {
 pub enum UnOp {
     Neg,
     Not,
+    /// 前缀解引用:`*b` 穿透全部 Box 层直达最内层值(空指针逐层校验)。
+    Deref,
 }

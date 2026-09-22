@@ -175,3 +175,40 @@ fn parse_still_returns_first_error() {
         .expect_err("double fault must still fail fast");
     assert_eq!((err.line(), err.column()), (1, 9));
 }
+
+/// 行首 `*` 为前缀解引用,不与上一行粘连成乘法;同行 `*` 仍为乘法。
+#[test]
+fn leading_star_is_deref_not_mul_continuation() {
+    let src = "fn main() -> i32 {\n let mut b = box(42)\n *b = 100\n return *b\n}";
+    let program = parse(src);
+    let Stmt::Fn(f) = &program.statements[0].node else {
+        panic!("expected a fn statement");
+    };
+    assert_eq!(f.body.statements.len(), 3);
+    let Stmt::Expr(es) = &f.body.statements[1].node else {
+        panic!("expected an expression statement");
+    };
+    let Expr::Assign(a) = &es.expr else {
+        panic!("expected an assignment, got {:?}", es.expr);
+    };
+    let Expr::Unary(u) = &*a.target else {
+        panic!("expected a deref target, got {:?}", a.target);
+    };
+    assert_eq!(u.operator, UnOp::Deref);
+}
+
+/// 同行 `*` 仍为乘法(`a * b` 不受行首规则影响)。
+#[test]
+fn same_line_star_is_still_mul() {
+    let program = parse("fn main() -> i32 { let r = 2 * 3 return r }");
+    let Stmt::Fn(f) = &program.statements[0].node else {
+        panic!("expected a fn statement");
+    };
+    let Stmt::Let(l) = &f.body.statements[0].node else {
+        panic!("expected a let statement");
+    };
+    let Some(Expr::Binary(b)) = &l.value else {
+        panic!("expected a binary expression");
+    };
+    assert_eq!(b.operator, BinOp::Mul);
+}

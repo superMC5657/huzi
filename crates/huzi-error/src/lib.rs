@@ -30,6 +30,16 @@ impl HuziError {
         }
     }
 
+    /// 仅当错误尚无位置(全局错误)时附加行列;已有位置则保持不变,
+    /// 供泛型单态化/Trait 脱糖等按语句 span 回填调用点位置使用。
+    pub fn with_position(mut self, line: usize, column: usize) -> Self {
+        if self.line == 0 {
+            self.line = line;
+            self.column = column;
+        }
+        self
+    }
+
     pub fn message(&self) -> &str {
         &self.message
     }

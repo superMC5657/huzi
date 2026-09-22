@@ -87,14 +87,18 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 嵌套 Box 指针的判空递归打印:每层判空(null 输出 `null`),
-    /// 到最内层调用结构体打印机;单层退化为 `emit_box_ptr_print`。
+    /// 到最内层按 pointee 种类打印(结构体递归,标量常规格式);
+    /// 单层退化为 `emit_box_ptr_print`/`emit_box_prim_print`。
     pub(super) fn emit_box_nest_print(
         &mut self,
         ptr: PointerValue<'ctx>,
         nest: BoxNest<'ctx>,
     ) -> Result<()> {
         if nest.depth <= 1 {
-            return self.emit_box_ptr_print(ptr, nest.ultimate);
+            if self.struct_def_by_type(nest.ultimate).is_some() {
+                return self.emit_box_ptr_print(ptr, nest.ultimate);
+            }
+            return self.emit_box_prim_print(ptr, nest.ultimate);
         }
         let function = self.current_function()?;
         let null_bb = self.context.append_basic_block(function, "box_nest_null");
@@ -122,6 +126,33 @@ impl<'ctx> CodeGen<'ctx> {
                 depth: nest.depth - 1,
             },
         )?;
+        self.builder.build_unconditional_branch(end_bb).unwrap();
+        self.builder.position_at_end(end_bb);
+        Ok(())
+    }
+
+    /// 标量 Box 指针的判空打印:null 输出 `null`,非封装载标量值后
+    /// 按常规标量格式打印(`str` 为 `%s`,数值/布尔同 `print` 标量)。
+    fn emit_box_prim_print(
+        &mut self,
+        ptr: PointerValue<'ctx>,
+        scalar_ty: BasicTypeEnum<'ctx>,
+    ) -> Result<()> {
+        let function = self.current_function()?;
+        let null_bb = self.context.append_basic_block(function, "box_prim_null");
+        let val_bb = self.context.append_basic_block(function, "box_prim_val");
+        let end_bb = self.context.append_basic_block(function, "box_prim_end");
+        let is_null = self.builder.build_is_null(ptr, "box_prim_isnull").unwrap();
+        self.builder.build_conditional_branch(is_null, null_bb, val_bb).unwrap();
+        self.builder.position_at_end(null_bb);
+        self.emit_printf_text("null")?;
+        self.builder.build_unconditional_branch(end_bb).unwrap();
+        self.builder.position_at_end(val_bb);
+        let val = self.builder.build_load(scalar_ty, ptr, "box_prim_val").unwrap();
+        let mut format_string = String::new();
+        let mut args: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+        self.format_print_value(val, &mut format_string, &mut args)?;
+        self.call_printf(&format_string, args);
         self.builder.build_unconditional_branch(end_bb).unwrap();
         self.builder.position_at_end(end_bb);
         Ok(())

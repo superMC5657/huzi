@@ -388,6 +388,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len,
                 mutable: false,
                 box_inner,
+                map_kind: None,
             },
         );
         Ok(())
@@ -427,6 +428,7 @@ impl<'ctx> CodeGen<'ctx> {
                     array_len,
                     mutable: false,
                     box_inner,
+                    map_kind: None,
                 },
             );
         }

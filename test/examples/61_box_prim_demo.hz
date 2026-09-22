@@ -1,0 +1,36 @@
+fn main() -> i32 {
+    let mut b = box(42)
+    print(*b)
+    *b = 100
+    print(*b)
+    print(b)
+    let bi: Box<i64> = box(9999999999)
+    print(*bi)
+    let bf: Box<f64> = box(2.5)
+    print(*bf)
+    let bb: Box<bool> = box(true)
+    print(*bb)
+    let bs: Box<str> = box("hi")
+    print(*bs)
+    print(bs)
+    let mut n: Box<Box<i32>> = box(box(10))
+    print(*n)
+    print(n)
+    *n = 20
+    print(*n)
+    if b == null {
+        print("empty")
+    }
+    if b != null {
+        print("has-b")
+    }
+    let mut c = b
+    if b == c {
+        print("alias-eq")
+    }
+    print(ref_count(b))
+    free_box(c)
+    print(c)
+    print(ref_count(b))
+    return 0
+}

@@ -1,12 +1,11 @@
-//! HashMap 键名提取内置函数: `map_keys(m: Map) -> vec<str>`。
+//! HashMap 键提取:`map_keys(m) -> vec<K>`(K 按种类为 `str` 或 `i32`)。
 
-use super::CodeGen;
+use super::{CodeGen, MapKind};
 use super::VarSlot;
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
-use inkwell::AddressSpace;
 
 impl<'ctx> CodeGen<'ctx> {
     /// 是否为 `map_keys(...)` 调用(供 `let` 分发)。
@@ -14,7 +13,7 @@ impl<'ctx> CodeGen<'ctx> {
         matches!(&*call.callee, Expr::Ident(name) if name == "map_keys")
     }
 
-    /// `let keys = map_keys(m)` — vec<str> 存槽,elem 标记 str 指针类型。
+    /// `let keys = map_keys(m)` — 元素类型随键种类,存槽 elem 标记。
     pub(super) fn compile_let_map_keys(
         &mut self,
         stmt: &LetStmt,
@@ -23,42 +22,50 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> Result<()> {
         if stmt.type_annotation.is_some() {
             return Err(HuziError::new_global(
-                "map_keys() infers its vec<str> type from the arguments; remove the `let` type annotation",
+                "map_keys() infers its vec<K> type from the arguments; remove the `let` type annotation",
             ));
         }
-        let vec_val = self.compile_map_keys(arguments)?;
+        let (vec_val, key_ty) = self.compile_map_keys_typed(arguments)?;
         let vec_ty = vec_val.get_type();
         let alloca = self.build_alloca(vec_ty, &stmt.name)?;
         self.builder.build_store(alloca, vec_val).unwrap();
-        let str_ty = self.context.ptr_type(AddressSpace::default()).into();
         self.scope_insert(
             stmt.name.clone(),
             VarSlot {
                 ptr: alloca,
                 ty: vec_ty,
-                elem: Some(str_ty),
+                elem: Some(key_ty),
                 array_len: None,
                 mutable: stmt.mutable,
                 box_inner: None,
+                map_kind: None,
             },
         );
         self.declare_local(&stmt.name, alloca, vec_ty, span);
         Ok(())
     }
 
-    /// `map_keys(m)` — 提取 HashMap 的全部非空键名,返回 `vec<str>`。
+    /// `map_keys(m)` 旧入口(供表达式位置复用,键类型由种类决定)。
     pub(super) fn compile_map_keys(
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
+        let (val, _) = self.compile_map_keys_typed(arguments)?;
+        Ok(val)
+    }
+
+    /// `map_keys(m)` 类型化实现,返回 `(vec 值, 键 LLVM 类型)`。
+    fn compile_map_keys_typed(
+        &mut self,
+        arguments: &[Expr],
+    ) -> Result<(BasicValueEnum<'ctx>, BasicTypeEnum<'ctx>)> {
         if arguments.len() != 1 {
             return Err(HuziError::new_global(
                 "map_keys() requires exactly 1 argument (map)",
             ));
         }
-        let parts = self.resolve_map_parts("map_keys", &arguments[0])?;
-        let ptr_t = self.context.ptr_type(AddressSpace::default());
-        let str_ty: BasicTypeEnum<'ctx> = ptr_t.into();
+        let (parts, kind) = self.resolve_map_parts_typed("map_keys", &arguments[0])?;
+        let key_ty = self.map_key_llvm(kind);
         let i32_t = self.context.i32_type();
 
         let count = parts.len;
@@ -82,39 +89,40 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap();
 
         self.builder.position_at_end(empty_bb);
-        let empty_val = self.vec_assemble_empty(str_ty)?;
+        let empty_val = self.vec_assemble_empty(key_ty)?;
         self.builder.build_store(res_vec_ptr, empty_val).unwrap();
         self.builder.build_unconditional_branch(done_bb).unwrap();
 
         self.builder.position_at_end(fill_bb);
         let data = self
             .builder
-            .build_array_malloc(str_ty, count, "mk_data")
+            .build_array_malloc(key_ty, count, "mk_data")
             .map_err(|_| HuziError::new_global("Failed to allocate map_keys storage"))?;
 
-        self.emit_map_keys_loop(parts.data, parts.cap, data, count, done_bb, res_vec_ptr)?;
+        self.emit_map_keys_loop(parts.data, parts.cap, data, count, kind, done_bb, res_vec_ptr)?;
 
         self.builder.position_at_end(done_bb);
-        Ok(self
+        let ret = self
             .builder
             .build_load(self.vec_struct_type(), res_vec_ptr, "mk_ret")
-            .unwrap())
+            .unwrap();
+        Ok((ret, key_ty))
     }
 
-    /// 遍历哈希表桶数组，复制 active(state==1) 键指针到新数组。
+    /// 遍历哈希表桶数组,复制 active(state==1) 键到新数组(类型按种类)。
     fn emit_map_keys_loop(
         &mut self,
         map_data: PointerValue<'ctx>,
         cap: IntValue<'ctx>,
         out_data: PointerValue<'ctx>,
         count: IntValue<'ctx>,
+        kind: MapKind,
         done_bb: inkwell::basic_block::BasicBlock<'ctx>,
         res_vec_ptr: PointerValue<'ctx>,
     ) -> Result<()> {
-        let ptr_t = self.context.ptr_type(AddressSpace::default());
-        let str_ty: BasicTypeEnum<'ctx> = ptr_t.into();
+        let key_ty = self.map_key_llvm(kind);
         let i32_t = self.context.i32_type();
-        let ety = self.map_entry_type();
+        let ety = self.map_entry_type_of(kind);
         let e: BasicTypeEnum<'ctx> = ety.into();
         let function = self.current_function()?;
 
@@ -147,12 +155,10 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_conditional_branch(is_occ, push_bb, next_bb).unwrap();
 
         self.builder.position_at_end(push_bb);
-        let ep = unsafe { self.builder.build_gep(e, map_data, &[iv], "mk_ep").unwrap() };
-        let kp = self.builder.build_struct_gep(ety, ep, 2, "mk_kp").unwrap();
-        let key_val = self.builder.build_load(ptr_t, kp, "mk_kv").unwrap().into_pointer_value();
+        let key_val = self.map_load_key(ety, map_data, e, iv, kind);
 
         let oi = self.builder.build_load(i32_t, out_idx, "mk_oiv").unwrap().into_int_value();
-        let out_slot = unsafe { self.builder.build_gep(str_ty, out_data, &[oi], "mk_slot").unwrap() };
+        let out_slot = unsafe { self.builder.build_gep(key_ty, out_data, &[oi], "mk_slot").unwrap() };
         self.builder.build_store(out_slot, key_val).unwrap();
         let next_oi = self.builder.build_int_add(oi, i32_t.const_int(1, false), "mk_noi").unwrap();
         self.builder.build_store(out_idx, next_oi).unwrap();

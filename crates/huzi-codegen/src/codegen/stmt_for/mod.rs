@@ -95,6 +95,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable: true,
                 box_inner: None,
+                map_kind: None,
             },
         );
         self.compile_block(&stmt.body)?;
@@ -149,6 +150,7 @@ impl<'ctx> CodeGen<'ctx> {
                 array_len: None,
                 mutable: true,
                 box_inner: None,
+                map_kind: None,
             },
         );
         self.compile_block(&stmt.body)?;

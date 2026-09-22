@@ -142,6 +142,7 @@ fn format_unary(u: &UnaryExpr) -> String {
     let op_str = match u.operator {
         UnOp::Neg => "-",
         UnOp::Not => "!",
+        UnOp::Deref => "*",
     };
     let inner_str = format_expr(&u.operand);
     if expr_precedence(&u.operand) < 7 {

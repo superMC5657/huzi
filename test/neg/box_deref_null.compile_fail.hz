@@ -1,0 +1,5 @@
+# 负例:对 null 字面量直接解引用,编译必须失败(exit != 0)。
+fn main() -> i32 {
+    print(*null)
+    return 0
+}

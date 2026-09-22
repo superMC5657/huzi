@@ -291,6 +291,7 @@ impl Parser {
                 | Token::Match
                 | Token::Bang
                 | Token::Minus
+                | Token::Star
         )
     }
 
@@ -346,6 +347,16 @@ impl Parser {
         self.tokens
             .get(self.pos)
             .map(|t| t.column)
+            .unwrap_or(usize::MAX)
+    }
+
+    /// 上一个已消费 token 的行号(即左操作数结束行,供 `*` 同行
+    /// 判定:行首 `*` 为解引用,不与上一行粘连)。
+    fn prev_line(&self) -> usize {
+        self.pos
+            .checked_sub(1)
+            .and_then(|i| self.tokens.get(i))
+            .map(|t| t.line)
             .unwrap_or(usize::MAX)
     }
 

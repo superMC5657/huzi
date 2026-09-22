@@ -263,25 +263,27 @@ impl<'ctx> CodeGen<'ctx> {
             // Arrays decay to pointers (LLVM opaque pointers make these
             // equivalent); element types are tracked in VarSlot.
             Type::Array(_, _) => Ok(self.context.ptr_type(AddressSpace::default()).into()),
-            // `Box<T>` lowers to a plain pointer to T's LLVM struct; structs
+            // `Box<T>` lowers to a plain pointer to T's LLVM storage; structs
             // holding a Box field are therefore fixed-size and any reference
             // cycle through Box is legal (see check_type_cycles). Nested
             // `Box<Box<..>>` is also a plain pointer: each layer's heap cell
             // holds the next layer's pointer, so the layout stays flat.
+            // T is a named struct or a scalar (`i32`/`i64`/`f64`/`bool`/`str`,
+            // plus `u32`/`u64`/`f32`/`char`); other composites are rejected.
             Type::Box(inner) => {
-                // 嵌套层直接放行(指针套指针);单层仍须校验具名结构体。
+                // 嵌套层直接放行(指针套指针);单层须为结构体或标量。
                 if matches!(&**inner, Type::Box(_)) {
                     self.type_to_llvm(inner)?;
                     return Ok(self.context.ptr_type(AddressSpace::default()).into());
                 }
                 let inner_ty = self.type_to_llvm(inner)?;
-                if !self.is_box_pointee(inner_ty) {
-                    return Err(HuziError::new_global(format!(
-                        "Box<T> requires a named struct type (found '{}')",
-                        inner
-                    )));
+                if self.is_box_pointee(inner_ty) || Self::is_box_scalar(inner, inner_ty) {
+                    return Ok(self.context.ptr_type(AddressSpace::default()).into());
                 }
-                Ok(self.context.ptr_type(AddressSpace::default()).into())
+                return Err(HuziError::new_global(format!(
+                    "Box<T> requires a named struct or scalar type (i32/i64/f64/bool/str) (found '{}')",
+                    inner
+                )));
             }
             // Tuples are literal structs: LLVM compares them structurally, so
             // two `(i32, str)` tuple types are always equal.
@@ -452,6 +454,22 @@ impl<'ctx> CodeGen<'ctx> {
         match ty {
             Type::Named(n) if n == "Map" || n == "HashMap" || n == "map" => true,
             Type::Applied(n, _) if n == "vec" || n == "Map" || n == "HashMap" || n == "map" => true,
+            _ => false,
+        }
+    }
+
+    /// `Box` 标量究极类型判定:整数/浮点直接放行;指针仅当 AST 为
+    /// `str` 时放行(数组等其它指针 composites 仍拒绝)。
+    pub(super) fn is_box_scalar(
+        ast: &Type,
+        llvm_ty: inkwell::types::BasicTypeEnum<'ctx>,
+    ) -> bool {
+        use inkwell::types::BasicTypeEnum as BTE;
+        match llvm_ty {
+            BTE::IntType(_) | BTE::FloatType(_) => true,
+            BTE::PointerType(_) => {
+                matches!(ast, Type::Str) || matches!(ast, Type::Named(n) if n == "str")
+            }
             _ => false,
         }
     }
