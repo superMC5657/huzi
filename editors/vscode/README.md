@@ -31,7 +31,7 @@ vsce package
 
 ## 验证
 
-1. 用 VS Code 打开 `huzc/test/examples/` 下任意 `.hz` 文件，确认右下角语言模式显示为 `Huzi`。
+1. 用 VS Code 打开 `huzc/test/cases/` 下任意 `.hz` 文件，确认右下角语言模式显示为 `Huzi`。
 2. 检查高亮：`fn`/`struct`/`match` 等关键字、`"字符串"`、`// 注释`、`Box<Node>` 应有不同颜色。
 3. 输入 `{` 回车应自动缩进，`"`、`(` 应自动闭合。
 
