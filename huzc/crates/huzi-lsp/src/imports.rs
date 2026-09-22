@@ -394,4 +394,76 @@ mod tests {
         )
         .is_none());
     }
+
+    #[test]
+    fn import_jump_on_blank_returns_none() {
+        // Given: import 行但光标落在空白处(L1 锁定:空白不跳)
+        let dir = unique_dir("blank");
+        let main = dir.join("main.hz");
+        let text = "import mods.helpers\n";
+        std::fs::write(&main, text).unwrap();
+        std::fs::write(
+            dir.join("mods/helpers.hz"),
+            "fn add(a: i32, b: i32) -> i32 {\n return a + b\n}\n",
+        )
+        .unwrap();
+        let uri = Uri::from_file_path(&main).expect("file uri");
+        // When: 光标落在 `import` 后的空格处(行 0,列 6)
+        // Then: 返回 None,不抛错
+        assert!(import_jump_location(
+            text,
+            &uri,
+            Position {
+                line: 0,
+                character: 6,
+            }
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn module_fn_jump_outside_double_colon_returns_none() {
+        // Given: 普通调用行(L1 锁定:非 `A::b` 处不跳)
+        let dir = unique_dir("outside");
+        let main = dir.join("main.hz");
+        let text = "import mods.helpers\nlet s = 1\n";
+        std::fs::write(&main, text).unwrap();
+        std::fs::write(
+            dir.join("mods/helpers.hz"),
+            "fn add(a: i32, b: i32) -> i32 {\n return a + b\n}\n",
+        )
+        .unwrap();
+        let uri = Uri::from_file_path(&main).expect("file uri");
+        // When: 光标落在无双冒号的行(行 1,列 5)
+        // Then: 返回 None,不抛错
+        assert!(module_fn_location(
+            text,
+            &uri,
+            Position {
+                line: 1,
+                character: 5,
+            }
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn invalid_dotted_import_returns_none() {
+        // Given: 非法点分名(L1 锁定:非法名不跳)
+        let dir = unique_dir("invalid");
+        let main = dir.join("main.hz");
+        std::fs::write(&main, "import foo..bar\n").unwrap();
+        let uri = Uri::from_file_path(&main).expect("file uri");
+        // When: 请求跳转
+        // Then: 返回 None,不抛错
+        assert!(import_jump_location(
+            "import foo..bar\n",
+            &uri,
+            Position {
+                line: 0,
+                character: 8,
+            }
+        )
+        .is_none());
+    }
 }
