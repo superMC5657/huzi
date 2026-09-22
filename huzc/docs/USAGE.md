@@ -72,7 +72,7 @@ huzc fmt --check test/cases
 
 > **注释保留与归一化范围说明**：
 > 当前 `huzc fmt` 为基于 AST 的代码美化器，保证 4 空格缩进、括号与操作符间距的严格归一化与幂等性（二次格式化零 diff）。
-> 由于当前 AST 未捕获行级注释，格式化操作会剥除源码中的注释。若需完整保留注释，建议手动排版或查阅 [`guides/reference.md`](guides/reference.md) 了解详情。
+> `//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接），详情查阅 [`guides/reference.md`](guides/reference.md)。
 
 ---
 
