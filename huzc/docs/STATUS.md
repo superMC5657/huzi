@@ -59,7 +59,7 @@
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
 - [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；62 示例 + 60 负例测试全部通过，交互示例跳过）
-- [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x）
+- [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/4] 抽查
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
 

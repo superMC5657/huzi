@@ -118,7 +118,26 @@ gdb ./main
 
 ---
 
-## 8. 文档导航与指引
+## 8. 性能基准 (bench)
+
+`test/bench_compare.py` 对比五边耗时（huzi dev/release + rustc 默认/rustc -O + Python），校验三门禁：结果一致性、release 优于 dev、huzi release / Rust -O <= 2.0x。`test/bench_baseline.txt` 仅存档上次通过门禁的比值，用于漂移提示，不参与门禁判定。
+
+```bash
+# 方式一：cwd=huzc 直接跑
+python test/bench_compare.py
+
+# 方式二：cwd=huzc 经回归脚本顺带跑
+RUN_BENCH=1 bash test.sh
+
+# 方式三：cwd=仓库根 经统一门禁跑（含 [4/4] 性能抽查；仓库根请用 huzc/test/... 路径）
+bash check.sh
+python huzc/test/bench_compare.py
+RUN_BENCH=1 bash huzc/test.sh
+```
+
+---
+
+## 9. 文档导航与指引
 
 - **新手与语言教程**：请参阅 [`guides/tutorial.md`](guides/tutorial.md)，涵盖变量、控制流、函数、结构体、枚举匹配、堆指针 Box、泛型及 Trait 接口。
 - **全量规范与标准库参考**：请参阅 [`guides/reference.md`](guides/reference.md)，涵盖类型系统、关键字、运算符及全量内置函数（I/O、字符串、数学、文件、网络、多线程并发等）。
@@ -127,7 +146,7 @@ gdb ./main
 
 ---
 
-## 9. 常见问题 (FAQ)
+## 10. 常见问题 (FAQ)
 
 ### Q: 编译报错 "Verification failed"
 A: 这是 LLVM 模块验证器捕获的 IR 错误，表明存在类型或控制流非法指令，属于编译器内部错误（bug），编译将安全终止。
