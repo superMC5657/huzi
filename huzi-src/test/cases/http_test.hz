@@ -3,33 +3,100 @@ import core.result
 import alloc.stringx
 import std.http
 
+fn http_loop_server(server_fd: i32) -> i32 {
+    let mut n = 0
+    while n < 5 {
+        let c = tcp_accept(server_fd)
+        if c < 0 {
+            return 1
+        }
+        let req = tcp_recv(c, 4096)
+        let mut resp = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello"
+        if contains(req, "X-Token: secret123") {
+            resp = "HTTP/1.1 200 OK\r\nContent-Length: 9\r\nConnection: close\r\n\r\nheader-ok"
+        } elif stringx::starts_with(req, "POST") {
+            let sep = stringx::find(req, "\r\n\r\n")
+            let mut body = ""
+            if sep >= 0 {
+                body = substring(req, sep + 4, len(req))
+            }
+            let echo_body = concat("echo:", body)
+            resp = concat("HTTP/1.1 200 OK\r\nContent-Length: ", to_string(len(echo_body)), "\r\nConnection: close\r\n\r\n", echo_body)
+        } elif contains(req, "GET /notfound") {
+            resp = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        } elif contains(req, "GET /empty") {
+            resp = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        }
+        tcp_send(c, resp)
+        tcp_close(c)
+        n = n + 1
+    }
+    return 0
+}
+
+fn check_builders() {
+    let b = http::http_build_request_with_headers("example.com", "POST", "/submit", "X-Token: abc\r\n", "hi=1")
+    assert::assert_true(stringx::starts_with(b, "POST /submit HTTP/1.1\r\n"))
+    assert::assert_true(contains(b, "X-Token: abc"))
+    assert::assert_true(contains(b, "Content-Length: 4"))
+    assert::assert_true(contains(b, "hi=1"))
+    let d = http::http_build_request_with_headers("h.io", "", "", "", "")
+    assert::assert_true(stringx::starts_with(d, "GET / HTTP/1.1\r\n"))
+    assert::assert_true(contains(d, "Content-Length: 0"))
+    let nonl = http::http_build_request_with_headers("h.io", "GET", "/", "X-A: 1", "")
+    assert::assert_true(contains(nonl, "X-A: 1\r\nContent-Length:"))
+}
+
+fn check_loopback() {
+    let port = 28111
+    let server_fd = tcp_listen(port)
+    assert::assert_true(server_fd >= 0)
+    let th = spawn(http_loop_server, server_fd)
+    sleep_ms(40)
+    let r1 = http::http_get("127.0.0.1", port, "/hello")
+    assert::assert_true(result::is_ok(r1))
+    assert::assert_eq_str(result::unwrap_or(r1, ""), "hello")
+    let r2 = http::http_post("127.0.0.1", port, "/submit", "post-body-123")
+    assert::assert_true(result::is_ok(r2))
+    assert::assert_eq_str(result::unwrap_or(r2, ""), "echo:post-body-123")
+    let r3 = http::http_request("GET", "127.0.0.1", port, "/hdr", "X-Token: secret123\r\n", "")
+    assert::assert_true(result::is_ok(r3))
+    assert::assert_eq_str(result::unwrap_or(r3, ""), "header-ok")
+    let r4 = http::http_get("127.0.0.1", port, "/notfound")
+    assert::assert_true(result::is_err(r4))
+    assert::assert_eq_str(result::err_msg(r4), "http status 404")
+    let r5 = http::http_get("127.0.0.1", port, "/empty")
+    assert::assert_true(result::is_ok(r5))
+    assert::assert_eq_str(result::unwrap_or(r5, ""), "")
+    join(th)
+    tcp_close(server_fd)
+}
+
 fn main() -> i32 {
     let req = http::http_build_request("example.com", "/index.html")
     assert::assert_true(stringx::starts_with(req, "GET /index.html HTTP/1.1\r\n"))
     assert::assert_true(contains(req, "Host: example.com"))
     assert::assert_true(contains(req, "Connection: close"))
     assert::assert_true(stringx::starts_with(http::http_build_request("h.io", ""), "GET / HTTP/1.1\r\n"))
-
     let resp = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello"
     assert::assert_eq_i32(http::http_status_code(resp), 200)
     assert::assert_eq_str(http::http_body(resp), "hello")
     let ok_res = http::http_parse(resp)
     assert::assert_true(result::is_ok(ok_res))
     assert::assert_eq_str(result::unwrap_or(ok_res, ""), "hello")
-
     let no_reason = "HTTP/1.0 204\r\n\r\n"
     assert::assert_eq_i32(http::http_status_code(no_reason), 204)
     assert::assert_eq_str(http::http_body(no_reason), "")
-
     let nf = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
     assert::assert_eq_i32(http::http_status_code(nf), 404)
     let nf_res = http::http_parse(nf)
     assert::assert_true(result::is_err(nf_res))
     assert::assert_eq_str(result::err_msg(nf_res), "http status 404")
-
     assert::assert_eq_i32(http::http_status_code("garbage"), 0)
     assert::assert_eq_i32(http::http_status_code("HTTP/1.1 oops"), 0)
     assert::assert_eq_str(http::http_body("no separator"), "")
+    check_builders()
+    check_loopback()
     print("http_test passed")
     return 0
 }
