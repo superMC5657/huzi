@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn test_resolve_package_library_entry() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test/pkg/app");
-        // Test resolving top-level library entry: sub_segs is empty (&[])
+        // 测试解析顶层库入口：sub_segs 为空 (&[])
         let hit = resolve_package_module("my_math", &[], &root);
         assert!(hit.is_some(), "Expected library entry to be resolved");
         let path = hit.unwrap();
@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn test_resolve_package_submodule() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../test/pkg/app");
-        // Test resolving submodule: sub_segs is ["calc"]
+        // 测试解析子模块：sub_segs 为 ["calc"]
         let hit = resolve_package_module("my_math", &["calc"], &root);
         assert!(hit.is_some(), "Expected submodule calc to be resolved");
         let path = hit.unwrap();

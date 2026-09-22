@@ -69,18 +69,17 @@ pub(super) mod trait_;
 pub(super) enum MapKind {
     /// `str -> i32`(默认,裸 `Map` 即此种)。
     StrI32,
-    /// `str -> str`。
+    /// 映射形态 `str -> str`。
     StrStr,
     /// `i32 -> i32`。
     I32I32,
 }
 
-/// A variable slot: `ptr` always holds a pointer whose loaded value has type
-/// `ty`. For arrays, `ptr` holds the address of the array data (loaded as a
-/// `ptr`), and `elem` records the element type for GEP/indexing. For
-/// `Box<T>` variables, `ty` is a plain pointer and `box_inner` records the
-/// nested pointee (see `box_nest::BoxNest`) so field access can
-/// auto-deref through every layer.
+/// 变量槽：`ptr` 始终持有一个指针，其加载后的值类型为 `ty`。
+/// 对于数组，`ptr` 持有数组数据的地址（作为指针加载），`elem`
+/// 记录元素类型以供 GEP/索引。对于 `Box<T>` 变量，`ty` 为裸指针，
+/// `box_inner` 记录嵌套指向的目标类型（参见 `box_nest::BoxNest`），
+/// 从而支持跨任意层级的自动解引用字段访问。
 #[derive(Clone, Copy)]
 struct VarSlot<'ctx> {
     ptr: PointerValue<'ctx>,
@@ -93,9 +92,8 @@ struct VarSlot<'ctx> {
     map_kind: Option<MapKind>,
 }
 
-/// A registered struct field. `ast_ty` keeps the original AST type because
-/// array fields decay to bare pointers in LLVM and would lose their element
-/// type.
+/// 已注册的结构体字段。`ast_ty` 保留原始 AST 类型，因为数组字段
+/// 在 LLVM 中会退化为裸指针而丢失其元素类型。
 #[derive(Clone)]
 struct StructFieldInfo<'ctx> {
     name: String,
@@ -106,14 +104,13 @@ struct StructFieldInfo<'ctx> {
 #[derive(Clone)]
 struct EnumVariantInfo<'ctx> {
     name: String,
-    /// Discriminant value, equal to the variant's declaration index.
+    /// 判别码值，等于该变体的声明索引。
     tag: u32,
-    /// LLVM type of the payload (a field struct for multi-payload variants);
-    /// None for unit variants.
+    /// 变体负载的 LLVM 类型（多负载变体为字段结构体）；单元变体为 None。
     payload: Option<inkwell::types::BasicTypeEnum<'ctx>>,
-    /// AST payload types (retains array element types, like StructFieldInfo).
+    /// AST 负载类型（保留数组元素类型，与 StructFieldInfo 一致）。
     ast_payloads: Vec<Type>,
-    /// Index of this variant's payload inside the payload-union struct.
+    /// 该变体负载在负载联合体结构体中的索引。
     payload_slot: Option<u32>,
 }
 
@@ -121,8 +118,8 @@ struct EnumVariantInfo<'ctx> {
 struct EnumInfo<'ctx> {
     name: String,
     variants: Vec<EnumVariantInfo<'ctx>>,
-    /// Data-carrying enums are laid out as { i32 tag, payload union }. Simple
-    /// enums are represented directly as their i32 tag (None here).
+    /// 携带数据的枚举布局为 { i32 tag, payload_union }。
+    /// 简单枚举直接表示为其 i32 tag（此处为 None）。
     llvm: Option<inkwell::types::StructType<'ctx>>,
     payload_union: Option<inkwell::types::StructType<'ctx>>,
 }
@@ -159,9 +156,9 @@ pub struct CodeGen<'ctx> {
     fn_no_return: HashMap<String, bool>,
     /// 当前函数的 Huzi 声明返回类型,供 `return null` 的位置校验。
     current_return_ast: Option<Type>,
-    /// (continue_target, break_target) for each enclosing loop.
+    /// 每个外层循环的 (continue 目标 BasicBlock, break 目标 BasicBlock)。
     loop_stack: Vec<(inkwell::basic_block::BasicBlock<'ctx>, inkwell::basic_block::BasicBlock<'ctx>)>,
-    /// Registered user-defined structs: name -> (LLVM type, ordered fields).
+    /// 已注册的用户定义结构体：名称 -> (LLVM 类型, 顺序字段列表)。
     structs: HashMap<
         String,
         (
@@ -169,12 +166,12 @@ pub struct CodeGen<'ctx> {
             Vec<StructFieldInfo<'ctx>>,
         ),
     >,
-    /// Registered user-defined enums: name -> layout info.
+    /// 已注册的用户定义枚举：名称 -> 布局信息。
     enums: HashMap<String, EnumInfo<'ctx>>,
     /// 按结构体类型生成的运行时打印机(`huzi_print_struct_<Name>`),供
     /// `print(box)` 的判空递归展开复用,避免编译期内联无限递归。
     struct_printers: HashMap<String, FunctionValue<'ctx>>,
-    /// Imported modules, registered via [`CodeGen::add_module`] before compile.
+    /// 已导入的模块，在编译前通过 [`CodeGen::add_module`] 注册。
     modules: Vec<ModuleCode>,
     /// 正在编译的模块名;函数注册/查找按 `模块::名` 限定,主程序为 None。
     current_module: Option<String>,
@@ -215,7 +212,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Register an imported module (call before [`CodeGen::compile`]).
+    /// 注册已导入模块（在 [`CodeGen::compile`] 之前调用）。
     /// 内置模块传 `None`,文件模块传入其解析后的 AST。
     pub fn add_module(&mut self, name: &str, program: Option<&Program>, path: Option<&str>) {
         if self.modules.iter().any(|m| m.name == name) {
@@ -360,7 +357,7 @@ impl<'ctx> CodeGen<'ctx> {
         HuziError::new_global(message)
     }
 
-    /// True if the current insert block has no terminator yet.
+    /// 当当前插入 BasicBlock 尚未包含终结指令（Terminator）时返回 true。
     fn at_open_end(&self) -> bool {
         self.builder
             .get_insert_block()

@@ -1,7 +1,7 @@
 //! 基础字符串解析内置函数: `parse_int(s)` 与 `parse_float(s)`。
 //!
-//! - `parse_int(s: str) -> (bool, i32)`
-//! - `parse_float(s: str) -> (bool, f64)`
+//! - 解析整数：`parse_int(s: str) -> (bool, i32)`
+//! - 解析浮点数：`parse_float(s: str) -> (bool, f64)`
 //!
 //! 非法输入返回 `(false, 0)` 或 `(false, 0.0)`，沿用哨兵语义，不 abort。
 

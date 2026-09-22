@@ -10,8 +10,8 @@ impl<'ctx> CodeGen<'ctx> {
             return Err(HuziError::new_global("len() requires exactly 1 argument"));
         }
 
-        // len(arr) on an array variable returns the tracked array length;
-        // strings use strlen.
+        // 对数组变量调用 len(arr) 返回跟踪的数组长度；
+        // 字符串则使用 strlen。
         if let Expr::Ident(name) = &arguments[0] {
             if let Some(slot) = self.scope_lookup(name) {
                 if Self::is_map_slot(&slot) {
@@ -28,8 +28,8 @@ impl<'ctx> CodeGen<'ctx> {
             }
         }
 
-        // len(s.arr) on a struct array field uses the declared array size;
-        // len(s.items) on a vec field returns its dynamic length.
+        // 对结构体数组成员调用 len(s.arr) 使用声明的数组大小；
+        // 对 vec 成员调用 len(s.items) 则返回其动态长度。
         if let Expr::FieldAccess(fa) = &arguments[0] {
             if let Some((_, fields)) = self.struct_def_of_expr(&fa.base) {
                 if let Some(info) = fields.iter().find(|info| info.name == fa.field) {
@@ -78,7 +78,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let (arg_ptrs, arg_lens) = self.concat_string_args(arguments)?;
 
-        // Allocate len(args...) + 1 for the null terminator.
+        // 为 null 终止符分配 len(args...) + 1。
         let i32_type = self.context.i32_type();
         let mut total_len = i32_type.const_int(0, false);
         for len in &arg_lens {
@@ -104,8 +104,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(buffer.into())
     }
 
-    /// Evaluate the arguments, which must all be strings; return their
-    /// pointers and strlen lengths.
+    /// 求值所有参数（必须均为字符串）；返回它们的指针与 strlen 长度。
     fn concat_string_args(
         &mut self,
         arguments: &[Expr],
@@ -134,7 +133,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok((arg_ptrs, arg_lens))
     }
 
-    /// Copy the first string into `buffer`, then append each remaining one.
+    /// 将第一个字符串复制到 `buffer` 中，随后追加其余各字符串。
     fn concat_copy_into(
         &mut self,
         buffer: PointerValue<'ctx>,
@@ -172,7 +171,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let arg = self.compile_expr(&arguments[0])?;
 
-        // Booleans take a short fixed-size buffer with no format string.
+        // 布尔值使用较短的固定大小缓冲区，无需格式化字符串。
         if let inkwell::values::BasicValueEnum::IntValue(iv) = arg {
             if iv.get_type().get_bit_width() == 1 {
                 let s = self.build_bool_str(iv)?;
@@ -186,10 +185,10 @@ impl<'ctx> CodeGen<'ctx> {
 
         let (format_ptr, value) = self.pick_printf_format(arg)?;
 
-        // Allocate buffer (large enough for any double formatting)
+        // 分配缓冲区（足够容纳任何双精度浮点数的格式化输出）
         let buffer = self.alloc_str_buffer(320)?;
 
-        // Call sprintf
+        // 调用 sprintf
         self.builder
             .build_call(
                 sprintf_fn,
@@ -201,8 +200,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(buffer.into())
     }
 
-    /// Pick the printf-style format string for `arg` and promote the value
-    /// to match C varargs conventions (chars to i32, floats to double).
+    /// 为 `arg` 选择 printf 风格的格式化字符串，并提升其值以匹配 C 可变参数规范（char 转 i32，float 转 double）。
     fn pick_printf_format(
         &mut self,
         arg: inkwell::values::BasicValueEnum<'ctx>,
@@ -226,7 +224,7 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             }
             inkwell::values::BasicValueEnum::FloatValue(fv) => {
-                // Promote to double for printf-style varargs.
+                // 为 printf 风格的可变参数提升为 double。
                 let f64_val = if fv.get_type() == self.context.f64_type() {
                     fv
                 } else {

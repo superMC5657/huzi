@@ -66,7 +66,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(loaded)
     }
 
-    // ==================== Enum Functions ====================
+    // ==================== 枚举函数 ====================
 
     pub(super) fn compile_enum_construct(
         &mut self,
@@ -92,7 +92,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let enum_st = match info.llvm {
             None => {
-                // Simple enum: the value is the tag itself.
+                // 简单枚举：值即为其 tag 本身。
                 if !expr.args.is_empty() {
                     return Err(HuziError::new_global(format!(
                         "Unit variant '{}::{}' takes no arguments",
@@ -111,7 +111,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.build_data_enum_value(expr, &info, &vinfo, enum_st)
     }
 
-    /// Look up the enum and the variant named by an `Enum::Variant` expr.
+    /// 查找由 `Enum::Variant` 表达式指定的枚举与变体。
     fn resolve_enum_variant(
         &self,
         expr: &EnumConstructExpr,
@@ -160,9 +160,8 @@ impl<'ctx> CodeGen<'ctx> {
         )))
     }
 
-    /// Build `{ i32 tag, payload union }` for a data-carrying enum variant:
-    /// check arity, store the discriminant, store the payload fields, and
-    /// load the finished value.
+    /// 为携带数据的枚举变体构建 `{ i32 tag, payload_union }`：
+    /// 检查实参数量，存储判别码，存储负载字段，并加载构建完成的值。
     fn build_data_enum_value(
         &mut self,
         expr: &EnumConstructExpr,
@@ -175,7 +174,7 @@ impl<'ctx> CodeGen<'ctx> {
         let payload_union = info.payload_union.unwrap();
         let tmp = self.build_alloca(enum_st.into(), "enum_val")?;
 
-        // Store the discriminant in field 0.
+        // 在字段 0 处存储判别码。
         let tag_ptr = self
             .builder
             .build_struct_gep(enum_st, tmp, 0, "enum_tag_ptr")
@@ -187,9 +186,8 @@ impl<'ctx> CodeGen<'ctx> {
             )
             .unwrap();
 
-        // Store the payload into the variant's slot of the union in field 1.
-        // Single-payload variants keep the bare value; multi-payload ones
-        // fill the anonymous field struct member by member.
+        // 将负载存入字段 1 联合体中该变体对应的槽位。
+        // 单负载变体保留原始裸值；多负载变体逐成员填充匿名字段结构体。
         if let Some(payload_ty) = vinfo.payload {
             let union_ptr = self
                 .builder
@@ -220,8 +218,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(loaded)
     }
 
-    /// Store each constructor argument into its field of a multi-payload
-    /// variant's anonymous field struct (`slot_ptr` points at the struct).
+    /// 将各个构造函数实参存入多负载变体的匿名字段结构体对应字段中（`slot_ptr` 指向该结构体）。
     fn store_multi_payload_fields(
         &mut self,
         payload_ty: inkwell::types::BasicTypeEnum<'ctx>,
@@ -305,14 +302,14 @@ impl<'ctx> CodeGen<'ctx> {
             self.emit_bounds_check(&expr.array, index_i32)?;
         }
 
-        // Build GEP to get element pointer
+        // 构建 GEP 以获取元素指针
         let elem_ptr = unsafe {
             self.builder
                 .build_gep(elem_type, array_ptr_val, &[index_i32], "elem_ptr")
                 .unwrap()
         };
 
-        // Load the element value
+        // 加载元素值
         let loaded = self
             .builder
             .build_load(elem_type, elem_ptr, "load_elem")
@@ -329,23 +326,23 @@ impl<'ctx> CodeGen<'ctx> {
             return Err(HuziError::new_global("Empty array literal not supported"));
         }
 
-        // Compile all elements
+        // 编译所有元素
         let mut elem_values = Vec::new();
         for elem in elements {
             let val = self.compile_expr(elem)?;
             elem_values.push(val);
         }
 
-        // Get element type from first element
+        // 从首个元素获取元素类型
         let elem_type = elem_values[0].get_type();
 
-        // Create array type
+        // 创建数组类型
         let array_type = elem_type.array_type(elements.len() as u32);
 
-        // Allocate space for the array
+        // 为数组分配栈空间
         let array_ptr = self.build_alloca(array_type.into(), "array")?;
 
-        // Store each element
+        // 逐一存储每个元素
         for (i, val) in elem_values.iter().enumerate() {
             let val = self.coerce_value(elem_type, *val)?;
             let index = self.context.i32_type().const_int(i as u64, false);

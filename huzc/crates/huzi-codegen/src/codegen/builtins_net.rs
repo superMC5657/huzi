@@ -1,7 +1,7 @@
 //! 网络通信内置函数 (TCP 同步客户端与服务端)。
 //!
 //! 提供 `tcp_connect`、`tcp_send`、`tcp_recv`、`tcp_close`、
-//! `tcp_listen`、`tcp_accept`。
+//! 服务端监听与接受 `tcp_listen`、`tcp_accept`。
 //! 在 Windows 下走 Winsock (ws2_32.lib),在 POSIX 下走标准 socket API。
 
 use huzi_ast::Expr;
@@ -29,10 +29,10 @@ impl<'ctx> CodeGen<'ctx> {
     fn sockaddr_in_type(&self) -> inkwell::types::StructType<'ctx> {
         self.context.struct_type(
             &[
-                self.context.i16_type().into(), // sin_family
-                self.context.i16_type().into(), // sin_port
-                self.context.i32_type().into(), // sin_addr
-                self.context.i64_type().into(), // sin_zero
+                self.context.i16_type().into(), // 地址族 sin_family
+                self.context.i16_type().into(), // 端口号 sin_port
+                self.context.i32_type().into(), // IPv4 地址 sin_addr
+                self.context.i64_type().into(), // 填充字节 sin_zero
             ],
             false,
         )
@@ -54,7 +54,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_or(low_sh, high_sh, "port_be").unwrap()
     }
 
-    /// `tcp_connect(host: str, port: i32) -> i32`
+    /// 建立 TCP 连接：`tcp_connect(host: str, port: i32) -> i32`
     pub(super) fn compile_tcp_connect(
         &mut self,
         arguments: &[Expr],
@@ -216,7 +216,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// `tcp_send(sock: i32, data: str) -> i32`
+    /// 发送 TCP 数据：`tcp_send(sock: i32, data: str) -> i32`
     pub(super) fn compile_tcp_send(
         &mut self,
         arguments: &[Expr],
@@ -275,7 +275,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// `tcp_recv(sock: i32, max_len: i32) -> str`
+    /// 接收 TCP 数据：`tcp_recv(sock: i32, max_len: i32) -> str`
     pub(super) fn compile_tcp_recv(
         &mut self,
         arguments: &[Expr],
@@ -357,7 +357,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(buf.into())
     }
 
-    /// `tcp_close(sock: i32) -> i32`
+    /// 关闭 TCP 套接字：`tcp_close(sock: i32) -> i32`
     pub(super) fn compile_tcp_close(
         &mut self,
         arguments: &[Expr],
@@ -385,7 +385,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// `tcp_listen(port: i32) -> i32`
+    /// 监听 TCP 端口：`tcp_listen(port: i32) -> i32`
     pub(super) fn compile_tcp_listen(
         &mut self,
         arguments: &[Expr],
@@ -444,7 +444,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(final_res)
     }
 
-    /// `tcp_accept(listener: i32) -> i32`
+    /// 接受 TCP 连接：`tcp_accept(listener: i32) -> i32`
     pub(super) fn compile_tcp_accept(
         &mut self,
         arguments: &[Expr],

@@ -5,7 +5,7 @@ use crate::cli::LinkerKind;
 use crate::die;
 use crate::paths::OutputPaths;
 
-/// Run a command and handle errors
+/// 运行命令并处理错误
 pub fn run_command(cmd: &str, args: &[&str]) -> Result<(), String> {
     let output = Command::new(cmd)
         .args(args)
@@ -28,15 +28,13 @@ pub fn link(paths: &OutputPaths, linker: LinkerKind, debug: bool, quiet: bool) {
     }
 }
 
-/// Link with lld-link. It auto-detects the MSVC/Windows SDK lib directories,
-/// so no /LIBPATH is needed.
+/// 使用 lld-link 进行链接。它会自动探测 MSVC/Windows SDK 库目录，因此无需手动指定 /LIBPATH。
 fn link_msvc(paths: &OutputPaths, debug: bool, quiet: bool) {
-    // No /ENTRY override: the default console entry (mainCRTStartup) runs the
-    // CRT startup and calls `main(argc, argv)` with real arguments. Forcing
-    // /ENTRY:main would make the OS call main directly with garbage args.
+    // 不覆盖 /ENTRY：默认的控制台入口 (mainCRTStartup) 会执行 CRT 初始化并携带真实参数调用 main(argc, argv)。
+    // 强制使用 /ENTRY:main 会导致操作系统直接以垃圾参数调用 main。
     let mut lld_args: Vec<String> = vec![format!("/OUT:{}", paths.exe_path.to_str().unwrap())];
     if debug {
-        // Keep the debug sections/DWARF info in the executable.
+        // 在可执行文件中保留调试段与 DWARF 信息。
         lld_args.push("/DEBUG".to_string());
     }
     lld_args.extend([
@@ -44,7 +42,7 @@ fn link_msvc(paths: &OutputPaths, debug: bool, quiet: bool) {
         "/DEFAULTLIB:msvcrt.lib".to_string(),
         "/DEFAULTLIB:legacy_stdio_definitions.lib".to_string(),
         "/DEFAULTLIB:kernel32.lib".to_string(),
-        // CommandLineToArgvW (UTF-8 argv fixup in main) lives in shell32.
+        // CommandLineToArgvW（main 中的 UTF-8 argv 修复逻辑）位于 shell32 中。
         "/DEFAULTLIB:shell32.lib".to_string(),
         "/DEFAULTLIB:ws2_32.lib".to_string(),
         paths.obj_path.to_str().unwrap().to_string(),
@@ -57,7 +55,7 @@ fn link_msvc(paths: &OutputPaths, debug: bool, quiet: bool) {
     run_command("lld-link", &lld_args_ref).unwrap_or_else(|e| die(e));
 }
 
-/// Link with the clang driver.
+/// 使用 clang 驱动进行链接。
 fn link_clang(paths: &OutputPaths, debug: bool, quiet: bool) {
     let mut clang_args =
         clang_link_args(Some(clang_target().as_str()), &paths.exe_path, &paths.obj_path);
@@ -72,8 +70,7 @@ fn link_clang(paths: &OutputPaths, debug: bool, quiet: bool) {
     run_command("clang", &clang_args_ref).unwrap_or_else(|e| die(e));
 }
 
-/// Link with MinGW's gcc driver. It provides the mingw-w64 startup files and
-/// links against msvcrt by default, so no extra libs are needed.
+/// 使用 MinGW 的 gcc 驱动进行链接。它提供 mingw-w64 启动文件并默认链接 msvcrt，无需额外库。
 fn link_mingw(paths: &OutputPaths, debug: bool, quiet: bool) {
     let mut mingw_args: Vec<String> = vec![
         "-o".to_string(),
@@ -84,12 +81,12 @@ fn link_mingw(paths: &OutputPaths, debug: bool, quiet: bool) {
     }
     mingw_args.push(paths.obj_path.to_str().unwrap().to_string());
     if cfg!(target_os = "windows") {
-        // CommandLineToArgvW (UTF-8 argv fixup in main) lives in shell32.
+        // CommandLineToArgvW（main 中的 UTF-8 argv 修复逻辑）位于 shell32 中。
         mingw_args.push("-lshell32".to_string());
         mingw_args.push("-lws2_32".to_string());
     }
     if cfg!(target_os = "linux") {
-        // sqrt, pow, sin, ... are in libm on glibc
+        // glibc 上 sqrt, pow, sin 等数学函数位于 libm
         mingw_args.push("-lm".to_string());
         mingw_args.push("-lpthread".to_string());
     }
@@ -101,8 +98,7 @@ fn link_mingw(paths: &OutputPaths, debug: bool, quiet: bool) {
     run_command("gcc", &mingw_args_ref).unwrap_or_else(|e| die(e));
 }
 
-/// Host target triple for the clang driver, matching the architecture
-/// huzc itself was compiled for (so llc's host output and clang agree).
+/// clang 驱动的主机目标三元组（Host target triple），与编译 huzc 自身的架构对齐（使 llc 输出与 clang 匹配）。
 fn clang_target() -> String {
     let arch = match std::env::consts::ARCH {
         "aarch64" => "aarch64",
@@ -117,9 +113,8 @@ fn clang_target() -> String {
     }
 }
 
-/// Build clang-style linker arguments for the given object file.
-/// Adds the C runtime libraries needed by the generated code on Windows,
-/// and libm on Linux where the math functions live in a separate library.
+/// 为指定目标文件构建 clang 风格的链接器参数。
+/// 在 Windows 上添加生成代码所需的 C 运行时库，在 Linux 上添加 libm（数学函数位于独立库中）。
 fn clang_link_args(target: Option<&str>, exe_path: &Path, obj_path: &Path) -> Vec<String> {
     let mut args = vec![
         "-o".to_string(),
@@ -130,19 +125,19 @@ fn clang_link_args(target: Option<&str>, exe_path: &Path, obj_path: &Path) -> Ve
     }
     args.push(obj_path.to_str().unwrap().to_string());
     if cfg!(target_os = "windows") {
-        // Libraries for C standard functions (printf, malloc, sprintf, etc.)
+        // C 标准库函数所需链接库（printf, malloc, sprintf 等）
         args.extend([
             "-lucrt".to_string(),
             "-llegacy_stdio_definitions".to_string(),
-            // SetConsoleOutputCP (UTF-8 console setup in main)
+            // SetConsoleOutputCP（main 中的 UTF-8 控制台初始化）
             "-lkernel32".to_string(),
-            // CommandLineToArgvW (UTF-8 argv fixup in main)
+            // CommandLineToArgvW（main 中的 UTF-8 argv 修复逻辑）
             "-lshell32".to_string(),
             "-lws2_32".to_string(),
         ]);
     }
     if cfg!(target_os = "linux") {
-        // sqrt, pow, sin, ... are in libm on glibc
+        // glibc 上 sqrt, pow, sin 等数学函数位于 libm
         args.push("-lm".to_string());
         args.push("-lpthread".to_string());
     }

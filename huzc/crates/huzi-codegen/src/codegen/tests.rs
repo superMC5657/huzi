@@ -6,7 +6,7 @@ fn sp(stmt: Stmt) -> Spanned<Stmt> {
     Spanned::new(stmt, 1, 1)
 }
 
-/// Build a program with a single `fn main() -> i32` carrying `body`.
+/// 构建一个仅包含 `fn main() -> i32` 且以 `body` 为函数体的测试程序。
 fn main_program(body: Vec<Spanned<Stmt>>) -> Program {
     Program {
         statements: vec![sp(Stmt::Fn(FnStmt {
@@ -59,7 +59,7 @@ fn scalar_type_mapping() {
         mapped(&Type::Str),
         inkwell::types::BasicTypeEnum::PointerType(_)
     ));
-    // Arrays decay to bare pointers; element types live in VarSlot.
+    // 数组退化为裸指针；元素类型保存在 VarSlot 中。
     assert!(matches!(
         mapped(&Type::Array(Box::new(Type::I32), 4)),
         inkwell::types::BasicTypeEnum::PointerType(_)
@@ -149,8 +149,8 @@ fn reexport_module_functions_callable_without_wrapper() {
     codegen.add_module("helpers", Some(&helpers), None);
 
     // 2. 门面入口模块 my_math:
-    // export helpers
-    // export helpers::*
+    // 导出模块：export helpers
+    // 导出通配符：export helpers::*
     // 完全没有任何手写函数体！
     let my_math = Program {
         statements: vec![

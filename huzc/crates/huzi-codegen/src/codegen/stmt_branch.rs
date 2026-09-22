@@ -5,7 +5,7 @@ use huzi_error::{HuziError, Result};
 
 impl<'ctx> CodeGen<'ctx> {
     pub(super) fn compile_if(&mut self, stmt: &IfStmt, span: Span) -> Result<()> {
-        // Fold the elif chain into nested if/else so each branch is compiled.
+        // 将 elif 链折叠为嵌套 if/else，以便分别编译每个分支。
         let else_block: Option<Block> = if stmt.elif_branches.is_empty() {
             stmt.else_branch.clone()
         } else {
@@ -83,7 +83,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.builder.position_at_end(merge_block);
 
-        // If every branch returned, the merge block is unreachable.
+        // 若所有分支均已返回，则汇合块不可达。
         if !then_open && !else_open {
             self.builder.build_unreachable().unwrap();
         }
@@ -113,8 +113,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.start_dead_block()
     }
 
-    /// After a break/continue the current block is terminated; move to a fresh
-    /// block so following statements still have somewhere to go.
+    /// 在 break/continue 之后当前块已终结；转移到新的 BasicBlock，以便后续语句仍有合法的插入目标。
     pub(super) fn start_dead_block(&mut self) -> Result<()> {
         let function = self.current_function()?;
         let dead = self.context.append_basic_block(function, "dead");
@@ -135,7 +134,7 @@ impl<'ctx> CodeGen<'ctx> {
             .build_unconditional_branch(cond_block)
             .unwrap();
 
-        // Re-evaluate the condition on every iteration.
+        // 每次迭代重新计算循环条件。
         self.builder.position_at_end(cond_block);
         let cond_value = self.compile_expr(&stmt.condition)?;
         let condition = self.to_i1(cond_value)?;

@@ -15,7 +15,7 @@ use paths::OutputPaths;
 use std::fs;
 use std::path::Path;
 
-/// Print an error to stderr and exit with status 1.
+/// 将错误打印到 stderr 并以状态码 1 退出。
 pub(crate) fn die(msg: String) -> ! {
     eprintln!("{}", msg);
     std::process::exit(1);
@@ -65,7 +65,7 @@ fn main() {
         }
     };
 
-    // Release mode runs silently: no progress logs, errors still go to stderr.
+    // 发布模式静默运行：不输出过程日志，错误仍输出至 stderr。
     let quiet = args.release;
 
     let source = read_source(input);
@@ -118,15 +118,14 @@ fn main() {
         die(format!("Error: LLVM module verification failed (this is a compiler bug)\n{}", e));
     }
 
-    // Optimization: run the LLVM IR optimizer before code generation when the
-    // effective level is above 0 (`--release` maps to level 2). Level 0 (dev
-    // mode) passes the raw inkwell IR straight to llc.
+    // 优化阶段：当有效优化级别大于 0 时在代码生成前运行 LLVM IR 优化器（--release 映射至级别 2）。
+    // 级别 0（开发模式）直接将原始 inkwell IR 传入 llc。
     let opt_level = args.effective_opt_level();
     if opt_level > 0 {
         optimize_ir(&paths, opt_level, quiet);
     }
 
-    // [5/5] Generating executable
+    // 阶段 5/5: 生成可执行文件
     if !quiet {
         println!("[5/5] Generating executable...");
     }
@@ -136,7 +135,7 @@ fn main() {
     }
     link(&paths, args.linker, args.debug, quiet);
 
-    // Cleanup intermediate files
+    // 清理中间产物文件
     let _ = fs::remove_file(&paths.ll_path);
     let _ = fs::remove_file(&paths.obj_path);
 
@@ -146,14 +145,13 @@ fn main() {
     }
 }
 
-/// Read the Huzi source file to compile.
+/// 读取待编译的 Huzi 源码文件。
 fn read_source(input: &str) -> String {
     fs::read_to_string(input).unwrap_or_else(|e| die(format!("Error reading file: {}", e)))
 }
 
-/// [1/5] Lexing + [2/5] Parsing: turn source text into the program AST.
-/// Lex/parse errors carry real line/column positions, so they are rendered
-/// with a source excerpt via huzi-error.
+/// [1/5] 词法分析 + [2/5] 语法分析：将源码文本转换为程序 AST。
+/// 词法/语法错误包含精确行列位置，并通过 huzi-error 渲染源码片段。
 fn parse_source(source: &str, quiet: bool) -> Program {
     if !quiet {
         println!("[1/5] Lexing...");
@@ -170,16 +168,15 @@ fn parse_source(source: &str, quiet: bool) -> Program {
         .unwrap_or_else(|e| die(huzi_error::render(&e, source, "Parse error")))
 }
 
-/// Write LLVM IR to disk before verifying so it can be inspected on failure.
+/// 在校验前将 LLVM IR 写盘，以便失败时排查调试。
 fn write_ir(codegen: &CodeGen, ll_path: &Path) {
     if let Err(e) = codegen.write_ir_to_file(ll_path.to_str().unwrap()) {
         die(format!("Error writing IR: {}", e));
     }
 }
 
-/// Compile the LLVM IR to a platform object file with llc. In debug mode,
-/// tune the debugger representation to DWARF (gdb/lldb) instead of the
-/// platform default (CodeView on windows-msvc targets).
+/// 使用 llc 将 LLVM IR 编译为平台目标文件 (.obj/.o)。
+/// 调试模式下将调试器格式调整为 DWARF (gdb/lldb)，而非平台默认格式（如 windows-msvc 目标的 CodeView）。
 fn compile_ir_to_object(paths: &OutputPaths, debug: bool) {
     let mut llc_args: Vec<&str> = vec![
         "--relocation-model=pic",
@@ -193,10 +190,8 @@ fn compile_ir_to_object(paths: &OutputPaths, debug: bool) {
     run_command("llc", &llc_args).unwrap_or_else(|e| die(e));
 }
 
-/// Optimize the LLVM IR in place with `opt -O<level>` (only called when
-/// level > 0). `opt` ships with LLVM alongside `llc`, so no extra toolchain
-/// is needed. The level's pass pipeline covers inlining, constant folding
-/// and common-subexpression elimination.
+/// 使用 opt -O<level> 原地优化 LLVM IR（仅在 level > 0 时调用）。
+/// opt 与 llc 均随 LLVM 提供，无需额外工具链。该级别的 Pass 流水线涵盖函数内联、常量折叠与公共子表达式消除。
 fn optimize_ir(paths: &OutputPaths, level: u8, quiet: bool) {
     let ll_path = paths.ll_path.to_str().unwrap().to_string();
     let opt_args: Vec<String> = vec![

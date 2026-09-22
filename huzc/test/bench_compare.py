@@ -2,7 +2,7 @@
 # huzi vs Rust vs Python 性能对比与回归门禁脚本
 #
 # 用法（在项目根目录 huzc/ 下执行）:
-#   python test/bench_compare.py
+#   执行命令：python test/bench_compare.py
 #
 # 基线文件 test/bench_baseline.txt 存档上次通过门禁的
 # huzi release / Rust -O 比值，仅做漂移提示、不参与门禁判定。

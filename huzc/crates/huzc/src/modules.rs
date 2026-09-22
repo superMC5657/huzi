@@ -314,7 +314,7 @@ fn parse_memory_source(name: &str, source: &str) -> Result<Program, String> {
 /// 探查目录下的模块入口文件:
 /// 1. `<root>/<file>` 直接存在 (如 `core/assert.hz`)
 /// 2. `<root>/<file_stem>/huzi.toml` 中的 `lib_entry`
-/// 3. `<root>/<file_stem>/{src/lib.hz, lib.hz, src/mod.hz, mod.hz}`
+/// 3. 候选入口 `<root>/<file_stem>/{src/lib.hz, lib.hz, src/mod.hz, mod.hz}`
 fn probe_entry_file(root: &Path, file: &Path) -> Option<PathBuf> {
     let p = root.join(file);
     if p.is_file() {

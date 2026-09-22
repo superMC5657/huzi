@@ -27,7 +27,7 @@ impl Lexer {
 
     pub(super) fn read_slash(&mut self) -> Result<Token> {
         self.advance();
-        // `//` comments at token start are already handled by skip_whitespace.
+        // Token 开头的 `//` 单行注释已在 skip_whitespace 中处理。
         Ok(Token::Slash)
     }
 

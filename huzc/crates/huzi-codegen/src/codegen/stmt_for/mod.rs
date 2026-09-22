@@ -30,7 +30,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.loop_stack.push((loop_block, after_block));
 
-        // Allocate and initialize the loop variable.
+        // 分配并初始化循环变量。
         let i_alloca = self.build_alloca(i_type.into(), &stmt.var_name)?;
         self.builder.build_store(i_alloca, start).unwrap();
         self.declare_local(&stmt.var_name, i_alloca, i_type.into(), span);
@@ -44,13 +44,13 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.loop_stack.pop();
 
-        // Continue after the loop.
+        // 循环结束后继续执行后续指令。
         self.builder.position_at_end(after_block);
 
         Ok(())
     }
 
-    /// Compile the range bounds; both must coerce to i32.
+    /// 编译范围边界；两者均必须能强制转换为 i32。
     fn compile_for_bounds(
         &mut self,
         stmt: &ForStmt,
@@ -103,7 +103,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Emit the loop-header block that re-checks `i < end` every iteration.
+    /// 生成循环头 BasicBlock，在每次迭代时重新检查 `i < end`。
     fn emit_for_condition(
         &mut self,
         i_type: inkwell::types::IntType<'ctx>,
@@ -129,8 +129,8 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Emit the loop-body block: bind the loop variable in a fresh scope,
-    /// run the body, then increment `i` and jump back to the header.
+    /// 生成循环体 BasicBlock：在全新作用域中绑定循环变量，
+    /// 执行循环体，随后递增 `i` 并跳回循环头。
     fn emit_for_body(
         &mut self,
         stmt: &ForStmt,
@@ -156,7 +156,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.compile_block(&stmt.body)?;
         self.pop_scope();
 
-        // Increment the loop variable before jumping back to the condition.
+        // 在跳回循环条件判断之前递增循环变量。
         let i = self
             .builder
             .build_load(i_type, i_alloca, "i")

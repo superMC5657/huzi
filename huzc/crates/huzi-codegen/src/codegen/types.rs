@@ -19,7 +19,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Pass 2 (structs): resolve field types and set the bodies.
+    /// Pass 2 (结构体)：解析字段类型并设置结构体体部。
     pub(super) fn resolve_struct_bodies(&mut self, defs: &[StructDef]) -> Result<()> {
         for def in defs {
             let mut fields: Vec<StructFieldInfo<'ctx>> = Vec::new();
@@ -54,8 +54,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Pass 1 (enums): create layouts, inserting placeholders so payloads can
-    /// reference any enum via type_to_llvm regardless of definition order.
+    /// Pass 1 (枚举)：创建布局并插入占位符，以便负载可通过 type_to_llvm 引用任意枚举（无论定义顺序）。
     pub(super) fn register_enum_names(&mut self, defs: &[EnumDef]) -> Result<()> {
         for def in defs {
             if self.structs.contains_key(&def.name) || self.enums.contains_key(&def.name) {
@@ -87,7 +86,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Pass 2 (enums): resolve payload types, set the bodies and variants.
+    /// Pass 2 (枚举)：解析负载类型，设置枚举体部与变体信息。
     pub(super) fn resolve_enum_bodies(&mut self, defs: &[EnumDef]) -> Result<()> {
         for def in defs {
             let mut variants: Vec<EnumVariantInfo<'ctx>> = Vec::new();
@@ -108,8 +107,8 @@ impl<'ctx> CodeGen<'ctx> {
                     payload_slot += 1;
                     (Some(ty), vec![v.payloads[0].clone()], Some(slot))
                 } else {
-                    // Multi-payload variants store an anonymous field struct
-                    // as their single union member.
+                    // 多负载变体将匿名字段结构体存储为
+                    // 其唯一的联合体成员。
                     let mut field_types = Vec::with_capacity(v.payloads.len());
                     for t in &v.payloads {
                         field_types.push(self.type_to_llvm(t)?);
@@ -147,7 +146,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Find a registered data-carrying enum by its LLVM struct type.
+    /// 根据 LLVM 结构体类型查找已注册的携带数据枚举。
     pub(super) fn enum_data_by_type(
         &self,
         ty: inkwell::types::BasicTypeEnum<'ctx>,
@@ -260,16 +259,14 @@ impl<'ctx> CodeGen<'ctx> {
             Type::Char => Ok(self.context.i8_type().into()),
             Type::Str => Ok(self.context.ptr_type(AddressSpace::default()).into()),
             Type::Unit => Ok(self.context.i32_type().into()),
-            // Arrays decay to pointers (LLVM opaque pointers make these
-            // equivalent); element types are tracked in VarSlot.
+            // 数组退化为指针（LLVM 不透明指针使两者等价）；元素类型在 VarSlot 中跟踪。
             Type::Array(_, _) => Ok(self.context.ptr_type(AddressSpace::default()).into()),
-            // `Box<T>` lowers to a plain pointer to T's LLVM storage; structs
-            // holding a Box field are therefore fixed-size and any reference
-            // cycle through Box is legal (see check_type_cycles). Nested
-            // `Box<Box<..>>` is also a plain pointer: each layer's heap cell
-            // holds the next layer's pointer, so the layout stays flat.
-            // T is a named struct or a scalar (`i32`/`i64`/`f64`/`bool`/`str`,
-            // plus `u32`/`u64`/`f32`/`char`); other composites are rejected.
+            // `Box<T>` 降阶为指向 T 的 LLVM 存储的裸指针；因此持有 Box 字段的结构体
+            // 具有固定大小，且通过 Box 形成的任意引用循环均合法（参见 check_type_cycles）。
+            // 嵌套的 `Box<Box<..>>` 同样是裸指针：每层堆单元持有下一层的指针，
+            // 因而内存布局保持扁平。
+            // T 为具名结构体或标量（`i32`/`i64`/`f64`/`bool`/`str`，及 `u32`/`u64`/`f32`/`char`）；
+            // 拒绝其他复合类型。
             Type::Box(inner) => {
                 // 嵌套层直接放行(指针套指针);单层须为结构体或标量。
                 if matches!(&**inner, Type::Box(_)) {
@@ -285,8 +282,7 @@ impl<'ctx> CodeGen<'ctx> {
                     inner
                 )));
             }
-            // Tuples are literal structs: LLVM compares them structurally, so
-            // two `(i32, str)` tuple types are always equal.
+            // 元组是字面量结构体：LLVM 按结构比对它们，因此两个 `(i32, str)` 元组类型始终相等。
             Type::Tuple(elems) => {
                 let mut field_types = Vec::with_capacity(elems.len());
                 for elem in elems {
@@ -308,8 +304,7 @@ impl<'ctx> CodeGen<'ctx> {
                         return Ok((*st).into());
                     }
                     if let Some(info) = self.enums.get(other) {
-                        // Simple enums are their i32 tag; data enums are the
-                        // tagged struct.
+                        // 简单枚举为其 i32 tag；带数据的枚举为带标签的结构体。
                         return Ok(match info.llvm {
                             Some(st) => st.into(),
                             None => self.context.i32_type().into(),
@@ -335,7 +330,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Convert a value to a truthy i1.
+    /// 将一个值转换为布尔真值的 i1。
     pub(super) fn to_i1(&self, value: inkwell::values::BasicValueEnum<'ctx>) -> Result<inkwell::values::IntValue<'ctx>> {
         match value {
             inkwell::values::BasicValueEnum::IntValue(iv)
@@ -360,8 +355,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Convert a value to the target type when it is a lossless/expected
-    /// numeric coercion; otherwise report a type mismatch.
+    /// 当属于无损/预期的数值强制转换时，将值转换为目标类型；否则报告类型不匹配错误。
     pub(super) fn coerce_value(
         &self,
         target: inkwell::types::BasicTypeEnum<'ctx>,
@@ -435,8 +429,7 @@ impl<'ctx> CodeGen<'ctx> {
             .get_first_basic_block()
             .ok_or_else(|| HuziError::new_global("Function has no entry block"))?;
         let builder = self.context.create_builder();
-        // Insert before the first instruction so allocas always land at the
-        // top of the entry block, never after a terminator.
+        // 插入到第一条指令之前，确保 alloca 始终落在入口块的最前端，绝不位于终结指令之后。
         if let Some(first) = entry.get_first_instruction() {
             builder.position_before(&first);
         } else {
@@ -447,7 +440,7 @@ impl<'ctx> CodeGen<'ctx> {
             .map_err(|_| HuziError::new_global("Failed to build alloca"))
     }
 
-    // ==================== Standard Library Functions ====================
+    // ==================== 标准库辅助函数 ====================
 
     /// 判定是否为句柄传递的容器类型 (Map 或 vec<T>)。
     pub(super) fn is_container_handle_type(ty: &Type) -> bool {

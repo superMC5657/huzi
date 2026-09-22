@@ -18,7 +18,7 @@ impl Parser {
         Ok(Stmt::Import(ImportStmt { name }))
     }
 
-    /// `export calc`, `export calc::*`, `export calc::add`
+    /// 解析导出语句：`export calc`、`export calc::*`、`export calc::add`
     pub(super) fn parse_export_statement(&mut self) -> Result<Stmt> {
         self.advance();
         let mut path = self.expect_ident("Expected identifier or module name after 'export'")?;
@@ -43,7 +43,7 @@ impl Parser {
     pub(super) fn parse_let_statement(&mut self) -> Result<Stmt> {
         self.advance();
 
-        // `let mut name` or `let name`
+        // `let mut name` 或 `let name`
         let mutable = self.check(&Token::Mut);
         if mutable {
             self.advance();
@@ -428,7 +428,7 @@ impl Parser {
                 col,
             ));
         }
-        self.advance(); // consume 'defer'
+        self.advance(); // 消费 'defer'
         self.in_defer = true;
         let inner = self.parse_statement();
         self.in_defer = false;

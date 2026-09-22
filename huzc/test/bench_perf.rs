@@ -2,9 +2,9 @@
 // 用于对比 huzi 编译产物与原生 Rust 的执行速度
 //
 // 编译（release 优化）:
-//   rustc -O test/bench_perf.rs -o test/out/bench_perf_rs
+//   执行编译：rustc -O test/bench_perf.rs -o test/out/bench_perf_rs
 // 运行:
-//   ./test/out/bench_perf_rs
+//   执行运行：./test/out/bench_perf_rs
 
 fn int_loop(n: i32) -> i32 {
     let mut sum = 0;

@@ -13,7 +13,7 @@ pub enum Type {
     Char,
     Unit,
     Named(String),
-    Array(Box<Type>, usize), // Array<ElementType, Size>
+    Array(Box<Type>, usize), // 定长数组: [元素类型; 长度]
     Tuple(Vec<Type>),
     /// 堆分配智能指针:`Box<Node>`(具名结构体)、`Box<i32>` 等
     /// 基础类型(`i32`/`i64`/`f64`/`bool`/`str`)或嵌套
@@ -223,7 +223,7 @@ pub struct ImportStmt {
     pub name: String,
 }
 
-/// `export calc`, `export calc::*`, `export calc::add`
+/// 导出声明，例如：`export calc`, `export calc::*`, `export calc::add`
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExportStmt {
     pub path: String,
@@ -252,8 +252,8 @@ pub struct EnumDef {
 #[derive(Debug, Clone)]
 pub struct EnumVariant {
     pub name: String,
-    /// Payload types: `Red` has none, `Ok(i32)` has one,
-    /// `Pair(i32, str)` has several.
+    /// 负载类型：`Red` 无负载，`Ok(i32)` 携带一个负载，
+    /// `Pair(i32, str)` 携带多个负载。
     pub payloads: Vec<Type>,
 }
 
@@ -304,7 +304,7 @@ pub struct IfStmt {
 /// `for` 循环的迭代来源:整数范围或数组。
 #[derive(Debug, Clone)]
 pub enum ForSource {
-    /// `for i in start..end`
+    /// 范围迭代：`for i in start..end`
     Range { start: Expr, end: Expr },
     /// `for x in arr`(数组变量/结构体字段,长度编译期已知)
     Array(Expr),
@@ -363,7 +363,7 @@ pub struct MethodCallExpr {
     pub arguments: Vec<Expr>,
 }
 
-/// Enum variant construction: `Color::Red` or `Result::Ok(42)`
+/// 枚举变体构造：`Color::Red` 或 `Result::Ok(42)`
 #[derive(Debug, Clone)]
 pub struct EnumConstructExpr {
     pub enum_name: String,
@@ -371,7 +371,7 @@ pub struct EnumConstructExpr {
     pub args: Vec<Expr>,
 }
 
-/// `match scrutinee { pattern => body, ... }` used as an expression.
+/// 作为表达式使用的 match 表达式：`match scrutinee { pattern => body, ... }`
 #[derive(Debug, Clone)]
 pub struct MatchExpr {
     pub scrutinee: Box<Expr>,
@@ -386,14 +386,14 @@ pub struct MatchArm {
 
 #[derive(Debug, Clone)]
 pub enum Pattern {
-    /// `Enum::Variant`, `Enum::Variant(x)` or `Enum::Variant(x, y)` — binds
-    /// the payload fields to variables inside the arm body.
+    /// `Enum::Variant`、`Enum::Variant(x)` 或 `Enum::Variant(x, y)` — 将
+    /// 负载字段绑定到分支体内的局部变量。
     Variant {
         enum_name: String,
         variant: String,
         bindings: Vec<String>,
     },
-    /// `_` — matches anything.
+    /// `_` — 通配符，匹配任意值。
     Wildcard,
 }
 
@@ -403,7 +403,7 @@ pub struct FieldAccessExpr {
     pub field: String,
 }
 
-/// Struct instantiation: `Point { x: 1, y: 2 }` or `Pair<i32, str> { key: 1, val: "a" }`
+/// 结构体实例化：`Point { x: 1, y: 2 }` 或 `Pair<i32, str> { key: 1, val: "a" }`
 #[derive(Debug, Clone)]
 pub struct StructLiteralExpr {
     pub name: String,
@@ -411,7 +411,7 @@ pub struct StructLiteralExpr {
     pub type_args: Vec<Type>,
 }
 
-/// If used as an expression: `let m = if cond { a } else { b }`
+/// 作为表达式使用的 if：`let m = if cond { a } else { b }`
 #[derive(Debug, Clone)]
 pub struct IfExpr {
     pub condition: Box<Expr>,

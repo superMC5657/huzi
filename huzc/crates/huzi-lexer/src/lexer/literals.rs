@@ -50,12 +50,12 @@ impl Lexer {
                     self.advance();
                 }
                 '.' if !has_dot => {
-                    // Don't consume the dot of a range expression: 1..5
+                    // 不消费范围表达式的点号：1..5
                     if self.pos + 1 < self.source.len() && self.source[self.pos + 1] == '.' {
                         break;
                     }
-                    // After `.` the number is a tuple index: `t.1.2` must lex
-                    // as three tokens, not `t`, `.`, `1.2`.
+                    // 点号后的数字为元组索引：`t.1.2` 必须分词为
+                    // 三个 Token，而不是 `t`、`.`、`1.2`。
                     if self.prev_was_dot {
                         break;
                     }

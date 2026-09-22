@@ -1,8 +1,6 @@
-//! Data-carrying enum `==` / `!=`: compare the discriminant first, then the
-//! payload fields of the matching variant. Field rules: integers/char/bool
-//! compare by value, floats by `OEQ`, `str` via `strcmp`, nested structs by
-//! recursive field comparison. Only `==` / `!=` are supported; comparing two
-//! different enum types is a compile error.
+//! 携带数据的枚举 `==` / `!=`：首先比较判别码，然后比较匹配变体的负载字段。
+//! 字段规则：整数/char/bool 按值比较，浮点数通过 `OEQ` 比较，`str` 通过 `strcmp` 比较，
+//! 嵌套结构体通过递归字段比较。仅支持 `==` / `!=`；比较两个不同枚举类型属于编译错误。
 
 use super::{CodeGen, EnumInfo};
 use huzi_ast::*;
@@ -10,8 +8,8 @@ use huzi_error::{HuziError, Result};
 use inkwell::values::{BasicValueEnum, IntValue};
 
 impl<'ctx> CodeGen<'ctx> {
-    /// Entry from the comparison path in `expr_binary`: both operands are
-    /// values of the same data-carrying enum. Returns the `i1` result.
+    /// `expr_binary` 中比较路径的入口：两个操作数都是同一携带数据枚举的值。
+    /// 返回 `i1` 结果。
     pub(super) fn build_data_enum_compare(
         &mut self,
         op: &BinOp,
@@ -32,9 +30,8 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Look at two already-compiled operand values: if either side is a
-    /// data-carrying enum, resolve the comparison (or report a type error).
-    /// Returns `None` when neither side is a data enum (normal path).
+    /// 检查两个已编译的操作数值：若任意一侧是携带数据的枚举，则处理比较（或报错类型不匹配）。
+    /// 当两侧都不是携带数据的枚举时返回 `None`（走常规路径）。
     pub(super) fn try_build_data_enum_compare(
         &mut self,
         op: &BinOp,
@@ -75,11 +72,9 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Core equality: spill both values, compare tags, then AND the field
-    /// comparisons of whichever variant the tag selects. Each variant's
-    /// fields are compared only on its selected branch — other variants'
-    /// union slots hold garbage (notably dangling `str` pointers that
-    /// `strcmp` must never dereference).
+    /// 核心判等：将两个值溢出到内存，比较 tag，然后与 tag 所选变体的字段比较结果进行 AND。
+    /// 每个变体的字段仅在其选中的分支上进行比较——其他变体的联合体插槽持有垃圾数据
+    /// （特别是悬空 `str` 指针，`strcmp` 绝不可解引用）。
     fn build_data_enum_values_eq(
         &mut self,
         left_val: BasicValueEnum<'ctx>,
@@ -116,8 +111,7 @@ impl<'ctx> CodeGen<'ctx> {
             .into_int_value())
     }
 
-    /// `if tag == variant.tag { acc &= fields_eq }` — one guarded block per
-    /// payload-carrying variant.
+    /// `if tag == variant.tag { acc &= fields_eq }` — 每个携带负载的变体生成一个受保护的基本块。
     fn and_variant_fields_eq(
         &mut self,
         enum_st: inkwell::types::StructType<'ctx>,
@@ -158,7 +152,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Load the `i32` discriminant (field 0) of a spilled enum value.
+    /// 加载溢出存储的枚举值的 `i32` 判别码（字段 0）。
     fn load_enum_tag(
         &self,
         enum_st: inkwell::types::StructType<'ctx>,
@@ -175,9 +169,8 @@ impl<'ctx> CodeGen<'ctx> {
             .into_int_value())
     }
 
-    /// AND of all payload-field comparisons for one variant. Runs only on
-    /// the variant's selected branch, so both union slots genuinely carry
-    /// this variant's payload.
+    /// 对单个变体的所有负载字段比较结果进行 AND。仅在变体选中的分支上运行，
+    /// 确保两个联合体插槽确实持有该变体的负载。
     fn build_variant_fields_eq(
         &mut self,
         enum_st: inkwell::types::StructType<'ctx>,
@@ -211,7 +204,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(fields_eq)
     }
 
-    /// Load one variant's union slot from a spilled enum value.
+    /// 从溢出存储的枚举值中加载单个变体的联合体插槽。
     fn load_union_slot(
         &self,
         enum_st: inkwell::types::StructType<'ctx>,
@@ -234,16 +227,15 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap())
     }
 
-    /// Compare two payload field values of the same declared AST type.
+    /// 比较具有相同声明 AST 类型的两个负载字段值。
     fn build_payload_field_eq(
         &mut self,
         ast_ty: &Type,
         left: BasicValueEnum<'ctx>,
         right: BasicValueEnum<'ctx>,
     ) -> Result<IntValue<'ctx>> {
-        // Named types resolve to structs, simple enums or data enums — but
-        // primitive spellings (`i32`, `str`, ...) go through the generic
-        // value-kind comparison below.
+        // 命名类型解析为结构体、简单枚举或带数据枚举——但
+        // 原生类型拼写（`i32`、`str` 等）走下方的通用值类型比较。
         if let Type::Named(name) = ast_ty {
             if !is_primitive_type_name(name) {
                 return self.build_named_field_eq(name, left, right);
@@ -264,7 +256,7 @@ impl<'ctx> CodeGen<'ctx> {
                 .unwrap());
         }
         if left.is_pointer_value() && right.is_pointer_value() {
-            // `str` payloads compare with strcmp.
+            // `str` 负载使用 strcmp 比较。
             return Ok(self
                 .build_string_compare(&BinOp::Eq, &left, &right)?
                 .into_int_value());
@@ -278,7 +270,7 @@ impl<'ctx> CodeGen<'ctx> {
         )))
     }
 
-    /// Compare two fields whose declared type is a named user type.
+    /// 比较声明类型为命名用户类型的两个字段。
     fn build_named_field_eq(
         &mut self,
         name: &str,
@@ -290,7 +282,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
         if let Some(info) = self.enums.get(name).cloned() {
             if info.llvm.is_none() {
-                // Simple enum: the value is its i32 tag.
+                // 简单枚举：其值就是其 i32 tag。
                 return Ok(self
                     .builder
                     .build_int_compare(
@@ -309,7 +301,7 @@ impl<'ctx> CodeGen<'ctx> {
         )))
     }
 
-    /// Recursively compare two struct values field by field.
+    /// 递归逐字段比较两个结构体值。
     fn build_struct_value_eq(
         &mut self,
         st: inkwell::types::StructType<'ctx>,
@@ -343,7 +335,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(acc)
     }
 
-    /// Compare two tuple values element by element.
+    /// 逐元素比较两个元组值。
     fn build_tuple_value_eq(
         &mut self,
         elems: &[Type],
@@ -366,7 +358,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(acc)
     }
 
-    /// Sign-extend the narrower int operand to the wider width.
+    /// 将较窄的整数操作数符号扩展为较宽的位宽。
     fn unify_int_width(
         &self,
         left: IntValue<'ctx>,
@@ -389,7 +381,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Cast the narrower float operand to the wider float type.
+    /// 将较窄的浮点数操作数转换为较宽的浮点类型。
     fn unify_float_width(
         &self,
         left: inkwell::values::FloatValue<'ctx>,
@@ -414,8 +406,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 }
 
-/// Primitive type spellings as they appear in `Type::Named` payloads (the
-/// parser stores `i32` as `Named("i32")`, not `Type::I32`).
+/// 出现于 `Type::Named` 负载中的原生类型拼写（解析器将 `i32` 存储为 `Named("i32")` 而非 `Type::I32`）。
 fn is_primitive_type_name(name: &str) -> bool {
     matches!(
         name,
@@ -423,7 +414,7 @@ fn is_primitive_type_name(name: &str) -> bool {
     )
 }
 
-/// Single-character symbol of a comparison operator, for error messages.
+/// 比较运算符的字符符号，用于错误提示信息。
 fn bin_op_symbol(op: &BinOp) -> &'static str {    match op {
         BinOp::Eq => "==",
         BinOp::Neq => "!=",

@@ -4,14 +4,14 @@
 // 限制:仅文本响应(body 经 C 字符串拼接,NUL 字节会截断);不支持
 // chunked 编码、keep-alive 与 TLS;错误类型固定为 core.result 的 Result<str>。
 //
-// 用法:
-//   import core.result
-//   import std.http
-//   let r = http::http_get("example.com", 80, "/")
+// 用法示例:
+//   import core.result                               // 导入核心结果模块
+//   import std.http                                  // 导入网络模块
+//   let r = http::http_get("example.com", 80, "/")   // 发送 GET 请求
 //   if result::is_ok(r) {
-//       print(result::unwrap_or(r, ""))
+//       print(result::unwrap_or(r, ""))              // 打印响应内容
 //   } else {
-//       print(result::err_msg(r))
+//       print(result::err_msg(r))                    // 打印错误信息
 //   }
 import alloc.stringx
 import core.result

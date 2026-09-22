@@ -1,6 +1,6 @@
 //! 通道(chan)内置函数:跨线程字符串消息队列。
 //!
-//! `chan_new(cap) -> i64` / `chan_send(ch, msg) -> bool` / `chan_recv(ch) -> str`。
+//! 包括 `chan_new(cap) -> i64`、`chan_send(ch, msg) -> bool`、`chan_recv(ch) -> str`。
 //! 实现为固定容量环形缓冲:自旋锁(LLVM `atomicrmw xchg`)保护索引,满发/空收
 //! 时解锁并睡 1ms 轮询等待。句柄是堆结构体指针的 i64 整数形式,可直接作为
 //! `spawn` 实参传给线程;句柄为 null 时 send 返回 false、recv 返回空串。
@@ -28,7 +28,7 @@ const CHAN_SIZE: u64 = 32;
 const CHAN_MAX_CAP: i64 = 4096;
 
 impl<'ctx> CodeGen<'ctx> {
-    /// `chan_new(cap: i32) -> i64`
+    /// 创建通道：`chan_new(cap: i32) -> i64`
     pub(super) fn compile_chan_new(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
         if arguments.len() != 1 {
             return Err(HuziError::new_global(

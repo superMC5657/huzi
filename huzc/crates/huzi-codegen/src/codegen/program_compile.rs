@@ -48,9 +48,8 @@ pub(super) fn module_fn_statements(program: &Program) -> Vec<(FnStmt, Span)> {
 }
 
 impl<'ctx> CodeGen<'ctx> {
-    /// Register all top-level struct/enum definitions before anything else
-    /// so function signatures and field types can reference them. Returns
-    /// the collected function definitions.
+    /// 最先注册所有顶层结构体/枚举定义，以便函数签名与字段类型
+    /// 能够引用它们。返回收集到的函数定义列表。
     pub(super) fn register_program_types(&mut self, program: &Program) -> Result<Vec<(FnStmt, Span)>> {
         let (struct_defs, enum_defs) = program_type_definitions(program);
         self.register_type_definitions(&struct_defs, &enum_defs)?;
@@ -65,9 +64,8 @@ impl<'ctx> CodeGen<'ctx> {
             .collect())
     }
 
-    /// Register a module file's struct/enum definitions and function
-    /// signatures. Called with `current_module` set, so signatures are
-    /// registered under qualified names.
+    /// 注册模块文件的结构体/枚举定义与函数签名。调用时已设置
+    /// `current_module`，因此签名会在限定名下注册。
     /// 注册模块的类型定义(泛型模板跳过)。签名注册单独进行,
     /// 以便模块与主程序的全部具名类型先就位。
     pub(super) fn register_module_type_definitions(&mut self, program: &Program) -> Result<()> {
@@ -114,8 +112,8 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Top-level statements must live in a `main` function; synthesize one
-    /// if the program only has top-level code.
+    /// 顶层语句必须存在于 `main` 函数中；若程序仅包含顶层代码，
+    /// 则自动合成一个 `main` 函数。
     pub(super) fn compile_top_level(&mut self, program: &Program, fn_stmts: &[(FnStmt, Span)]) -> Result<()> {
         let has_main = fn_stmts.iter().any(|(f, _)| f.name == "main");
         let top_level: Vec<&Spanned<Stmt>> = program
@@ -144,8 +142,8 @@ impl<'ctx> CodeGen<'ctx> {
             ));
         }
 
-        // The C runtime calls `main(argc, argv)`; capture both into globals
-        // so the arg()/arg_count() builtins can read them.
+        // C 运行时调用 `main(argc, argv)`；将二者捕获到全局变量中，
+        // 以便 arg() / arg_count() 内置函数能够读取它们。
         let i32_type = self.context.i32_type();
         let ptr_type = self.context.ptr_type(AddressSpace::default());
         let main_type = i32_type.fn_type(&[i32_type.into(), ptr_type.into()], false);
@@ -219,9 +217,8 @@ impl<'ctx> CodeGen<'ctx> {
                 }
             })
             .collect::<Result<Vec<_>>>()?;
-        // The entry point is compiled with the C `main(argc, argv)` signature
-        // so the arg builtins can capture them; Huzi-level `fn main()` stays
-        // parameterless.
+        // 入口点采用 C 的 `main(argc, argv)` 签名进行编译，
+        // 以便 arg 内置函数捕获它们；Huzi 层面的 `fn main()` 仍保持无参。
         let param_llvm_types = if qualified_name == "main" && param_llvm_types.is_empty() {
             vec![
                 self.context.i32_type().into(),

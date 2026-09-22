@@ -101,12 +101,12 @@ impl<'ctx> CodeGen<'ctx> {
             "huzc",
             false, // is_optimized:调试模式强制 -O0
             "",    // 编译命令行 flags
-            0,     // runtime version
-            "",    // split name
+            0,     // 运行时版本 (runtime_version)
+            "",    // split 名称 (split_name)
             DWARFEmissionKind::Full,
             0,     // dwo id
-            false, // split debug inlining
-            false, // debug info for profiling
+            false, // 拆分调试内联 (split_debug_inlining)
+            false, // 性能剖析调试信息 (debug_info_for_profiling)
             "",    // sysroot
             "",    // sdk
         );
@@ -205,9 +205,9 @@ impl<'ctx> CodeGen<'ctx> {
             file,
             line,
             ty,
-            false, // is_local_to_unit
+            false, // 是否单元局部 (is_local_to_unit)
             true,  // is_definition
-            line,  // scope line
+            line,  // 作用域起始行 (scope_line)
             DIFlags::ZERO,
             false, // is_optimized
         ))

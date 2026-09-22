@@ -249,7 +249,7 @@ impl<'ctx> CodeGen<'ctx> {
     pub(super) fn compile_read_line(&mut self) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         let getchar_fn = self.module.get_function("getchar").unwrap();
 
-        // Allocate buffer (256 bytes)
+        // 分配缓冲区（256 字节）
         let buffer = self.alloc_str_buffer(256)?;
 
         let i32_type = self.context.i32_type();
@@ -267,7 +267,7 @@ impl<'ctx> CodeGen<'ctx> {
             .build_unconditional_branch(loop_block)
             .unwrap();
 
-        // Read one char per iteration until '''PLACEHOLDER''', EOF, or buffer full.
+        // 每次循环读取一个字符，直到遇到 '\n'、EOF 或缓冲区满。
         self.builder.position_at_end(loop_block);
         let c = self
             .builder
@@ -277,7 +277,7 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap_left()
             .into_int_value();
 
-        // Record EOF for is_eof(): getchar returns -1 at end of input.
+        // 记录 EOF 供 is_eof() 查询：输入结束时 getchar 返回 -1。
         let eof_hit = self
             .builder
             .build_int_compare(
@@ -303,7 +303,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.read_line_store(buffer, idx_ptr, idx, c, i32_type, store_block, loop_block)?;
 
-        // Null-terminate and continue in the done block.
+        // 写入 NUL 终止符并在 done 块中继续。
         self.builder.position_at_end(done_block);
         let term_ptr = unsafe {
             self.builder
@@ -317,8 +317,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(buffer.into())
     }
 
-    /// Whether the read loop should keep going: space left in the buffer,
-    /// current char is not a newline, and not EOF.
+    /// 读取循环是否应继续：缓冲区仍有空间、当前字符非换行符且非 EOF。
     fn read_line_continue(
         &mut self,
         c: inkwell::values::IntValue<'ctx>,
@@ -342,8 +341,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(cont)
     }
 
-    /// Emit the store block: truncate the char to i8, write it at the current
-    /// index, bump the index, and jump back to the loop header.
+    /// 发射 store 块：将字符截断为 i8，写入当前索引处，索引递增并跳回循环头。
     fn read_line_store(
         &mut self,
         buffer: PointerValue<'ctx>,
@@ -379,14 +377,14 @@ impl<'ctx> CodeGen<'ctx> {
     pub(super) fn compile_read_int(&mut self) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         let scanf_fn = self.module.get_function("scanf").unwrap();
 
-        // Format string for %d
+        // %d 的格式化字符串
         let format_str = unsafe {
             self.builder
                 .build_global_string("%d", "scanf_format_int")
                 .unwrap()
         };
 
-        // Allocate space for int
+        // 为 int 分配空间
         let int_ptr = self.build_alloca(self.context.i32_type().into(), "int_input")?;
 
         let scanf_ret = self
@@ -404,7 +402,7 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap_left()
             .into_int_value();
 
-        // Record EOF for is_eof(): scanf returns -1 when input ends.
+        // 记录 EOF 供 is_eof() 查询：输入结束时 scanf 返回 -1。
         let eof_hit = self
             .builder
             .build_int_compare(
@@ -427,14 +425,14 @@ impl<'ctx> CodeGen<'ctx> {
     pub(super) fn compile_read_float(&mut self) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         let scanf_fn = self.module.get_function("scanf").unwrap();
 
-        // Format string for %lf
+        // %lf 的格式化字符串
         let format_str = unsafe {
             self.builder
                 .build_global_string("%lf", "scanf_format_float")
                 .unwrap()
         };
 
-        // Allocate space for double
+        // 为 double 分配空间
         let float_ptr = self.build_alloca(self.context.f64_type().into(), "float_input")?;
 
         let scanf_ret = self
@@ -452,7 +450,7 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap_left()
             .into_int_value();
 
-        // Record EOF for is_eof(): scanf returns -1 when input ends.
+        // 记录 EOF 供 is_eof() 查询：输入结束时 scanf 返回 -1。
         let eof_hit = self
             .builder
             .build_int_compare(

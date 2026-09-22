@@ -197,7 +197,7 @@ fn pz_ident_expr(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>
     if g == 2 {
         return false
     }
-    # `Enum::Variant` / `Enum::Variant(args)` / `pkg::sub::f(args)`。
+    # 路径限定符号：`Enum::Variant` / `Enum::Variant(args)` / `pkg::sub::f(args)`。
     if cursor::pz_next_at(kinds, texts, pos, 1, "::") {
         cursor::pz_next(pos)
         cursor::pz_next(pos)

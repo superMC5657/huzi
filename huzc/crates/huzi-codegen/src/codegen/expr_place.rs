@@ -192,9 +192,8 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// GEP to a named field of the struct value stored at `base_ptr`, or to
-    /// element `field` when the base is a tuple and the field is an index
-    /// (`t.0`).
+    /// 对存储在 `base_ptr` 的结构体执行 GEP 以获取具名字段；
+    /// 若基类为元组且字段为数字索引（`t.0`），则定位至该元素。
     pub(super) fn gep_field(
         &self,
         base_ptr: PointerValue<'ctx>,
@@ -226,7 +225,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok((field_ptr, info.ty))
     }
 
-    /// Find a registered struct definition by its LLVM type.
+    /// 根据 LLVM 类型查找已注册的结构体定义。
     pub(super) fn struct_def_by_type(
         &self,
         ty: inkwell::types::BasicTypeEnum<'ctx>,
@@ -238,8 +237,8 @@ impl<'ctx> CodeGen<'ctx> {
         self.structs.values().find(|(def_st, _)| *def_st == st)
     }
 
-    /// Best-effort struct definition lookup for an expression, following
-    /// variables and field chains (Box layers are auto-dereferenced).
+    /// 尽力推导表达式对应的结构体定义，顺着变量与字段链追踪
+    /// （对 Box 层级执行自动解引用）。
     pub(super) fn struct_def_of_expr(
         &self,
         expr: &Expr,
@@ -266,7 +265,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// The root of an lvalue chain must be a mutable variable.
+    /// 左值链的根部必须是一个可变变量（mutable variable）。
     pub(super) fn ensure_mutable(&self, expr: &Expr) -> Result<()> {
         match expr {
             Expr::Ident(name) => {

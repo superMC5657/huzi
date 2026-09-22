@@ -16,9 +16,9 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// Declare the C runtime functions used by builtins (link to libc).
+    /// 声明内置函数使用的 C 运行时函数（链接到 libc）。
     fn declare_libc_functions(&mut self) {
-        // printf for print function
+        // 用于 print 函数的 printf
         let print_fn = self.context.i32_type().fn_type(
             &[self
                 .context
@@ -28,7 +28,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("printf", print_fn, None);
 
-        // scanf for input functions
+        // 用于输入函数的 scanf
         let scanf_fn = self.context.i32_type().fn_type(
             &[self
                 .context
@@ -38,18 +38,18 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("scanf", scanf_fn, None);
 
-        // getchar for read_line
+        // 用于 read_line 的 getchar
         let getchar_fn = self.context.i32_type().fn_type(&[], false);
         self.module.add_function("getchar", getchar_fn, None);
 
-        // malloc for string allocation (returns i8*)
+        // 用于字符串分配的 malloc（返回 i8*）
         let malloc_fn = self.context.ptr_type(inkwell::AddressSpace::default()).fn_type(
             &[self.context.i32_type().into()],
             false,
         );
         self.module.add_function("malloc", malloc_fn, None);
 
-        // realloc for vec growth (ptr, new byte size) -> ptr
+        // 用于 vec 扩容的 realloc（ptr, new byte size）-> ptr
         let realloc_fn = self.context.ptr_type(inkwell::AddressSpace::default()).fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
@@ -59,14 +59,14 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("realloc", realloc_fn, None);
 
-        // free for manual release (free_str/free_vec/free_box)
+        // 用于手动释放的 free（free_str/free_vec/free_box）
         let free_fn = self.context.void_type().fn_type(
             &[self.context.ptr_type(AddressSpace::default()).into()],
             false,
         );
         self.module.add_function("free", free_fn, None);
 
-        // sprintf for to_string
+        // 用于 to_string 的 sprintf
         let sprintf_fn = self.context.i32_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
@@ -76,7 +76,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("sprintf", sprintf_fn, None);
 
-        // strlen for string length
+        // 用于获取字符串长度的 strlen
         let strlen_fn = self.context.i32_type().fn_type(
             &[self
                 .context
@@ -86,7 +86,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strlen", strlen_fn, None);
 
-        // strcmp for string comparison (==/!=/< etc. on str operands)
+        // 用于字符串比较的 strcmp（str 操作数上的 ==/!=/< 等）
         let strcmp_fn = self.context.i32_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
@@ -96,7 +96,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strcmp", strcmp_fn, None);
 
-        // strtoll for parse_int
+        // 用于 parse_int 的 strtoll
         let strtoll_fn = self.context.i64_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
@@ -107,7 +107,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strtoll", strtoll_fn, None);
 
-        // strtod for parse_float
+        // 用于 parse_float 的 strtod
         let strtod_fn = self.context.f64_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
@@ -117,14 +117,14 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strtod", strtod_fn, None);
 
-        // getenv for env_get
+        // 用于 env_get 的 getenv
         let getenv_fn = self.context.ptr_type(AddressSpace::default()).fn_type(
             &[self.context.ptr_type(AddressSpace::default()).into()],
             false,
         );
         self.module.add_function("getenv", getenv_fn, None);
 
-        // localtime and strftime for timestamp formatting
+        // 用于时间戳格式化的 localtime 和 strftime
         let localtime_fn = self.context.ptr_type(AddressSpace::default()).fn_type(
             &[self.context.ptr_type(AddressSpace::default()).into()],
             false,
@@ -142,14 +142,14 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strftime", strftime_fn, None);
 
-        // exit for runtime error aborts (division by zero, out-of-bounds, ...)
+        // 用于运行时错误中止的 exit（除以零、越界等）
         let exit_fn = self.context.void_type().fn_type(
             &[self.context.i32_type().into()],
             false,
         );
         self.module.add_function("exit", exit_fn, None);
 
-        // rand/srand for pseudo-random numbers
+        // 用于伪随机数的 rand/srand
         let rand_fn = self.context.i32_type().fn_type(&[], false);
         self.module.add_function("rand", rand_fn, None);
         let srand_fn = self
@@ -158,7 +158,7 @@ impl<'ctx> CodeGen<'ctx> {
             .fn_type(&[self.context.i32_type().into()], false);
         self.module.add_function("srand", srand_fn, None);
 
-        // time for Unix timestamps (seconds); called with a null timer ptr
+        // 用于 Unix 时间戳（秒）的 time；传入空指针调用
         let time_fn = self.context.i64_type().fn_type(
             &[self
                 .context
@@ -168,7 +168,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("time", time_fn, None);
 
-        // Millisecond sleep: Sleep(DWORD ms) on Windows, usleep(usec) on POSIX.
+        // 毫秒级睡眠：Windows 下为 Sleep(DWORD ms)，POSIX 下为 usleep(usec)。
         if cfg!(windows) {
             let sleep_fn = self
                 .context
@@ -183,7 +183,7 @@ impl<'ctx> CodeGen<'ctx> {
             self.module.add_function("usleep", usleep_fn, None);
         }
 
-        // stdio for read_file/write_file (size_t is 64-bit on x86_64)
+        // 用于 read_file/write_file 的 stdio 函数（x86_64 上 size_t 为 64 位）
         let fopen_fn = self.context.ptr_type(AddressSpace::default()).fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
@@ -232,7 +232,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("ftell", ftell_fn, None);
 
-        // strcpy for string copy
+        // 用于字符串拷贝的 strcpy
         let strcpy_fn = self.context.i32_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
@@ -242,7 +242,7 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("strcpy", strcpy_fn, None);
 
-        // SetConsoleOutputCP (kernel32) for UTF-8 console output on Windows
+        // 用于 Windows 上 UTF-8 控制台输出的 SetConsoleOutputCP (kernel32)
         if cfg!(windows) {
             let set_cp_fn =
                 self.context.i32_type().fn_type(&[self.context.i32_type().into()], false);
@@ -250,7 +250,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Declare the math functions (link to libm).
+    /// 声明数学函数（链接到 libm）。
     fn declare_libm_functions(&mut self) {
         let sqrt_fn = self.context.f64_type().fn_type(&[self.context.f64_type().into()], false);
         self.module.add_function("sqrt", sqrt_fn, None);
@@ -279,7 +279,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Build a global "true"/"false" string selected by the given i1 condition.
+    /// 根据给定的 i1 条件选择并构建全局 "true"/"false" 字符串。
     pub(super) fn build_bool_str(
         &mut self,
         cond: inkwell::values::IntValue<'ctx>,
@@ -307,7 +307,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(selected.into_pointer_value())
     }
 
-    /// Malloc a string buffer of the given size.
+    /// 通过 malloc 分配给定大小的字符串缓冲区。
     pub(super) fn alloc_str_buffer(&mut self, size: u64) -> Result<PointerValue<'ctx>> {
         let malloc_fn = self.module.get_function("malloc").unwrap();
         let buffer_size = self.context.i32_type().const_int(size, false);
@@ -321,7 +321,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(buffer)
     }
 
-    /// Declare network functions (link to ws2_32 on Windows, libc on POSIX).
+    /// 声明网络函数（Windows 链接到 ws2_32，POSIX 链接到 libc）。
     fn declare_net_functions(&mut self) {
         let i32_ty = self.context.i32_type();
         let i64_ty = self.context.i64_type();
@@ -384,7 +384,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.module.add_function("inet_addr", inet_fn, None);
     }
 
-    /// Declare threading functions (link to kernel32 on Windows, lpthread on POSIX).
+    /// 声明线程函数（Windows 链接到 kernel32，POSIX 链接到 lpthread）。
     fn declare_thread_functions(&mut self) {
         let i32_ty = self.context.i32_type();
         let i64_ty = self.context.i64_type();

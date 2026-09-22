@@ -4,8 +4,8 @@ use huzi_error::Result;
 use huzi_lexer::Token;
 
 impl Parser {
-    /// If used as an expression: `let m = if c { a } else { b }`, with
-    /// `elif` chains folded into a nested expression.
+    /// 作为表达式使用的 if：`let m = if c { a } else { b }`，其中
+    /// `elif` 链折叠为嵌套表达式。
     pub(super) fn parse_if_expression(&mut self) -> Result<Expr> {
         self.advance();
         let condition = self.parse_expression()?;
@@ -39,7 +39,7 @@ impl Parser {
         }))
     }
 
-    /// Fold elif branches into nested if expressions as the else block.
+    /// 将 elif 分支折叠为嵌套 if 表达式作为 else 块。
     /// 每层折叠出的合成语句继承对应 `elif` 关键字的位置。
     fn fold_elif_expr(elifs: &[(Expr, Block, usize, usize)], else_b: Block) -> Block {
         match elifs.split_first() {

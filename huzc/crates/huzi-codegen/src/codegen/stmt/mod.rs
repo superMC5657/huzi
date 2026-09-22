@@ -52,11 +52,11 @@ impl<'ctx> CodeGen<'ctx> {
         self.current_subprogram = function.get_subprogram();
         self.clear_debug_location();
 
-        // The program entry point sets up UTF-8 console output first.
+        // 程序入口点首先初始化 UTF-8 控制台输出。
         if stmt.name == "main" {
             self.emit_console_utf8_setup();
-            // A parameterless Huzi `fn main` is compiled with the C
-            // `main(argc, argv)` signature; capture the hidden params.
+            // 无参的 Huzi `fn main` 编译为带有 C `main(argc, argv)` 签名的函数；
+            // 捕获这两个隐藏形参。
             if stmt.params.is_empty() && function.count_params() == 2 {
                 self.store_main_args(function);
             }
@@ -94,12 +94,12 @@ impl<'ctx> CodeGen<'ctx> {
             };
             self.declare_param(&param.name, alloca, slot_ty, i as u32 + 1, span.start_line() as u32);
 
-            // Arrays decay to pointers; remember the element type for indexing.
+            // 数组退化为指针；记住元素类型以供索引。
             let (vec_elem, map_mark) = self.elem_and_mark_from_ast(&param.param_type)?;
             let elem = match &param.param_type {
                 Type::Array(elem_ty, _) => Some(self.type_to_llvm(elem_ty)?),
-                // `s: str` parses as Named("str") (parse_type keeps builtin
-                // names as Named), so both forms need char-index metadata.
+                // `s: str` 解析为 Named("str")（parse_type 保留内置类型名称为 Named），
+                // 因此两种形式都需要字符索引元数据。
                 Type::Str | Type::Named(_) if param.param_type == Type::Named("str".to_string()) => {
                     Some(self.context.i8_type().into())
                 }
@@ -127,8 +127,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.compile_block(&stmt.body)?;
 
-        // Functions without an explicit return fall through with a zero value
-        // of the declared return type.
+        // 没有显式 return 的函数在末尾 fallthrough 返回所声明返回类型的零值。
         if self.at_open_end() {
             self.emit_defers()?;
             self.emit_release_active_boxes(None)?;
@@ -253,8 +252,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Compile a block as an expression: the block's value is the value of its
-    /// last expression statement.
+    /// 将语句块作为表达式编译：块的值等于其最后一条表达式语句的值。
     pub(super) fn compile_block_value(&mut self, block: &Block) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         self.push_scope();
         let mut last: Option<inkwell::values::BasicValueEnum<'ctx>> = None;
