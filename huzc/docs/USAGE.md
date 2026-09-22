@@ -13,6 +13,8 @@ Huzi 是一种简洁、强类型的静态编译型编程语言，语法风格类
 
 ## 3. 快速开始
 
+> **路径基准说明**：本节所有相对路径均以 `huzc/` 目录为工作目录（cwd=`huzc`）；若在仓库根执行，请在 `test/...`、`target/...` 前加 `huzc/` 前缀（例如 `huzc/test/cases`）。
+
 ### 3.1 构建编译器
 
 ```bash
@@ -23,20 +25,20 @@ cargo build --release
 ### 3.2 编译 Huzi 源码
 
 ```bash
-# 基本用法
+# 基本用法（cwd=huzc；仓库根请用 huzc/target/debug/huzc --input huzc/test/cases/... -o huzc/test/out/...）
 ./target/debug/huzc --input <源文件.hz> -o <输出名称>
 
-# 示例：编译示例程序
+# 示例：编译示例程序（cwd=huzc）
 ./target/debug/huzc --input test/cases/01_variables_ops.hz -o test/out/01_variables_ops
 ```
 
 ### 3.3 运行程序
 
 ```bash
-# Windows
+# Windows（cwd=huzc；仓库根请用 huzc/test/out/01_variables_ops.exe）
 ./test/out/01_variables_ops.exe
 
-# Linux / macOS
+# Linux / macOS（cwd=huzc；仓库根请用 huzc/test/out/01_variables_ops）
 ./test/out/01_variables_ops
 ```
 
@@ -60,13 +62,13 @@ cargo build --release
 Huzc 内置轻量级代码格式化工具，基于 AST 语法树 pretty-print 机制实现严格幂等的代码排版：
 
 ```bash
-# 格式化单个文件
+# 格式化单个文件（cwd=huzc）
 huzc fmt path/to/file.hz
 
-# 递归格式化整个目录下的所有 .hz 文件
+# 递归格式化整个目录下的所有 .hz 文件（cwd=huzc；仓库根请用 huzc fmt huzc/test/cases）
 huzc fmt test/cases
 
-# 仅检查是否已符合格式（不修改文件，有未格式化文件时退出码为 1）
+# 仅检查是否已符合格式（不修改文件，有未格式化文件时退出码为 1）（cwd=huzc；仓库根请用 huzc fmt --check huzc/test/cases）
 huzc fmt --check test/cases
 ```
 
