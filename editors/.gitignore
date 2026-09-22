@@ -1,0 +1,19 @@
+# 依赖目录
+**/node_modules/
+
+# 编译与构建产物
+**/out/
+**/*.js.map
+**/*.vsix
+
+# 随包语言服务器二进制与归档产物（由构建流程生成）
+**/server/huzi-lsp
+**/server/huzi-lsp.exe
+**/version/
+
+# 测试与编辑器缓存
+.idea/
+.vscode-test/
+.DS_Store
+Thumbs.db
+*.log

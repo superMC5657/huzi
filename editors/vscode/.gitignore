@@ -1,0 +1,23 @@
+# 依赖目录（npm install 重建；package-lock.json 保留入库以锁版本）
+node_modules/
+
+# 编译产物（npm run compile 重建）
+out/
+*.js.map
+
+# 打包产物（vsce package 重建）
+*.vsix
+
+# 随包二进制（cargo build --release -p huzi-lsp 后拷入，不入库）
+server/huzi-lsp
+server/huzi-lsp.exe
+
+# 历史版本包归档
+version/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode-test/
+*.log

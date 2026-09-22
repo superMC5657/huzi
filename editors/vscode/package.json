@@ -1,0 +1,118 @@
+{
+  "name": "huzi",
+  "displayName": "Huzi Language",
+  "description": "Huzi programming language (.hz): TextMate highlighting plus LSP client (diagnostics/hover/goto/completion via huzi-lsp over stdio)",
+  "version": "0.3.1",
+  "publisher": "huzi-team",
+  "license": "MIT",
+  "icon": "images/huzi.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "huzi",
+    "huzc"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onLanguage:huzi"
+  ],
+  "scripts": {
+    "vscode:prepublish": "npm run sync-server && npm run compile",
+    "sync-server": "node ./scripts/sync-server.js",
+    "compile": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node && tsc --noEmit -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.4.5"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "huzi",
+        "aliases": [
+          "Huzi",
+          "huzi"
+        ],
+        "extensions": [
+          ".hz"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "huzi",
+        "scopeName": "source.huzi",
+        "path": "./syntaxes/huzi.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Huzi",
+      "properties": {
+        "huzi.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the huzi-lsp server binary. Empty = use bundled server/huzi-lsp(.exe), falling back to PATH lookup."
+        },
+        "huzi.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the Huzi language server."
+        },
+        "huzi.maxRestartCount": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum number of automatic server restarts on crash before giving up."
+        },
+        "huzi.huzc.path": {
+          "type": "string",
+          "default": "huzc",
+          "description": "Path to the huzc compiler binary used by Huzi: Run File. Defaults to PATH lookup."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "huzi.restartServer",
+        "title": "Huzi: Restart Language Server",
+        "category": "Huzi"
+      },
+      {
+        "command": "huzi.runFile",
+        "title": "Huzi: Run File",
+        "category": "Huzi"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "huzi.runFile",
+          "when": "editorLangId == huzi",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "huzi.runFile",
+          "when": "editorLangId == huzi",
+          "group": "navigation"
+        }
+      ]
+    }
+  }
+}
