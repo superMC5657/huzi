@@ -119,6 +119,7 @@ fn classify(token: &Token, prev: Option<&Token>) -> Option<(u32, u32)> {
         Token::While => Some((KIND_KEYWORD, 5)),
         Token::Return => Some((KIND_KEYWORD, 6)),
         Token::Import => Some((KIND_KEYWORD, 6)),
+        Token::Export => Some((KIND_KEYWORD, 6)),
         Token::Break => Some((KIND_KEYWORD, 5)),
         Token::Continue => Some((KIND_KEYWORD, 8)),
         Token::Defer => Some((KIND_KEYWORD, 5)),
@@ -239,5 +240,17 @@ mod tests {
             tokens.iter().any(|t| t.token_type == KIND_FUNCTION),
             "{tokens:?}"
         );
+    }
+
+    #[test]
+    fn export_keyword_is_keyword_kind() {
+        // Given: 含 export 声明的文件(L4 小幅扩展)
+        let text = "export json\n";
+        // When: 编码
+        let tokens = tokens_for_text(text);
+        // Then: 首 token 为 keyword(export,长 6)
+        assert!(!tokens.is_empty());
+        assert_eq!(tokens[0].token_type, KIND_KEYWORD);
+        assert_eq!(tokens[0].length, 6);
     }
 }

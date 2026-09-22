@@ -9,6 +9,7 @@ mod imports;
 mod mapping;
 mod references;
 mod semantic;
+mod stditems;
 
 use tower_lsp_server::{LspService, Server};
 

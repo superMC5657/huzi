@@ -83,7 +83,8 @@ fn normal_items(
     out
 }
 
-/// `.` 上下文:基名为 struct 补字段,为 enum 补变体,否则补通用成员。
+/// `.` 上下文:基名为 struct 补字段 + impl 方法,为 enum 补变体,
+/// 否则补通用成员(字段与方法均做前缀匹配)。
 fn dot_items(
     text: &str,
     base: &str,
@@ -93,7 +94,7 @@ fn dot_items(
     for stmt in &program.statements {
         if let huzi_ast::Stmt::Struct(d) = &stmt.node {
             if d.name == base {
-                return d
+                let mut items: Vec<CompletionItem> = d
                     .fields
                     .iter()
                     .filter(|f| f.name.starts_with(prefix))
@@ -107,6 +108,10 @@ fn dot_items(
                         ..Default::default()
                     })
                     .collect();
+                items.extend(crate::stditems::impl_method_items(
+                    &program, base, prefix,
+                ));
+                return items;
             }
         }
         if let huzi_ast::Stmt::Enum(d) = &stmt.node {
@@ -118,7 +123,8 @@ fn dot_items(
     generic_member_items(prefix)
 }
 
-/// `::` 上下文:`math` 补数学函数,枚举名补变体,其他返回空表。
+/// `::` 上下文:`math` 补数学函数,枚举名补变体,trait 名补 trait 方法,
+/// 类型名补 impl 方法,`std` 补 export 表,import 绑定读模块文件补符号。
 fn colon_items(
     text: &str,
     module: &str,
@@ -144,7 +150,18 @@ fn colon_items(
             }
         }
     }
-    Vec::new()
+    let mut items =
+        crate::stditems::trait_method_items(&program, module, prefix);
+    items.extend(crate::stditems::impl_method_items(
+        &program, module, prefix,
+    ));
+    if !items.is_empty() {
+        return items;
+    }
+    if module == "std" {
+        return crate::stditems::std_prefix_items(prefix);
+    }
+    crate::stditems::bind_items(text, module, prefix)
 }
 
 /// 枚举变体列表(前缀匹配,供 `.` 与 `::` 共用)。
@@ -422,5 +439,31 @@ mod tests {
             completion_for_text(text, Position { line: 99, character: 0 });
         // Then: 空表
         assert!(items.is_empty());
+    }
+
+    #[test]
+    fn dot_after_struct_includes_impl_methods() {
+        // Given: Point 结构体 + Printable 实现(L4)
+        let text = "struct Point { x: i32, y: i32 }\nimpl Printable for Point {\n fn show(self: Point) -> str {\n return \"p\"\n }\n}\nPoint.";
+        // When: 在 `Point.` 后取补全
+        let items =
+            completion_for_text(text, Position { line: 6, character: 6 });
+        // Then: 字段与 impl 方法并存
+        let got = labels(&items);
+        assert!(got.contains(&"x"), "{got:?}");
+        assert!(got.contains(&"show"), "{got:?}");
+    }
+
+    #[test]
+    fn trait_double_colon_returns_trait_methods() {
+        // Given: Printable trait 定义(L4)
+        let text =
+            "trait Printable {\n fn show(self) -> str\n}\nPrintable::";
+        // When: 在 `Printable::` 后取补全
+        let items =
+            completion_for_text(text, Position { line: 3, character: 11 });
+        // Then: 含 trait 方法 show
+        let got = labels(&items);
+        assert!(got.contains(&"show"), "{got:?}");
     }
 }

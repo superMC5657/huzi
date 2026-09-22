@@ -191,7 +191,7 @@ fn double_colon_at(line: &str, char_col: usize) -> Option<(String, String)> {
 }
 
 /// 全文 import 表中找绑定名为 `bind` 的点分名(末段匹配)。
-fn find_import_for_bind(text: &str, bind: &str) -> Option<String> {
+pub(crate) fn find_import_for_bind(text: &str, bind: &str) -> Option<String> {
     let rope = Rope::from_str(text);
     for idx in 0..rope.len_lines() {
         let line: String = rope
