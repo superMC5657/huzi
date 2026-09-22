@@ -1,0 +1,6 @@
+# 负例:free_str 只接受 str 可变变量,传 i32 编译必须失败(exit != 0)。
+fn main() -> i32 {
+    let mut x = 42
+    free_str(x)
+    return 0
+}

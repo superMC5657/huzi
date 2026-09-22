@@ -135,7 +135,7 @@
 
 Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*` 释放，或在进程退出时由 OS 统一回收；`Box<T>` 走引用计数（RC），计数归零即自动释放。即使不调用 `free_*`，短生命周期程序也能正常运行（由 OS 兜底回收）。
 
-- `free_str(s: str)`, `free_vec(v: vec<T>)`, `free_box(b: Box<T>)`: 手动释放堆内存，释放后槽位置安全空态，二次 `free` 为 no-op。
+- `free_str(s: str)`, `free_vec(v: vec<T>)`, `free_box(b: Box<T>)`: 手动释放堆内存，释放后槽位置安全空态，二次 `free` 为 no-op；实参须为对应类型的可变变量，否则编译期拒绝（负例 `free_str_non_str`）。
 - `ref_count(b: Box<T>) -> i32`: 检查当前 `Box` 的引用计数（`null` 返回 0）。
 
 **浅释放泄漏陷阱**：`free_vec` 只释放 `vec` 自身的 `data` 缓冲区，不释放元素内部的堆内存；`free_box` 只释放 `Box` 自身槽，不递归释放其字段中的堆内存。因此 `vec<str>`、`vec<vec<T>>` 或含堆字段的 `Box`，必须先逐元素 / 逐字段调用 `free_*`，再释放外层容器，否则内部堆内存泄漏。
