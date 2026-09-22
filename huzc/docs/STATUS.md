@@ -31,12 +31,12 @@
 - [x] 数学：`abs/sqrt/pow/sin/cos/tan/floor/ceil/round`（含 `math::` 前缀）
 - [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms`
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
-- [x] 内存：`free_str/free_vec/free_box/ref_count`（支持手动打破循环引用；类型不匹配编译期拒绝，负例 `free_str_non_str`）
+- [x] 内存：`free_str/free_vec/free_box/ref_count`（浅释放语义、二次 `free` 为 no-op；`ref_count` 快照做环泄漏报告，未打破经 `panic` 运行时告警，正例 `40_rc` 环 2-2 → 打破 2-1，负例 `rc_cycle_leak`；类型不匹配编译期拒绝，负例 `free_str_non_str`）
 - [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len/map_keys`
 - [x] TCP：`tcp_connect/send/recv/close/listen/accept`（实参个数/类型不匹配编译期拒绝，负例 `tcp_send_arity`）
 - [x] 线程：`spawn/join`（句柄类型不匹配编译期拒绝，负例 `join_bad_type`）
 - [x] 通道：`chan_new/chan_send/chan_recv`（跨线程传 str 消息，环形缓冲 + 自旋锁，句柄可作 spawn 实参；非法句柄类型编译期拒绝，负例 `chan_send_bad_handle`）
-- [x] HTTP 客户端（自举标准库 `std.http`，基于 TCP）：`http_build_request/http_status_code/http_body/http_parse/http_get`，非 2xx 经 `http_parse` 返回 `Err`（负例 `http_status_non2xx`）
+- [x] HTTP 客户端（自举标准库 `std.http`，基于 TCP）：`http_build_request/http_build_request_with_headers/http_status_code/http_body/http_parse/http_get/http_request/http_post`（POST + 自定义头 + 本地闭环覆盖 POST/404/空体），非 2xx 经 `http_parse` 返回 `Err`（负例 `http_status_non2xx`）
 - [x] `for x in 调用(...)`：直接遍历返回 `vec<T>` 的函数调用结果（含 `split` 与模块函数），无需先存变量
 - [x] 右值字段访问：`f(...).0`、`g(...).field` 对调用结果直接取元组/结构体字段
 - [x] `str_from_bytes(vec<i32>) -> str`：字节向量构造字符串（自举标准库 UTF-8 编码的底层支撑）
@@ -59,14 +59,14 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；62 示例 + 65 负例测试全部通过，交互示例跳过）
+- [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；62 示例 + 66 负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/4] 抽查
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
 
 ## 3. 明确不做（非缺失，是取舍）
 
-* 无精确 GC：Box 走引用计数（RC），str/vec 为手动 free + 进程退出 OS 回收；RC 循环引用需手动 free_box 打破
+* 无精确 GC（不做 tracing 收集）：Box 走引用计数（RC），str/vec 为手动 free + 进程退出 OS 回收；RC 循环引用需手动 free_box 打破（`ref_count` 快照诊断 + `panic` 告警，正例 `40_rc`，负例 `rc_cycle_leak`）
 * 泛型无 `where` 约束、无特化、无泛型枚举穷尽
 * 包管理无中心仓库、有 `VersionReq` 范围解析但无最高满足求解、无 lock、无传递合并
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
