@@ -10,7 +10,8 @@
 #                            24_pipe_read 喂管道数据；产物隔离在 huzc/test/out）
 #   2. huzi-src/test.sh      自举标准库自测（产物隔离在 huzi-src/test/out）
 #   3. huzc fmt --check      格式化门禁（检查 huzc/test/cases）
-#   4. bench_compare.py      性能回归抽查（huzi release 相对 Rust -O 不超过 2.0x）
+#   4. bench_compare.py      性能回归抽查（huzi release 相对 Rust -O 不超过 2.0x；
+#                            历史比值存档在 huzc/test/bench_baseline.txt，仅漂移提示）
 #
 # 注意：huzc/test.sh 自带 RUN_BENCH=1/--bench 开关可顺带跑性能门禁；
 # 本入口为避免重复耗时，调用它时不传 --bench，性能抽查统一放在第 4 阶段。

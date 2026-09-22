@@ -4,6 +4,9 @@
 # 用法（在项目根目录 huzc/ 下执行）:
 #   python test/bench_compare.py
 #
+# 基线文件 test/bench_baseline.txt 存档上次通过门禁的
+# huzi release / Rust -O 比值，仅做漂移提示、不参与门禁判定。
+#
 # 脚本会：
 #   1. 找到（或构建）huzc 编译器
 #   2. 编译 test/bench_perf.hz 两次（dev / --release）并多次运行计时
@@ -29,6 +32,11 @@ PY_RUNS = 1    # 解释型太慢，只跑一次
 
 # 性能门禁阈值：huzi release 相对 Rust -O 的耗时倍数上限（基准约 1.6x，允许波动上限 2.0x）
 MAX_REL_VS_RUST_OPT_RATIO = 2.0
+
+# 历史基线文件：只存档、不判门（门禁仍只看上面的 2.0x 与三门禁）
+BASELINE_FILE = os.path.join(TEST_DIR, "bench_baseline.txt")
+# 相对基线的漂移提示线（仅打印提示、不退出，硬门禁不动）
+BASELINE_DRIFT_WARN = 0.10
 
 
 def find_compiler():
@@ -174,6 +182,39 @@ def verify_gate(dev_best, rel_best, rust_opt_best,
     print(f"性能门禁: 通过 (huzi release / Rust -O = {ratio:.2f}x <= {MAX_REL_VS_RUST_OPT_RATIO:.2f}x)")
 
 
+def load_baseline():
+    """读取历史基线比值；文件缺失或非法时返回 None（不判失败）"""
+    try:
+        with open(BASELINE_FILE, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                return float(line)
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def save_baseline(ratio):
+    """门禁通过后把本次比值存档（覆盖写，仅归档历史）"""
+    with open(BASELINE_FILE, "w", encoding="utf-8") as f:
+        f.write("# huzi release / Rust -O 历史基线（仅漂移提示，硬门禁仍为 2.0x）\n")
+        f.write(f"{ratio:.4f}\n")
+
+
+def report_baseline(ratio):
+    """对比基线并给出超阈提示；只打印、不退出、不改三门禁"""
+    baseline = load_baseline()
+    if baseline is None or baseline <= 0:
+        print(f"历史基线: 无（首次运行，将本次 {ratio:.2f}x 存档）")
+        return
+    drift = (ratio - baseline) / baseline
+    print(f"历史基线: {baseline:.2f}x，本次: {ratio:.2f}x，漂移: {drift:+.1%}")
+    if drift > BASELINE_DRIFT_WARN:
+        print(f"提示: 相对基线退化 {drift:.1%}，超过提示线 {BASELINE_DRIFT_WARN:.0%}（仅提示，门禁仍以 {MAX_REL_VS_RUST_OPT_RATIO:.2f}x 为准）")
+
+
 def main():
     compiler = find_compiler() or build_compiler()
     exe_dev = compile_bench(compiler, release=False)
@@ -203,6 +244,10 @@ def main():
     print_comparison(dev_best, rel_best, rust_dev_best, rust_opt_best, py_total)
     verify_gate(dev_best, rel_best, rust_opt_best,
                 dev_out, rel_out, rust_dev_out, rust_opt_out)
+    ratio = rel_best / rust_opt_best if rust_opt_best > 0 else float("inf")
+    report_baseline(ratio)
+    save_baseline(ratio)
+    print(f"基线已存档: {BASELINE_FILE}")
 
 
 if __name__ == "__main__":
