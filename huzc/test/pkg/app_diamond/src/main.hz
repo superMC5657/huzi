@@ -1,0 +1,9 @@
+import pkg_left
+import pkg_right
+
+fn main() -> i32 {
+    let a = pkg_left::who()
+    let b = pkg_right::who()
+    print(a + b)
+    return 0
+}

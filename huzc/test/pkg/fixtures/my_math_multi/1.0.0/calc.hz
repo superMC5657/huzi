@@ -1,0 +1,11 @@
+fn add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+fn mul(a: i32, b: i32) -> i32 {
+    return a * b
+}
+
+fn api_level() -> i32 {
+    return 10
+}

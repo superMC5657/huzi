@@ -1,7 +1,8 @@
 //! 版本需求 (VersionReq) 解析与匹配。
 //!
-//! 支持 `huzi.toml` 依赖声明中的版本范围写法,仅做解析与“是否满足”判定,
-//! 不做最高满足求解、不写 `huzi.lock`、不做传递合并:
+//! 支持 `huzi.toml` 依赖声明中的版本范围写法,解析与“是否满足”判定见
+//! `VersionReq::matches`,最高满足求解见 `select_max_satisfying`
+//! (fetch/build 传递闭包共用,不写 `huzi.lock`、不做传递合并):
 //!
 //! | 写法 | 含义 |
 //! |------|------|
@@ -141,9 +142,25 @@ impl VersionReq {
     }
 }
 
+/// 在候选版本中按需求选出最高满足版本(复用 `VersionReq::matches`)。
+///
+/// 无满足版本时返回 `None`,调用方按依赖冲突直接报错(不做自动升级):
+/// ```rust
+/// use huzc::pkg::{parse_version_req, select_max_satisfying, SemVersion};
+/// let req = parse_version_req("^1.0.0").unwrap();
+/// let cands = vec![
+///     SemVersion::parse("1.0.0").unwrap(),
+///     SemVersion::parse("1.2.0").unwrap(),
+///     SemVersion::parse("2.0.0").unwrap(),
+/// ];
+/// assert_eq!(select_max_satisfying(&req, &cands).unwrap().to_string(), "1.2.0");
+/// ```
+pub fn select_max_satisfying(req: &VersionReq, candidates: &[SemVersion]) -> Option<SemVersion> {
+    candidates.iter().copied().filter(|v| req.matches(v)).max()
+}
+
 /// 解析版本需求串(`^`/`~`/`>=`范围/`*`/裸版本精确)。
-pub fn parse_version_req(raw: &str) -> Result<VersionReq, String> {
-    let s = raw.trim();
+pub fn parse_version_req(raw: &str) -> Result<VersionReq, String> {    let s = raw.trim();
     if s.is_empty() {
         return Err("版本需求为空".to_string());
     }
@@ -335,11 +352,37 @@ mod tests {
     }
 
     #[test]
-    fn test_version_req_any() {
-        assert_eq!(req("*"), VersionReq::Any);
+    fn test_version_req_any() {        assert_eq!(req("*"), VersionReq::Any);
         assert!(req("*").matches_str("9.9.9").unwrap());
         let prefixed = req("1.*");
         assert!(prefixed.matches_str("1.7.0").unwrap());
         assert!(!prefixed.matches_str("2.0.0").unwrap());
+    }
+
+    fn cands(raws: &[&str]) -> Vec<SemVersion> {
+        raws.iter().map(|s| SemVersion::parse(s).unwrap()).collect()
+    }
+
+    #[test]
+    fn test_select_max_caret_picks_highest() {
+        // 多版本夹具口径:1.0.0/1.2.0 + ^1.0 → 1.2.0
+        let r = req("^1.0.0");
+        let got = select_max_satisfying(&r, &cands(&["1.0.0", "1.2.0"]));
+        assert_eq!(got.unwrap().to_string(), "1.2.0");
+    }
+
+    #[test]
+    fn test_select_max_range_skips_major_bump() {
+        let r = req("^1.0.0");
+        let got = select_max_satisfying(&r, &cands(&["1.0.0", "1.2.0", "2.0.0"])).unwrap();
+        assert_eq!(got.to_string(), "1.2.0");
+    }
+
+    #[test]
+    fn test_select_max_none_when_conflict() {
+        let r = req("1.0.0");
+        assert!(select_max_satisfying(&r, &cands(&["1.2.0", "2.0.0"])).is_none());
+        let empty: Vec<SemVersion> = vec![];
+        assert!(select_max_satisfying(&req("*"), &empty).is_none());
     }
 }

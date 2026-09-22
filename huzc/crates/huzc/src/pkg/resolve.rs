@@ -1,7 +1,8 @@
 //! 模块解析:内置 -> 相对路径 -> `vendor/` -> `~/.huzi/packages/`。
 //!
-//! 说明:解析路径仍按依赖 `version` 原串精确匹配
-//! (`vendor/<pkg>/<version>/`),不受 `VersionReq` 范围语义影响。
+//! 说明:模块文件查找仍按 `vendor/<pkg>/<version>/` 精确目录行为,
+//! 版本“选哪一份”由 `resolve_closure` 最高满足求解 + `fetch` 落盘决定
+//! (逐包取最高满足版本,冲突直接报错,不做自动升级)。
 
 use super::manifest::parse_manifest;
 use std::fs;
@@ -208,4 +209,5 @@ mod tests {
         let path = hit.unwrap();
         assert!(path.ends_with("calc.hz"), "Expected resolved path to end with calc.hz, got: {}", path.display());
     }
+
 }

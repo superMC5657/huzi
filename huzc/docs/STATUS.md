@@ -52,7 +52,7 @@
 - [x] 调试：`-g/--debug` DWARF，GDB/LLDB 按源码行调试
 - [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
 - [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接），`fmt --check test/cases`（cwd=`huzc`；仓库根请用 `fmt --check huzc/test/cases`）门禁恢复可用
-- [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）+ `VersionReq` 范围解析（`^`/`~`/`>=`范围/`*`，仅解析匹配）
+- [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）+ `VersionReq` 范围解析（`^`/`~`/`>=`范围/`*`）与最高满足求解 + 传递依赖合并（冲突直接报错，不做自动升级）
 - [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲
 - [x] 跨平台：Windows(`lld-link/msvc/mingw`)、Linux/macOS(`clang`)——按编译器宿主平台选择运行时 API 与链接器，支持各平台本机编译，暂不支持交叉编译
 
@@ -68,7 +68,7 @@
 
 * 无精确 GC（不做 tracing 收集）：Box 走引用计数（RC），str/vec 为手动 free + 进程退出 OS 回收；RC 循环引用需手动 free_box 打破（`ref_count` 快照诊断 + `panic` 告警，正例 `40_rc`，负例 `rc_cycle_leak`）
 * 泛型无 `where` 约束、无特化、无泛型枚举穷尽
-* 包管理无中心仓库、有 `VersionReq` 范围解析但无最高满足求解、无 lock、无传递合并
+* 包管理无中心仓库、无下载校验和、无 `huzi.lock`、无 semver 自动升级（求解只选最高满足版，不改写清单）
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
 
 ## 4. 文档地图（去哪看什么）
