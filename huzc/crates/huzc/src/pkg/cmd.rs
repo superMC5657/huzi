@@ -1,8 +1,10 @@
 //! 子命令编排:`huzc add/fetch/build` 离线流程。
 //!
 //! 说明:`fetch` 按传递闭包逐包落盘最高满足版本
-//! (`vendor/<pkg>/<version>/`),冲突直接报错,不做自动升级。
+//! (`vendor/<pkg>/<version>/`)并写 `huzi.lock`,冲突直接报错,不做自动升级;
+//! `build` 先闭包检查,再验 `vendor` 落盘与锁一致性,最后编排编译。
 
+use super::lock::{HuziLock, lock_path_for, read_lock_file, write_lock_file};
 use super::manifest::{Dependency, Manifest, format_manifest, parse_manifest};
 use super::resolve::{copy_dir_all, find_manifest_file};
 use super::solve::{SelectedDep, resolve_closure};
@@ -60,8 +62,18 @@ pub fn run_fetch(args: &FetchArgs) {
         vendor_selected(&sel.source_dir, &target_dir);
         prune_stale_versions(&vendor_dir.join(pkg), &sel.version.to_string());
     }
+    write_project_lock(&proj_dir, &closure);
 
     println!("Fetched {} dependency(ies) to vendor/", closure.len());
+}
+
+/// 求解闭包精确写入 `huzi.lock`(失败直接报错)。
+fn write_project_lock(proj_dir: &Path, closure: &BTreeMap<String, SelectedDep>) {
+    let lock = HuziLock::from_closure(closure);
+    if let Err(e) = write_lock_file(&lock_path_for(proj_dir), &lock) {
+        eprintln!("{}", e);
+        std::process::exit(1);
+    }
 }
 
 /// 按 `--path` 定位清单并解析,返回(清单,工程根);缺清单直接报错。
@@ -142,10 +154,42 @@ fn ensure_vendored(closure: &BTreeMap<String, SelectedDep>, proj_dir: &Path, pat
     }
 }
 
+/// 锁一致性校验:有锁时必须与本次求解精确一致(漂移/缺失/多余均提示重 fetch)。
+fn verify_lock_consistent(closure: &BTreeMap<String, SelectedDep>, proj_dir: &Path, path_arg: &str) {
+    let lock = match read_lock_file(&lock_path_for(proj_dir)) {
+        Ok(None) => return,
+        Ok(Some(l)) => l,
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    };
+    for (pkg, sel) in closure {
+        if lock.get(pkg) != Some(sel.version) {
+            report_lock_mismatch(pkg, path_arg);
+        }
+    }
+    for entry in &lock.packages {
+        if !closure.contains_key(&entry.name) {
+            report_lock_mismatch(&entry.name, path_arg);
+        }
+    }
+}
+
+/// 锁不一致直接报错(沿用直接报错口径)。
+fn report_lock_mismatch(pkg: &str, path_arg: &str) -> ! {
+    eprintln!(
+        "huzi.lock 与 huzi.toml 不一致:包 '{}' 的锁定版本已漂移;请重新运行 `huzc fetch --path {}`",
+        pkg, path_arg
+    );
+    std::process::exit(1);
+}
+
 pub fn run_build(args: &BuildArgs) {
     let (manifest, proj_dir) = load_project_manifest(&args.path);
     let closure = must_resolve_closure(&manifest, &proj_dir);
     ensure_vendored(&closure, &proj_dir, &args.path);
+    verify_lock_consistent(&closure, &proj_dir, &args.path);
 
     let entry = if let Some(e) = &manifest.entry {
         proj_dir.join(e)
