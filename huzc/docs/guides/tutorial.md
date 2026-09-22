@@ -181,14 +181,42 @@ print(*s) # hi
 空 `Box` 解引用运行时报错退出；`*null` 与对非 Box 值的 `*` 在编译期直接报错。
 
 ### 循环引用诊断与打破
-Huzi 对 `Box<T>` 采用引用计数 (RC) 内存管理机制。当发生相互引用时，引用计数无法归零，需手动解除闭环：
+Huzi 对 `Box<T>` 采用引用计数 (RC) 内存管理机制，不做精确 GC（无 tracing 收集器）。
+当发生相互引用（A → B → A）时，引用计数永不归零，需手动解除闭环。诊断时用
+`ref_count` 做快照：环未打破时双方计数均为 2（自身 1 + 对方引用 1），残留即泄漏：
 
 ```huzi
-# 循环打破模式：清空引用指针
-defer free_box(n2)
-defer free_box(n1)
-n1.next = null # 打破环路，使析构链路正常执行
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn check_leak(n1: Box<Node>, n2: Box<Node>) {
+    # 快照泄漏报告：环内双方 rc 均为 2，未打破即告警退出（负例 rc_cycle_leak）
+    print("leak snapshot n1 rc: ", ref_count(n1))
+    print("leak snapshot n2 rc: ", ref_count(n2))
+    if ref_count(n1) > 1 {
+        panic("RC leak detected: cycle not broken (n1)")
+    }
+    if ref_count(n2) > 1 {
+        panic("RC leak detected: cycle not broken (n2)")
+    }
+}
+
+fn test_cycle() {
+    let mut n1 = box(Node { val: 100, next: null })
+    let mut n2 = box(Node { val: 200, next: null })
+    n1.next = n2
+    n2.next = n1
+    # 官方打破模式：先登记 defer free，再清空一边引用打破环路
+    defer free_box(n2)
+    n1.next = null # 打破环路，使析构链路正常执行
+}
 ```
+
+要点：`free_box` 为浅释放（只释放 Box 自身槽，不递归释放其字段中的堆内存），
+二次 `free` 为 no-op；`defer` 按 LIFO 在函数退出前执行，保证打破后的释放兜底。
+完整可运行示例见 `test/cases/40_rc.hz`（环 2-2 → 打破 2-1）。
 
 ---
 

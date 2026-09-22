@@ -142,15 +142,19 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 
 **Box 标量与嵌套**：`Box<T>` 的 `T` 可为具名结构体或标量（`i32`/`i64`/`f64`/`bool`/`str`，另含 `u32`/`u64`/`f32`/`char`）；`Box<Box<T>>` 每层独立堆单元与 RC 头，不退化。标量经 `*b` 读写（`let mut b = box(42)`，`print(*b)`，`*b = 100`），结构体字段仍点号自动解引用。`print(b)` 直接打印内容（空为 `null`）。
 
-**Box 循环引用**：RC 无法回收互相引用的 `Box`（A → B → A），其计数永不归零，需在适当时机手动 `free_box` 打破环，可用 `ref_count` 辅助诊断残留引用。编译器仅在类型定义层面拦截按值无限递归（A → B → A 的结构体 / 枚举字段），不检测运行时的 `Box` 环。
+**Box 循环引用**：本语言无精确 GC（不做 tracing 收集），RC 无法回收互相引用的 `Box`（A → B → A），其计数永不归零，需在适当时机手动 `free_box` 打破环。诊断时用 `ref_count` 做快照：环内双方计数均为 2（自身 1 + 对方引用 1），残留即泄漏；未打破时可用 `panic` 做运行时告警（负例 `rc_cycle_leak`），打破模式为 `defer free_box(n2)` 登记兜底释放后再 `n1.next = null` 清空一边引用（正例 `test/cases/40_rc.hz`：环 2-2 → 打破 2-1）。编译器仅在类型定义层面拦截按值无限递归（A → B → A 的结构体 / 枚举字段，负例 `box_cycle_value`），不检测运行时的 `Box` 环。
 
 ### 4.11 HTTP 客户端（自举标准库 `std.http`，基于 TCP）
 
 - `http_build_request(host: str, path: str) -> str`：构造 GET 请求报文（`path` 为空时取 `/`）。
+- `http_build_request_with_headers(host: str, method: str, path: str, headers: str, body: str) -> str`：构造通用请求报文（`method` 为空取 `GET`，`path` 为空取 `/`；`headers` 为附加头行，可为空串，末尾缺 `\r\n` 自动补齐；`body` 长度自动拼 `Content-Length` 并原样追加请求体）。
 - `http_status_code(resp: str) -> i32`：解析响应首行状态码；非 HTTP 响应或无法解析返回 `0`。
 - `http_body(resp: str) -> str`：取 `\r\n\r\n` 之后的 body；未找到头部结束符返回空串。
 - `http_parse(resp: str) -> Result<str>`：状态码 2xx 返回 `Ok(body)`，否则返回 `Err("http status <code>")`；**非 2xx 不得当成功使用**（负例 `http_status_non2xx`）。
 - `http_get(host: str, port: i32, path: str) -> Result<str>`：发起 GET 请求，返回完整 body（2xx）或错误信息。
+- `http_request(method: str, host: str, port: i32, path: str, headers: str, body: str) -> Result<str>`：发起任意方法请求（`headers`/`body` 可为空串），返回完整 body（2xx）或错误信息；自定义头经此传入。
+- `http_post(host: str, port: i32, path: str, body: str) -> Result<str>`：发起 POST 请求（固定 `Content-Type: text/plain`），返回完整 body（2xx）或错误信息。
+- 限制：仅文本响应（NUL 字节会截断）、无 chunked、无 keep-alive、无 TLS；错误类型固定为 `Result<str>`。
 
 ---
 

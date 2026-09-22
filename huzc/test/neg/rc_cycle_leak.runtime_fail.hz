@@ -1,0 +1,20 @@
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn main() -> i32 {
+    let mut n1 = box(Node { val: 100, next: null })
+    let mut n2 = box(Node { val: 200, next: null })
+    n1.next = n2
+    n2.next = n1
+    print("leak snapshot n1 rc: ", ref_count(n1))
+    print("leak snapshot n2 rc: ", ref_count(n2))
+    if ref_count(n1) > 1 {
+        panic("RC leak detected: cycle not broken (n1)")
+    }
+    if ref_count(n2) > 1 {
+        panic("RC leak detected: cycle not broken (n2)")
+    }
+    return 0
+}
