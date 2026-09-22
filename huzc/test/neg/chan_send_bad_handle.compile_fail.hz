@@ -1,0 +1,5 @@
+# 负例:chan_send 首参必须为整数句柄,传 str 编译必须失败(exit != 0)。
+fn main() -> i32 {
+    chan_send("bad", "msg")
+    return 0
+}
