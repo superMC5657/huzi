@@ -1,11 +1,13 @@
 //! 子命令编排:`huzc add/fetch/build` 离线流程。
 //!
-//! 说明:`fetch` 拷贝目标仍按依赖 `version` 原串精确落盘
-//! (`vendor/<pkg>/<version>/`),不受 `VersionReq` 范围语义影响。
+//! 说明:`fetch` 按传递闭包逐包落盘最高满足版本
+//! (`vendor/<pkg>/<version>/`),冲突直接报错,不做自动升级。
 
 use super::manifest::{Dependency, Manifest, format_manifest, parse_manifest};
 use super::resolve::{copy_dir_all, find_manifest_file};
+use super::solve::{SelectedDep, resolve_closure};
 use crate::cli::{AddArgs, BuildArgs, FetchArgs};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -49,62 +51,101 @@ pub fn run_add(args: &AddArgs) {
 }
 
 pub fn run_fetch(args: &FetchArgs) {
-    let manifest_path = find_manifest_file(Path::new(&args.path))
-        .unwrap_or_else(|| Path::new(&args.path).join("huzi.toml"));
+    let (manifest, proj_dir) = load_project_manifest(&args.path);
+    let closure = must_resolve_closure(&manifest, &proj_dir);
+
+    let vendor_dir = proj_dir.join("vendor");
+    for (pkg, sel) in &closure {
+        let target_dir = vendor_dir.join(pkg).join(sel.version.to_string());
+        vendor_selected(&sel.source_dir, &target_dir);
+        prune_stale_versions(&vendor_dir.join(pkg), &sel.version.to_string());
+    }
+
+    println!("Fetched {} dependency(ies) to vendor/", closure.len());
+}
+
+/// 按 `--path` 定位清单并解析,返回(清单,工程根);缺清单直接报错。
+fn load_project_manifest(path_arg: &str) -> (Manifest, PathBuf) {
+    let manifest_path = find_manifest_file(Path::new(path_arg))
+        .unwrap_or_else(|| Path::new(path_arg).join("huzi.toml"));
     if !manifest_path.is_file() {
-        eprintln!("huzi.toml not found in {}", args.path);
+        eprintln!("huzi.toml not found in {}", path_arg);
         std::process::exit(1);
     }
-
     let content = fs::read_to_string(&manifest_path).unwrap_or_default();
     let manifest = parse_manifest(&content).unwrap_or_default();
+    let proj_dir = manifest_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+    (manifest, proj_dir)
+}
 
-    let vendor_dir = manifest_path.parent().unwrap_or(Path::new(".")).join("vendor");
-    let mut fetched = 0;
-
-    for (pkg, dep) in &manifest.dependencies {
-        let target_dir = vendor_dir.join(pkg).join(&dep.version);
-        if let Some(src_path) = &dep.path {
-            let src = manifest_path.parent().unwrap_or(Path::new(".")).join(src_path);
-            if src.is_dir() {
-                let _ = copy_dir_all(&src, &target_dir);
-                fetched += 1;
-            } else if src.is_file() {
-                let _ = fs::create_dir_all(&target_dir);
-                let fname = src.file_name().unwrap();
-                let _ = fs::copy(&src, target_dir.join(fname));
-                fetched += 1;
-            }
-        } else {
-            // 从全局缓存拷贝
-            if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
-                let cached = PathBuf::from(home)
-                    .join(".huzi")
-                    .join("packages")
-                    .join(pkg)
-                    .join(&dep.version);
-                if cached.is_dir() {
-                    let _ = copy_dir_all(&cached, &target_dir);
-                    fetched += 1;
-                }
-            }
+/// 求解传递闭包,冲突直接报错退出(沿用直接报错口径)。
+fn must_resolve_closure(manifest: &Manifest, proj_dir: &Path) -> BTreeMap<String, SelectedDep> {
+    match resolve_closure(manifest, proj_dir) {
+        Ok(closure) => closure,
+        Err(e) => {
+            eprintln!("依赖解析失败: {}", e);
+            std::process::exit(1);
         }
     }
+}
 
-    println!("Fetched {} dependency(ies) to vendor/", fetched);
+/// 落盘单个选中依赖:目录递归拷贝,单文件则建目录后拷贝(兼容旧单文件 `path`)。
+fn vendor_selected(src: &Path, target: &Path) {
+    if same_dir(src, target) {
+        return;
+    }
+    if src.is_file() {
+        let _ = fs::create_dir_all(target);
+        if let Some(fname) = src.file_name() {
+            let _ = fs::copy(src, target.join(fname));
+        }
+    } else if src.is_dir() {
+        let _ = copy_dir_all(src, target);
+    }
+}
+
+/// 同目录判定(结构相等或规范化后相等,避免 vendor 自拷贝截断文件)。
+fn same_dir(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    match (fs::canonicalize(a), fs::canonicalize(b)) {
+        (Ok(x), Ok(y)) => x == y,
+        _ => false,
+    }
+}
+
+/// 清理该包下落选的版本子目录,使 `vendor/` 与求解结果一致。
+fn prune_stale_versions(pkg_dir: &Path, keep: &str) {
+    let Ok(entries) = fs::read_dir(pkg_dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let p = entry.path();
+        if p.is_dir() && p.file_name().and_then(|n| n.to_str()) != Some(keep) {
+            let _ = fs::remove_dir_all(&p);
+        }
+    }
+}
+
+/// 已选依赖必须已落盘 `vendor/<pkg>/<version>/`,缺失提示先 fetch。
+fn ensure_vendored(closure: &BTreeMap<String, SelectedDep>, proj_dir: &Path, path_arg: &str) {
+    for (pkg, sel) in closure {
+        let vdir = proj_dir.join("vendor").join(pkg).join(sel.version.to_string());
+        if !vdir.is_dir() {
+            eprintln!(
+                "缺少已选依赖 vendor/{}/{}:请先运行 `huzc fetch --path {}`",
+                pkg, sel.version, path_arg
+            );
+            std::process::exit(1);
+        }
+    }
 }
 
 pub fn run_build(args: &BuildArgs) {
-    let manifest_path = find_manifest_file(Path::new(&args.path))
-        .unwrap_or_else(|| Path::new(&args.path).join("huzi.toml"));
-    if !manifest_path.is_file() {
-        eprintln!("huzi.toml not found in {}", args.path);
-        std::process::exit(1);
-    }
-
-    let content = fs::read_to_string(&manifest_path).unwrap_or_default();
-    let manifest = parse_manifest(&content).unwrap_or_default();
-    let proj_dir = manifest_path.parent().unwrap_or(Path::new("."));
+    let (manifest, proj_dir) = load_project_manifest(&args.path);
+    let closure = must_resolve_closure(&manifest, &proj_dir);
+    ensure_vendored(&closure, &proj_dir, &args.path);
 
     let entry = if let Some(e) = &manifest.entry {
         proj_dir.join(e)

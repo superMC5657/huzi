@@ -1,0 +1,6 @@
+[package]
+name = "pkg_right"
+version = "1.0.0"
+
+[dependencies]
+shared = { version = "2.0.0", path = "../shared/2.0.0" }

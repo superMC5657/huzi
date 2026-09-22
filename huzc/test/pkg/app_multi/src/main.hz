@@ -1,0 +1,7 @@
+import my_math
+
+fn main() -> i32 {
+    let v = my_math::calc::api_level()
+    print(v)
+    return 0
+}

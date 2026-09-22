@@ -1,0 +1,7 @@
+[package]
+name = "pkg_app_diamond"
+version = "0.1.0"
+
+[dependencies]
+pkg_left = { version = "1.0.0", path = "../fixtures/diamond/pkg_left" }
+pkg_right = { version = "1.0.0", path = "../fixtures/diamond/pkg_right" }

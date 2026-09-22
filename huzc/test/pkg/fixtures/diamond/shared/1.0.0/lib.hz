@@ -1,0 +1,3 @@
+fn tag() -> i32 {
+    return 10
+}
