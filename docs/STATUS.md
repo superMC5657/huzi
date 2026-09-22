@@ -79,5 +79,5 @@
 | 架构/流水线/模块职责 | `dev/开发文档.md` |
 | 泛型冻结规则 | `rfc/rfc_p4_generics.md` |
 | 历史规划 7 项的 IN/OUT | `../.omo/plans/section3-roadmap-plan.md`（内部） |
-| 新增 builtin 同步规则 | `../AGENTS.md`（即 `huzc/AGENTS.md`，仓库根视角；cwd=`huzc/docs` 视角为 `../AGENTS.md`）验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → test/cases 示例，同提交） |
+| 新增 builtin 同步规则 | `../AGENTS.md`（仓库根项目级约定）验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → huzc/test/cases 示例，同提交） |
 | 本文件 | 只看状态，不看方法 |

@@ -8,14 +8,15 @@ Huzi 是一种简洁、强类型、注重人体工学的静态编译型编程语
 
 ```
 huzi/
+├── AGENTS.md           # 项目级编码与重构约定（cwd=仓库根）
+├── docs/               # 项目级文档（USAGE 为入口，余下按主题分类）
+│   ├── USAGE.md / STATUS.md
+│   ├── guides/       # tutorial.md 教程 + reference.md 参考手册
+│   ├── dev/          # 开发文档.md 技术架构
+│   └── rfc/          # 泛型设计冻结文档
 ├── check.sh            # 仓库统一本地门禁入口（四阶段聚合，cwd=仓库根，见下文“一键全部门禁”）
 ├── huzc/               # 编译器主工程（当前目录，cwd=huzc 执行本文件命令）
 │   ├── crates/         # 编译器前端、后端、错误诊断与 LSP 服务
-│   ├── docs/           # 文档（USAGE 为入口，余下按主题分类）
-│   │   ├── USAGE.md / STATUS.md
-│   │   ├── guides/       # tutorial.md 教程 + reference.md 参考手册
-│   │   ├── dev/          # 开发文档.md 技术架构
-│   │   └── rfc/          # 泛型设计冻结文档
 │   ├── test/           # 特性示例、标准输出快照与负例集
 │   └── test.sh         # 全自动集成测试与性能基准脚本（cwd=huzc）
 ├── examples/           # Huzi 自举示例（hzlex/hzparse/task_engine，与编译器仓库同级）
@@ -54,10 +55,11 @@ bash test.sh
 ./target/debug/huzc fmt --check test/cases
 ```
 
-## 文档指引
+## 文档指引（项目级文档已移至仓库根 `docs/`）
 
-- **用户指南与语法速查**：[`docs/USAGE.md`](docs/USAGE.md)
-- **技术架构与设计文档**：[`docs/dev/开发文档.md`](docs/dev/开发文档.md)
-- **项目完成状态**：[`docs/STATUS.md`](docs/STATUS.md)
+- **用户指南与语法速查**：[`../docs/USAGE.md`](../docs/USAGE.md)
+- **技术架构与设计文档**：[`../docs/dev/开发文档.md`](../docs/dev/开发文档.md)
+- **项目完成状态**：[`../docs/STATUS.md`](../docs/STATUS.md)
+- **项目级编码约定**：[`../AGENTS.md`](../AGENTS.md)（cwd=仓库根）
 - **编辑器支持清单**：[`../editors/README.md`](../editors/README.md)
 - **标准库分层架构**：[`../huzi-src/README.md`](../huzi-src/README.md)
