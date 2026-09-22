@@ -386,4 +386,41 @@ mod tests {
         assert!(got.contains(&"cos"), "{got:?}");
         assert!(got.contains(&"sqrt"), "{got:?}");
     }
+
+    #[test]
+    fn enum_double_colon_returns_variants() {
+        // Given: 含 Color 枚举的文件(L1 锁定:存量 `::` 变体行为)
+        let text = "enum Color { Red, Green }\nColor::";
+        // When: 在 `Color::` 后取补全
+        let items =
+            completion_for_text(text, Position { line: 1, character: 7 });
+        // Then: 含 Red/Green
+        let got = labels(&items);
+        assert!(got.contains(&"Red"), "{got:?}");
+        assert!(got.contains(&"Green"), "{got:?}");
+    }
+
+    #[test]
+    fn dot_prefix_filters_struct_fields() {
+        // Given: 含 Point 结构体的文件(L1 锁定:前缀过滤行为)
+        let text = "struct Point { x: i32, y: i32 }\nPoint.x";
+        // When: 在 `Point.x` 后取补全
+        let items =
+            completion_for_text(text, Position { line: 1, character: 7 });
+        // Then: 仅含 x,不含 y
+        let got = labels(&items);
+        assert!(got.contains(&"x"), "{got:?}");
+        assert!(!got.contains(&"y"), "{got:?}");
+    }
+
+    #[test]
+    fn out_of_range_position_returns_empty() {
+        // Given: 普通文件(L1 锁定:越界永不 panic)
+        let text = "fn f() -> i32 {\n return 1\n}\n";
+        // When: 行号越界
+        let items =
+            completion_for_text(text, Position { line: 99, character: 0 });
+        // Then: 空表
+        assert!(items.is_empty());
+    }
 }

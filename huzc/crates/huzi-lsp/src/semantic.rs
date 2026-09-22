@@ -214,4 +214,30 @@ mod tests {
         assert!(tokens_for_text("let x = @\n").is_empty());
         assert!(tokens_for_text("").is_empty());
     }
+
+    #[test]
+    fn colon_type_annotation_is_type_kind() {
+        // Given: 含类型标注的文件(L1 锁定:`:` 后标识符归 type)
+        let text = "fn add(a: i32) -> i32 {\n return a\n}\n";
+        // When: 编码
+        let tokens = tokens_for_text(text);
+        // Then: 含 type 类 token
+        assert!(
+            tokens.iter().any(|t| t.token_type == KIND_TYPE),
+            "{tokens:?}"
+        );
+    }
+
+    #[test]
+    fn pathsep_ident_is_function_kind() {
+        // Given: 含跨模块调用的文件(L1 锁定:`::` 后标识符归 function)
+        let text = "import mods.helpers\nlet s = helpers::add(3, 4)\n";
+        // When: 编码
+        let tokens = tokens_for_text(text);
+        // Then: 含 function 类 token(调用名 add)
+        assert!(
+            tokens.iter().any(|t| t.token_type == KIND_FUNCTION),
+            "{tokens:?}"
+        );
+    }
 }
