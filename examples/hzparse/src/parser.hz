@@ -1,6 +1,6 @@
 # hzparse —— 用 Huzi 写的 Huzi 语法分析器子集(自举演示之二)。
 #
-# 输入复用 hzlex 的平行数组词法约定 (kinds/texts);输出顶层结构计数
+# 输入复用 hzlex 的平行数组词法约定 (kinds/texts/lines/cols);输出顶层结构计数
 # (stats) 与错误表 (errs)。对标 huzc/crates/huzi-parser 的递归下降形状,
 # 冻结边界见 ../RFC.md:只验结构,不做 match 穷尽 / 泛型求解 / 上下文检查。
 #
@@ -14,8 +14,8 @@ import parser.cursor
 import parser.stmt
 
 # ---- 入口 ----
-# 解析 kinds/texts 全串;返回 (ok, stats, errs)。
-fn parse(kinds: vec<str>, texts: vec<str>) -> (bool, vec<i32>, vec<str>) {
+# 解析 kinds/texts/lines/cols 全串;返回 (ok, stats, errs)。
+fn parse(kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, vec<i32>, vec<str>) {
     let mut stats = vec(0, 0, 0, 0, 0, 0, 0, 0, 0)
     let mut errs = vec<str>()
     let mut pos = vec(0)
@@ -27,7 +27,7 @@ fn parse(kinds: vec<str>, texts: vec<str>) -> (bool, vec<i32>, vec<str>) {
         if cursor::pz_at_kind(kinds, pos, "eof") {
             break
         }
-        if !stmt::pz_stmt(kinds, texts, pos, errs, stats, dep, maxd) {
+        if !stmt::pz_stmt(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
             ok = false
         }
     }
