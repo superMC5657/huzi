@@ -141,11 +141,16 @@ fn collect_struct(span: Span, d: &StructDef, out: &mut Vec<Symbol>) {
 
 /// 登记一个 `enum` 定义及其全部变体。
 fn collect_enum(span: Span, d: &EnumDef, out: &mut Vec<Symbol>) {
+    let type_params_str = if d.type_params.is_empty() {
+        String::new()
+    } else {
+        format!("<{}>", d.type_params.join(", "))
+    };
     out.push(Symbol {
         name: d.name.clone(),
         kind: SymbolKind::Enum,
         span,
-        detail: format!("enum {}", d.name),
+        detail: format!("enum {}{}", d.name, type_params_str),
     });
     for v in &d.variants {
         let detail = if v.payloads.is_empty() {
@@ -337,6 +342,7 @@ mod tests {
                 Spanned::with_range(
                     Stmt::Enum(EnumDef {
                         name: "Color".to_string(),
+                        type_params: vec![],
                         variants: vec![EnumVariant {
                             name: "Red".to_string(),
                             payloads: vec![],

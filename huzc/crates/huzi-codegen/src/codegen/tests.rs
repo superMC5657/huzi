@@ -114,6 +114,7 @@ fn module_function_callable_via_qualified_name() {
                 Expr::Literal(Literal::Int(1)),
                 Expr::Literal(Literal::Int(2)),
             ],
+            type_args: Vec::new(),
         })),
     }))]);
     codegen.compile(&program).expect("compile should succeed");
@@ -170,6 +171,7 @@ fn reexport_module_functions_callable_without_wrapper() {
                 enum_name: "my_math".to_string(),
                 variant: "add".to_string(),
                 args: vec![Expr::Literal(Literal::Int(10)), Expr::Literal(Literal::Int(20))],
+                type_args: Vec::new(),
             })),
         })),
         sp(Stmt::Return(ReturnStmt {
@@ -177,6 +179,7 @@ fn reexport_module_functions_callable_without_wrapper() {
                 enum_name: "my_math".to_string(),
                 variant: "helpers::add".to_string(),
                 args: vec![Expr::Ident("x".to_string()), Expr::Literal(Literal::Int(5))],
+                type_args: Vec::new(),
             })),
         })),
     ]);
@@ -194,6 +197,7 @@ fn unknown_module_function_reports_error() {
             enum_name: "nomod".to_string(),
             variant: "add".to_string(),
             args: vec![],
+            type_args: Vec::new(),
         })),
     }))]);
     let err = codegen.compile(&program).expect_err("unknown module must fail");

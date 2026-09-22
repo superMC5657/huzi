@@ -149,6 +149,9 @@ impl Parser {
         self.advance();
 
         let name = self.expect_ident("Expected enum name")?;
+        let type_params = self.parse_optional_type_params()?;
+        let num_params = type_params.len();
+        self.push_type_params(&type_params);
 
         self.expect(&Token::LBrace, "Expected '{' after enum name")?;
 
@@ -188,8 +191,13 @@ impl Parser {
         }
 
         self.expect(&Token::RBrace, "Expected '}' after enum variants")?;
+        self.pop_type_params(num_params);
 
-        Ok(Stmt::Enum(EnumDef { name, variants }))
+        Ok(Stmt::Enum(EnumDef {
+            name,
+            type_params,
+            variants,
+        }))
     }
 
     pub(super) fn parse_trait_statement(&mut self) -> Result<Stmt> {

@@ -246,6 +246,7 @@ pub struct StructField {
 #[derive(Debug, Clone)]
 pub struct EnumDef {
     pub name: String,
+    pub type_params: Vec<String>,
     pub variants: Vec<EnumVariant>,
 }
 
@@ -363,12 +364,13 @@ pub struct MethodCallExpr {
     pub arguments: Vec<Expr>,
 }
 
-/// 枚举变体构造：`Color::Red` 或 `Result::Ok(42)`
+/// 枚举变体构造：`Color::Red`、`Result::Ok(42)` 或 `Result<i32, str>::Ok(42)`
 #[derive(Debug, Clone)]
 pub struct EnumConstructExpr {
     pub enum_name: String,
     pub variant: String,
     pub args: Vec<Expr>,
+    pub type_args: Vec<Type>,
 }
 
 /// 作为表达式使用的 match 表达式：`match scrutinee { pattern => body, ... }`

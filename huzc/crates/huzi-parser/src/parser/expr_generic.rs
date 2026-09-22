@@ -98,6 +98,38 @@ impl Parser {
             })));
         }
 
+        // 泛型枚举变体构造：name<T1, T2>::Variant 或 name<T1, T2>::Variant(args)
+        if self.check(&Token::PathSep) {
+            self.advance();
+            let mut variant = self.expect_ident("Expected variant or symbol name after '::'")?;
+            while self.check(&Token::PathSep) {
+                self.advance();
+                let seg = self.expect_ident("Expected identifier after '::'")?;
+                variant.push_str("::");
+                variant.push_str(&seg);
+            }
+            let args = if self.check(&Token::LParen) {
+                self.advance();
+                let mut args = Vec::new();
+                while !self.check(&Token::RParen) && !self.is_at_end() {
+                    args.push(self.parse_expression()?);
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    }
+                }
+                self.expect(&Token::RParen, "Expected ')' after variant arguments")?;
+                args
+            } else {
+                Vec::new()
+            };
+            return Ok(Some(Expr::EnumConstruct(EnumConstructExpr {
+                enum_name: name.to_string(),
+                variant,
+                args,
+                type_args,
+            })));
+        }
+
         self.pos = saved;
         Ok(None)
     }

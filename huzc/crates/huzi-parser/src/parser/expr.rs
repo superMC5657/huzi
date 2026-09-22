@@ -357,6 +357,7 @@ impl Parser {
                         enum_name: name,
                         variant,
                         args,
+                        type_args: Vec::new(),
                     }));
                 }
                 // `Point { x: 1, ... }` — 结构体字面量，仅在 `{` 后紧跟 `field:` 时识别，

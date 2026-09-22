@@ -1,0 +1,7 @@
+o1 val:42
+o2 val:hello
+o3 is none
+r1 success:200
+r2 fail:file missing
+o4 doubled:84
+o5 is none

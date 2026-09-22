@@ -26,14 +26,18 @@ use std::collections::{HashMap, HashSet};
 /// 单态化器状态。
 struct Monomorphizer {
     struct_templates: HashMap<String, StructDef>,
+    enum_templates: HashMap<String, EnumDef>,
     fn_templates: HashMap<String, (FnStmt, Span)>,
     known_types: HashSet<String>,
     instantiated_structs: HashMap<String, StructDef>,
+    instantiated_enums: HashMap<String, EnumDef>,
     instantiated_fns: HashMap<String, (FnStmt, Span)>,
     inferrer: infer::TypeInferrer,
     /// 当前正在遍历的语句位置(调用点诊断用):进入每条语句前更新,
     /// 诊断构造时回填行列,保证错误含 span 位置。
     current_span: Option<Span>,
+    /// 当前正在遍历的函数返回类型(供 return 表达式推导泛型枚举用)。
+    current_fn_return: Option<Type>,
 }
 
 impl Monomorphizer {
@@ -47,12 +51,15 @@ impl Monomorphizer {
         }
         Self {
             struct_templates: HashMap::new(),
+            enum_templates: HashMap::new(),
             fn_templates: HashMap::new(),
             known_types,
             instantiated_structs: HashMap::new(),
+            instantiated_enums: HashMap::new(),
             instantiated_fns: HashMap::new(),
             inferrer: infer::TypeInferrer::new(),
             current_span: None,
+            current_fn_return: None,
         }
     }
 
@@ -74,55 +81,26 @@ impl Monomorphizer {
                 if name == "vec" || name == "map" || name == "Map" || name == "HashMap" {
                     return Ok(());
                 }
-                let template = self.struct_templates.get(name).cloned().ok_or_else(|| {
-                    let hint = did_you_mean(name, self.struct_templates.keys().map(|s| s.as_str()));
+                let mangled = if self.struct_templates.contains_key(name) {
+                    self.monomorphize_struct_type(name, args)?
+                } else if self.enum_templates.contains_key(name) {
+                    self.monomorphize_enum_type(name, args)?
+                } else {
+                    let candidates = self
+                        .struct_templates
+                        .keys()
+                        .chain(self.enum_templates.keys())
+                        .map(|s| s.as_str());
+                    let hint = did_you_mean(name, candidates);
                     let mut message = format!(
-                        "未知泛型结构体 '{}':期望已定义的泛型结构体,实际未找到",
+                        "未知泛型类型 '{}':期望已定义的泛型结构体或枚举,实际未找到",
                         name
                     );
                     if let Some(h) = hint {
                         message.push_str(&format!(";帮助:{}", h));
                     }
-                    self.diag(message)
-                })?;
-                if args.len() != template.type_params.len() {
-                    return Err(self.diag(format!(
-                        "泛型结构体 '{}' 类型实参数量不匹配:期望 {} 个,实际 {} 个",
-                        name,
-                        template.type_params.len(),
-                        args.len()
-                    )));
-                }
-                for a in args.iter() {
-                    self.validate_type_arg(a)?;
-                }
-                let mangled = mangle_name(name, args);
-                if !self.instantiated_structs.contains_key(&mangled) {
-                    let mapping: HashMap<String, Type> = template
-                        .type_params
-                        .iter()
-                        .cloned()
-                        .zip(args.iter().cloned())
-                        .collect();
-                    let mut spec = template.clone();
-                    spec.name = mangled.clone();
-                    spec.type_params.clear();
-                    for field in &mut spec.fields {
-                        field.field_type = substitute_type(&field.field_type, &mapping);
-                    }
-                    self.instantiated_structs
-                        .insert(mangled.clone(), spec.clone());
-                    for field in &mut spec.fields {
-                        self.monomorphize_type(&mut field.field_type)?;
-                    }
-                    self.instantiated_structs
-                        .insert(mangled.clone(), spec.clone());
-                    self.inferrer.struct_defs.insert(mangled.clone(), spec);
-                    self.inferrer.instantiated_struct_types.insert(
-                        mangled.clone(),
-                        (name.clone(), args.clone()),
-                    );
-                }
+                    return Err(self.diag(message));
+                };
                 *ty = Type::Named(mangled);
             }
             Type::Box(inner) => self.monomorphize_type(inner)?,
@@ -135,6 +113,108 @@ impl Monomorphizer {
             _ => {}
         }
         Ok(())
+    }
+
+    pub(super) fn monomorphize_struct_type(
+        &mut self,
+        name: &str,
+        args: &[Type],
+    ) -> Result<String> {
+        let template = self.struct_templates.get(name).cloned().ok_or_else(|| {
+            self.diag(format!("未知泛型结构体 '{}'", name))
+        })?;
+        if args.len() != template.type_params.len() {
+            return Err(self.diag(format!(
+                "泛型结构体 '{}' 类型实参数量不匹配:期望 {} 个,实际 {} 个",
+                name,
+                template.type_params.len(),
+                args.len()
+            )));
+        }
+        for a in args {
+            self.validate_type_arg(a)?;
+        }
+        let mangled = mangle_name(name, args);
+        if !self.instantiated_structs.contains_key(&mangled) {
+            let mapping: HashMap<String, Type> = template
+                .type_params
+                .iter()
+                .cloned()
+                .zip(args.iter().cloned())
+                .collect();
+            let mut spec = template.clone();
+            spec.name = mangled.clone();
+            spec.type_params.clear();
+            for field in &mut spec.fields {
+                field.field_type = substitute_type(&field.field_type, &mapping);
+            }
+            self.instantiated_structs
+                .insert(mangled.clone(), spec.clone());
+            for field in &mut spec.fields {
+                self.monomorphize_type(&mut field.field_type)?;
+            }
+            self.instantiated_structs
+                .insert(mangled.clone(), spec.clone());
+            self.inferrer.struct_defs.insert(mangled.clone(), spec);
+            self.inferrer.instantiated_struct_types.insert(
+                mangled.clone(),
+                (name.to_string(), args.to_vec()),
+            );
+        }
+        Ok(mangled)
+    }
+
+    pub(super) fn monomorphize_enum_type(
+        &mut self,
+        name: &str,
+        args: &[Type],
+    ) -> Result<String> {
+        let template = self.enum_templates.get(name).cloned().ok_or_else(|| {
+            self.diag(format!("未知泛型枚举 '{}'", name))
+        })?;
+        if args.len() != template.type_params.len() {
+            return Err(self.diag(format!(
+                "泛型枚举 '{}' 类型实参数量不匹配:期望 {} 个,实际 {} 个",
+                name,
+                template.type_params.len(),
+                args.len()
+            )));
+        }
+        for a in args {
+            self.validate_type_arg(a)?;
+        }
+        let mangled = mangle_name(name, args);
+        if !self.instantiated_enums.contains_key(&mangled) {
+            let mapping: HashMap<String, Type> = template
+                .type_params
+                .iter()
+                .cloned()
+                .zip(args.iter().cloned())
+                .collect();
+            let mut spec = template.clone();
+            spec.name = mangled.clone();
+            spec.type_params.clear();
+            for variant in &mut spec.variants {
+                for payload in &mut variant.payloads {
+                    *payload = substitute_type(payload, &mapping);
+                }
+            }
+            self.instantiated_enums
+                .insert(mangled.clone(), spec.clone());
+            for variant in &mut spec.variants {
+                for payload in &mut variant.payloads {
+                    self.monomorphize_type(payload)?;
+                }
+            }
+            self.instantiated_enums
+                .insert(mangled.clone(), spec.clone());
+            self.inferrer.known_enums.insert(mangled.clone());
+            self.inferrer.instantiated_enum_types.insert(
+                mangled.clone(),
+                (name.to_string(), args.to_vec()),
+            );
+        }
+        Ok(mangled)
     }
 
     /// 泛型函数模板查找:先按调用名原样查找,再按末段回退——限定调用
@@ -247,12 +327,15 @@ impl Monomorphizer {
                 spec.return_type.clone(),
             ),
         );
+        let prev_ret = self.current_fn_return.clone();
+        self.current_fn_return = spec.return_type.clone();
         self.inferrer.enter_scope();
         for p in &spec.params {
             self.inferrer.insert_var(&p.name, p.param_type.clone());
         }
         self.monomorphize_block(&mut spec.body)?;
         self.inferrer.leave_scope();
+        self.current_fn_return = prev_ret;
         self.instantiated_fns.insert(mangled.to_string(), (spec, span));
         Ok(())
     }
@@ -287,12 +370,16 @@ pub(super) fn monomorphize_all(
     // 阶段 4: 移除纯模板定义,追加单态化生成的实体
     new_program.statements.retain(|s| match &s.node {
         Stmt::Struct(d) => d.type_params.is_empty(),
+        Stmt::Enum(d) => d.type_params.is_empty(),
         Stmt::Fn(f) => f.type_params.is_empty(),
         _ => true,
     });
 
     for def in mono.instantiated_structs.into_values() {
         new_program.statements.push(Spanned::new(Stmt::Struct(def), 1, 1));
+    }
+    for def in mono.instantiated_enums.into_values() {
+        new_program.statements.push(Spanned::new(Stmt::Enum(def), 1, 1));
     }
     for (f, span) in mono.instantiated_fns.into_values() {
         new_program.statements.push(Spanned::with_span(Stmt::Fn(f), span));
@@ -317,12 +404,21 @@ fn monomorphize_statements(
                 if let Some(ret) = &mut f.return_type {
                     mono.monomorphize_type(ret)?;
                 }
+                mono.inferrer.fn_signatures.insert(
+                    f.name.clone(),
+                    (
+                        f.params.iter().map(|p| p.param_type.clone()).collect(),
+                        f.return_type.clone(),
+                    ),
+                );
+                mono.current_fn_return = f.return_type.clone();
                 mono.inferrer.enter_scope();
                 for p in &f.params {
                     mono.inferrer.insert_var(&p.name, p.param_type.clone());
                 }
                 mono.monomorphize_block(&mut f.body)?;
                 mono.inferrer.leave_scope();
+                mono.current_fn_return = None;
             }
         } else {
             mono.monomorphize_stmt(&mut s.node)?;

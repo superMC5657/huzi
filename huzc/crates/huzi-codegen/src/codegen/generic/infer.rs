@@ -11,6 +11,7 @@ pub(super) struct TypeInferrer {
     pub(super) fn_signatures: HashMap<String, (Vec<Type>, Option<Type>)>,
     pub(super) struct_defs: HashMap<String, StructDef>,
     pub(super) instantiated_struct_types: HashMap<String, (String, Vec<Type>)>,
+    pub(super) instantiated_enum_types: HashMap<String, (String, Vec<Type>)>,
     pub(super) known_enums: std::collections::HashSet<String>,
 }
 
@@ -21,6 +22,7 @@ impl TypeInferrer {
             fn_signatures: HashMap::new(),
             struct_defs: HashMap::new(),
             instantiated_struct_types: HashMap::new(),
+            instantiated_enum_types: HashMap::new(),
             known_enums: std::collections::HashSet::new(),
         }
     }
@@ -320,8 +322,10 @@ impl TypeInferrer {
                         }
                     }
                 } else if let Type::Named(mangled) = arg_ty {
-                    if let Some((base_name, actual_args)) =
-                        self.instantiated_struct_types.get(mangled)
+                    if let Some((base_name, actual_args)) = self
+                        .instantiated_struct_types
+                        .get(mangled)
+                        .or_else(|| self.instantiated_enum_types.get(mangled))
                     {
                         if p_name == base_name && p_args.len() == actual_args.len() {
                             for (pa, aa) in p_args.iter().zip(actual_args) {
@@ -348,5 +352,59 @@ impl TypeInferrer {
             _ => {}
         }
         Ok(())
+    }
+
+    /// 根据泛型枚举变体构造的实参反推枚举的类型实参。
+    pub(super) fn infer_enum_variant_type_args(
+        &self,
+        enum_name: &str,
+        variant_name: &str,
+        template: &EnumDef,
+        args: &[Expr],
+    ) -> Result<Vec<Type>> {
+        let variant = template
+            .variants
+            .iter()
+            .find(|v| v.name == variant_name)
+            .ok_or_else(|| {
+                HuziError::new_global(format!(
+                    "枚举 '{}' 不存在变体 '{}'",
+                    enum_name, variant_name
+                ))
+            })?;
+
+        if args.len() != variant.payloads.len() {
+            return Err(HuziError::new_global(format!(
+                "枚举变体 '{}::{}' 载荷参数数量不匹配:期望 {} 个,实际 {} 个",
+                enum_name,
+                variant_name,
+                variant.payloads.len(),
+                args.len()
+            )));
+        }
+
+        let mut inferred: HashMap<String, Type> = HashMap::new();
+        for (idx, (payload_ty, arg)) in variant.payloads.iter().zip(args.iter()).enumerate() {
+            let arg_ty = self.infer_expr_type(arg).ok_or_else(|| {
+                HuziError::new_global(format!(
+                    "枚举变体 '{}::{}' 第 {} 个载荷实参类型无法推导:期望为 '{}',请显式指定类型实参,如 `{}<...>::{}(...)`",
+                    enum_name, variant_name, idx + 1, payload_ty, enum_name, variant_name
+                ))
+            })?;
+            self.unify_type(payload_ty, &arg_ty, &template.type_params, &mut inferred)?;
+        }
+
+        let mut result = Vec::new();
+        for tp in &template.type_params {
+            if let Some(ty) = inferred.get(tp) {
+                result.push(ty.clone());
+            } else {
+                return Err(HuziError::new_global(format!(
+                    "泛型枚举 '{}' 的类型形参 '{}' 无法根据变体 '{}' 的实参推导:请显式指定类型实参,如 `{}<...>::{}(...)`",
+                    enum_name, tp, variant_name, enum_name, variant_name
+                )));
+            }
+        }
+        Ok(result)
     }
 }

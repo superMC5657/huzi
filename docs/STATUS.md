@@ -18,7 +18,7 @@
 - [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec<T>`、`Map`/`Map<str, str>`/`Map<i32, i32>`（支持作为函数形参与结构体字段）、`Box<T>`（含嵌套 `Box<Box<T>>`；`T` 可为结构体或 `i32/i64/f64/bool/str` 标量，标量经前缀 `*b` 解引用读写）
 - [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查）、`defer`（防止嵌套 return/defer）
 - [x] 模块：`import` 相对路径、去重、循环拦截、`mod::fn()` 调用
-- [x] 泛型函数 + 泛型结构体（支持调用点实参自动推导与显式标注）
+- [x] 泛型系统：泛型函数 + 泛型结构体 + 泛型枚举（支持调用点实参自动推导、变体显式标注与模式匹配解构）
 - [x] Trait + impl（静态分发与签名类型完备性校验）
 - [x] 错误处理：泛型 `Result<T>`（自举标准库 `core.result`）+ 后缀 `?` 运算符（成功解包 value、失败提前返回整个 Result，defer 照常执行；规则见 `rfc/rfc_result_question.md`）
 - [x] 模块内泛型可用：库模块可定义泛型结构体/函数，用户代码经 `mod::gen_fn(...)` 限定调用自动单态化（修复模板泄漏/签名注册顺序/限定调用单态化三处缺口）
@@ -67,7 +67,7 @@
 ## 3. 明确不做（非缺失，是取舍）
 
 * 无精确 GC（不做 tracing 收集）：Box 走引用计数（RC），str/vec 为手动 free + 进程退出 OS 回收；RC 循环引用需手动 free_box 打破（`ref_count` 快照诊断 + `panic` 告警，正例 `40_rc`，负例 `rc_cycle_leak`）
-* 泛型无 `where` 约束、无特化、无泛型枚举穷尽
+* 泛型无 `where` 约束、无特化
 * 包管理无中心仓库、无下载校验和、无 semver 自动升级（求解只选最高满足版，不改写清单）
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
 

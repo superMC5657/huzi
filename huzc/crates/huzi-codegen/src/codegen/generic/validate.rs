@@ -23,6 +23,12 @@ impl Monomorphizer {
                 Stmt::Enum(d) => {
                     self.known_types.insert(d.name.clone());
                     self.inferrer.known_enums.insert(d.name.clone());
+                    if !d.type_params.is_empty() {
+                        let span = s.span;
+                        self.validate_enum_template(d)
+                            .map_err(|e| e.with_position(span.line, span.column))?;
+                        self.enum_templates.insert(d.name.clone(), d.clone());
+                    }
                 }
                 Stmt::Fn(f) => {
                     if !f.type_params.is_empty() {
@@ -60,6 +66,15 @@ impl Monomorphizer {
         }
         if let Some(ret) = &f.return_type {
             self.validate_type_params(ret, &f.type_params, &f.name)?;
+        }
+        Ok(())
+    }
+
+    pub(super) fn validate_enum_template(&self, d: &EnumDef) -> Result<()> {
+        for variant in &d.variants {
+            for payload in &variant.payloads {
+                self.validate_type_params(payload, &d.type_params, &d.name)?;
+            }
         }
         Ok(())
     }
@@ -108,7 +123,10 @@ impl Monomorphizer {
     pub(super) fn validate_type_arg(&self, ty: &Type) -> Result<()> {
         match ty {
             Type::Named(n) => {
-                if !self.known_types.contains(n) && !self.instantiated_structs.contains_key(n) {
+                if !self.known_types.contains(n)
+                    && !self.instantiated_structs.contains_key(n)
+                    && !self.instantiated_enums.contains_key(n)
+                {
                     let hint = did_you_mean(n, self.known_types.iter().map(|s| s.as_str()));
                     let mut msg = format!(
                         "未知类型 '{}':期望已知类型或已实例化的泛型,实际未找到",

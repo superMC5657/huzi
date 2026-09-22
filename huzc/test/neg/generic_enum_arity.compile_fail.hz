@@ -1,0 +1,9 @@
+enum MyOpt<T> {
+    Some(T),
+    None,
+}
+
+fn main() -> i32 {
+    let o = MyOpt<i32, str>::Some(42)
+    return 0
+}

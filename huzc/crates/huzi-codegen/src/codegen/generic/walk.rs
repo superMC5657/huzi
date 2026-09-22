@@ -11,9 +11,7 @@ impl Monomorphizer {
         match expr {
             Expr::Call(c) => self.monomorphize_call_expr(c)?,
             Expr::EnumConstruct(ec) => {
-                for a in &mut ec.args {
-                    self.monomorphize_expr(a)?;
-                }
+                self.monomorphize_enum_construct_expr(ec)?;
                 // `mod::fn(args)` 与 `Enum::Variant(args)` 同形:非已知枚举
                 // 时按限定函数调用处理并参与泛型单态化(与 codegen 的判定
                 // 一致);非泛型调用保持原样,由 codegen 继续分派。
@@ -35,6 +33,17 @@ impl Monomorphizer {
             Expr::Unary(u) => self.monomorphize_expr(&mut u.operand)?,
             Expr::Assign(a) => {
                 self.monomorphize_expr(&mut a.target)?;
+                if let Expr::EnumConstruct(ec) = &mut *a.value {
+                    if ec.type_args.is_empty() && self.enum_templates.contains_key(&ec.enum_name) {
+                        if let Some(Type::Named(mangled)) = self.inferrer.infer_expr_type(&a.target) {
+                            if let Some((base, args)) = self.inferrer.instantiated_enum_types.get(&mangled) {
+                                if base == &ec.enum_name {
+                                    ec.type_args = args.clone();
+                                }
+                            }
+                        }
+                    }
+                }
                 self.monomorphize_expr(&mut a.value)?;
             }
             Expr::ArrayIndex(a) => {
@@ -55,12 +64,7 @@ impl Monomorphizer {
             }
             Expr::FieldAccess(f) => self.monomorphize_expr(&mut f.base)?,
             Expr::Try(t) => self.monomorphize_expr(&mut t.inner)?,
-            Expr::Match(m) => {
-                self.monomorphize_expr(&mut m.scrutinee)?;
-                for arm in &mut m.arms {
-                    self.monomorphize_block(&mut arm.body)?;
-                }
-            }
+            Expr::Match(m) => self.monomorphize_match_expr(m)?,
             Expr::MethodCall(m) => {
                 self.monomorphize_expr(&mut m.receiver)?;
                 for a in &mut m.arguments {
@@ -126,6 +130,62 @@ impl Monomorphizer {
         Ok(())
     }
 
+    fn monomorphize_enum_construct_expr(&mut self, ec: &mut EnumConstructExpr) -> Result<()> {
+        for a in &mut ec.args {
+            self.monomorphize_expr(a)?;
+        }
+        for targ in &mut ec.type_args {
+            self.monomorphize_type(targ)?;
+        }
+        if self.enum_templates.contains_key(&ec.enum_name) {
+            let template = self.enum_templates.get(&ec.enum_name).cloned().unwrap();
+            let type_args = if !ec.type_args.is_empty() {
+                ec.type_args.clone()
+            } else {
+                self.inferrer.infer_enum_variant_type_args(
+                    &ec.enum_name,
+                    &ec.variant,
+                    &template,
+                    &ec.args,
+                )?
+            };
+            let mangled = self.monomorphize_enum_type(&ec.enum_name, &type_args)?;
+            ec.enum_name = mangled;
+            ec.type_args.clear();
+        }
+        Ok(())
+    }
+
+    fn monomorphize_match_expr(&mut self, m: &mut MatchExpr) -> Result<()> {
+        self.monomorphize_expr(&mut m.scrutinee)?;
+        let mut scrut_ty = self.inferrer.infer_expr_type(&m.scrutinee);
+        if let Some(ty) = &mut scrut_ty {
+            let _ = self.monomorphize_type(ty);
+        }
+        for arm in &mut m.arms {
+            self.inferrer.enter_scope();
+            if let Pattern::Variant { enum_name, variant, bindings } = &mut arm.pattern {
+                if let Some(Type::Named(mangled)) = &scrut_ty {
+                    if let Some((base, _)) = self.inferrer.instantiated_enum_types.get(mangled) {
+                        if enum_name == base {
+                            *enum_name = mangled.clone();
+                        }
+                    }
+                    if let Some(spec) = self.instantiated_enums.get(mangled) {
+                        if let Some(v) = spec.variants.iter().find(|v| &v.name == variant) {
+                            for (binding, payload_ty) in bindings.iter().zip(v.payloads.iter()) {
+                                self.inferrer.insert_var(binding, payload_ty.clone());
+                            }
+                        }
+                    }
+                }
+            }
+            self.monomorphize_block(&mut arm.body)?;
+            self.inferrer.leave_scope();
+        }
+        Ok(())
+    }
+
     pub(super) fn monomorphize_stmt(&mut self, stmt: &mut Stmt) -> Result<()> {
         match stmt {
             Stmt::Let(l) => {
@@ -134,6 +194,17 @@ impl Monomorphizer {
                     self.inferrer.insert_var(&l.name, ann.clone());
                 }
                 if let Some(val) = &mut l.value {
+                    if let Expr::EnumConstruct(ec) = val {
+                        if ec.type_args.is_empty() && self.enum_templates.contains_key(&ec.enum_name) {
+                            if let Some(Type::Named(mangled)) = &l.type_annotation {
+                                if let Some((base, args)) = self.inferrer.instantiated_enum_types.get(mangled) {
+                                    if base == &ec.enum_name {
+                                        ec.type_args = args.clone();
+                                    }
+                                }
+                            }
+                        }
+                    }
                     self.monomorphize_expr(val)?;
                     if l.type_annotation.is_none() {
                         if let Some(ty) = self.inferrer.infer_expr_type(val) {
@@ -145,6 +216,17 @@ impl Monomorphizer {
             Stmt::Expr(e) => self.monomorphize_expr(&mut e.expr)?,
             Stmt::Return(r) => {
                 if let Some(v) = &mut r.value {
+                    if let Expr::EnumConstruct(ec) = v {
+                        if ec.type_args.is_empty() && self.enum_templates.contains_key(&ec.enum_name) {
+                            if let Some(Type::Named(mangled)) = &self.current_fn_return {
+                                if let Some((base, args)) = self.inferrer.instantiated_enum_types.get(mangled) {
+                                    if base == &ec.enum_name {
+                                        ec.type_args = args.clone();
+                                    }
+                                }
+                            }
+                        }
+                    }
                     self.monomorphize_expr(v)?;
                 }
             }

@@ -1,0 +1,8 @@
+enum Broken<T> {
+    Value(U),
+}
+
+fn main() -> i32 {
+    let b = Broken<i32>::Value(1)
+    return 0
+}

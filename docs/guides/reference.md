@@ -40,7 +40,7 @@
 | `[T; N]` | 固定长度数组 | `[N x T]` | 栈分配，按指针寻址传递 |
 | `(T1, T2, ...)` | 匿名元组 | `{ T1, T2, ... }` | 栈分配紧凑连续布局 |
 | `struct Name` | 命名结构体 | `%struct.Name` | 栈上连续布局，赋值与传参逐字段拷贝 |
-| `enum Name` | 枚举变体与 payload | `%enum.Name = { i32, [M x i8] }` | 判别码与 payload 联合存储区 |
+| `enum Name` / `enum Name<T>` | 枚举（支持泛型与 payload） | `%enum.Name = { i32, [M x i8] }` | 判别码与 payload 联合存储区，泛型枚举按需单态化特化 |
 | `vec<T>` | 动态数组 | `{ ptr, i32, i32 }` | 栈上元数据（指针、长度、容量），支持参数与字段 |
 | `Map` / `HashMap` | 键值映射表（默认 `str->i32`） | `{ ptr, i32, i32 }` | 堆上哈希槽与元数据，支持参数与字段 |
 | `Map<str, str>` | 键值映射表（`str->str`） | `{ ptr, i32, i32 }` | 值字段为 `ptr`；`map_get` 返回 `(bool, str)` |

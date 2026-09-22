@@ -44,11 +44,16 @@ impl Formatter {
     }
 
     pub(super) fn format_enum(&mut self, e: &EnumDef, line: usize, end: usize) {
+        let type_params_str = if e.type_params.is_empty() {
+            String::new()
+        } else {
+            format!("<{}>", e.type_params.join(", "))
+        };
         if e.variants.is_empty() {
-            self.line_at(&format!("enum {} {{}}", e.name), line);
+            self.line_at(&format!("enum {}{} {{}}", e.name, type_params_str), line);
             return;
         }
-        self.line_at(&format!("enum {} {{", e.name), line);
+        self.line_at(&format!("enum {}{} {{", e.name, type_params_str), line);
         self.indent += 1;
         for v in &e.variants {
             if v.payloads.is_empty() {

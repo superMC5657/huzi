@@ -219,11 +219,17 @@ fn format_struct_literal(s: &StructLiteralExpr) -> String {
 }
 
 fn format_enum_construct(e: &EnumConstructExpr) -> String {
+    let type_args_str = if e.type_args.is_empty() {
+        String::new()
+    } else {
+        let targs: Vec<_> = e.type_args.iter().map(|t| t.to_string()).collect();
+        format!("<{}>", targs.join(", "))
+    };
     if e.args.is_empty() {
-        format!("{}::{}", e.enum_name, e.variant)
+        format!("{}{}::{}", e.enum_name, type_args_str, e.variant)
     } else {
         let args: Vec<_> = e.args.iter().map(format_expr).collect();
-        format!("{}::{}({})", e.enum_name, e.variant, args.join(", "))
+        format!("{}{}::{}({})", e.enum_name, type_args_str, e.variant, args.join(", "))
     }
 }
 

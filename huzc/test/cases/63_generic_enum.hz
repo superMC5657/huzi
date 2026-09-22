@@ -1,0 +1,62 @@
+# 63_generic_enum.hz —— 泛型枚举定义、单态化、显式/推导构造与模式匹配解构
+enum MyOption<T> {
+    Some(T),
+    None,
+}
+
+enum MyResult<T, E> {
+    Ok(T),
+    Err(E),
+}
+
+fn double_if_some(opt: MyOption<i32>) -> MyOption<i32> {
+    return match opt {
+    MyOption::Some(x) => MyOption<i32>::Some(x * 2),
+    MyOption::None => MyOption<i32>::None,
+}
+}
+
+fn main() -> i32 {
+    # 1. 显式指定类型实参构造
+    let o1 = MyOption<i32>::Some(42)
+    # 2. 从实参负载自动反推类型实参: "hello" -> T = str
+    let o2 = MyOption::Some("hello")
+    # 3. 从变量类型注解推导无负载变体
+    let o3: MyOption<i32> = MyOption::None
+    # 4. 模式匹配解构
+    match o1 {
+    MyOption::Some(v) => print("o1 val:", v),
+    MyOption::None => print("o1 is none"),
+}
+    match o2 {
+    MyOption::Some(s) => print("o2 val:", s),
+    MyOption::None => print("o2 is none"),
+}
+    match o3 {
+    MyOption::Some(v) => print("o3 val:", v),
+    MyOption::None => print("o3 is none"),
+}
+    # 5. 双类型参数泛型枚举
+    let r1 = MyResult<i32, str>::Ok(200)
+    let r2 = MyResult<i32, str>::Err("file missing")
+    match r1 {
+    MyResult::Ok(code) => print("r1 success:", code),
+    MyResult::Err(err) => print("r1 fail:", err),
+}
+    match r2 {
+    MyResult::Ok(code) => print("r2 success:", code),
+    MyResult::Err(err) => print("r2 fail:", err),
+}
+    # 6. 泛型枚举作为参数与返回值
+    let o4 = double_if_some(o1)
+    match o4 {
+    MyOption::Some(v) => print("o4 doubled:", v),
+    MyOption::None => print("o4 is none"),
+}
+    let o5 = double_if_some(o3)
+    match o5 {
+    MyOption::Some(v) => print("o5 doubled:", v),
+    MyOption::None => print("o5 is none"),
+}
+    return 0
+}
