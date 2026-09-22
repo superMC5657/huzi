@@ -1,0 +1,9 @@
+import my_math
+
+fn main() -> i32 {
+    let s = my_math::add(10, 20)
+    let p = my_math::calc::mul(3, 7)
+    print(s)
+    print(p)
+    return 0
+}

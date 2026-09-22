@@ -1,0 +1,15 @@
+let path = "test/out/file_io_demo.txt"
+
+let ok = write_file(path, "huzi file io demo\nline two\n")
+
+print("write ok:", ok)
+
+let data = read_file(path)
+
+print("read len:", len(data))
+
+print("round trip:", data == "huzi file io demo\nline two\n")
+
+let missing = read_file("test/out/no_such_file.txt")
+
+print("missing len:", len(missing))

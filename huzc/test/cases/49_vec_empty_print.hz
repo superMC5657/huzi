@@ -1,0 +1,58 @@
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+struct Rect {
+    origin: Point,
+    w: i32,
+    h: i32,
+}
+
+struct Data {
+    nums: [i32; 3],
+    total: i32,
+}
+
+fn main() -> i32 {
+    let mut v = vec<i32>()
+    print(v)
+    print(len(v))
+    push(v, 1)
+    push(v, 2)
+    push(v, 3)
+    print(v)
+    print(len(v))
+    v[1] = 20
+    print(v)
+    let mut total = 0
+    for x in v {
+        total = total + x
+    }
+    print("total =", total)
+    let p = Point { x: 3, y: 4 }
+    print(p)
+    let r = Rect { origin: p, w: 100, h: 50 }
+    print(r)
+    print(r.origin)
+    let data = Data { nums: [1, 2, 3], total: 6 }
+    print(data)
+    let mut ps = vec<Point>()
+    push(ps, p)
+    push(ps, Point { x: 1, y: 2 })
+    print(ps)
+    let mut s = vec<str>()
+    push(s, "foo")
+    push(s, "bar")
+    print(s)
+    let mut f = vec<f64>()
+    push(f, 1.5)
+    push(f, 2.0)
+    print(f)
+    let mut b = vec<bool>()
+    push(b, true)
+    push(b, false)
+    print(b)
+    print("v =", v)
+    0
+}

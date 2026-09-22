@@ -1,0 +1,40 @@
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+
+enum Shape {
+    Circle(f64),
+    Rect(f64),
+    Point2D,
+}
+
+let c = Color::Green
+
+let n = match c {
+    Color::Red => 1,
+    Color::Green => 2,
+    Color::Blue => 3,
+}
+
+print(n)
+
+fn area(s: Shape) -> f64 {
+    return match s {
+    Shape::Circle(r) => 3.14159 * r * r,
+    Shape::Rect(w) => w * w,
+    Shape::Point2D => 0.0,
+}
+}
+
+print(area(Shape::Circle(2.0)))
+
+print(area(Shape::Rect(3.0)))
+
+let wild = match c {
+    Color::Red => 10,
+    _ => 0,
+}
+
+print(wild)

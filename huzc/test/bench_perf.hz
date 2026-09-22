@@ -1,0 +1,44 @@
+# 性能测试基准
+# 包含三个典型计算内核：整数循环、递归、浮点运算
+# 热循环内不做任何输出，结果统一在最后打印，防止被优化掉
+
+# 内核 1：整数循环（求和 + 取模，i32 运算）
+fn int_loop(n: i32) -> i32 {
+    let mut sum = 0
+    for i in 0..n {
+        sum = sum + i % 7
+    }
+    return sum
+}
+
+# 内核 2：递归调用（朴素斐波那契）
+fn fib(n: i32) -> i32 {
+    if n <= 1 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+# 内核 3：浮点运算（乘加链）
+fn float_loop(n: i32) -> f64 {
+    let mut f = 1.0
+    for i in 0..n {
+        f = f * 1.0000001 + 0.0000001
+    }
+    return f
+}
+
+fn main() -> i32 {
+    let n_int = 10000000
+    let n_fib = 30
+    let n_float = 5000000
+
+    let r1 = int_loop(n_int)
+    let r2 = fib(n_fib)
+    let r3 = float_loop(n_float)
+
+    print("int_loop result:", r1)
+    print("fib result:", r2)
+    print("float_loop result:", r3)
+    return 0
+}

@@ -1,0 +1,64 @@
+fn max(a: i32, b: i32) -> i32 {
+    if a > b {
+        return a
+    } else {
+        return b
+    }
+}
+
+fn abs_value(x: f64) -> f64 {
+    if x < 0.0 {
+        return -x
+    }
+    return x
+}
+
+fn grade_score(score: i32) -> i32 {
+    if score >= 90 {
+        return 90
+    } elif score >= 80 {
+        return 80
+    } elif score >= 70 {
+        return 70
+    } elif score >= 60 {
+        return 60
+    } else {
+        return 0
+    }
+}
+
+fn main() -> i32 {
+    print("=== 基本 if-else ===")
+    let age = 18
+    if age >= 18 {
+        print("You are an adult.")
+    } else {
+        print("You are a minor.")
+    }
+    print("\n=== if-elif-else ===")
+    let mut score = 85
+    print("Score: ", score, ", Grade code: ", grade_score(score))
+    score = 92
+    print("Score: ", score, ", Grade code: ", grade_score(score))
+    score = 55
+    print("Score: ", score, ", Grade code: ", grade_score(score))
+    print("\n=== 嵌套条件 ===")
+    let temp = 25
+    if temp > 30 {
+        print("It's hot!")
+    } elif temp > 20 {
+        print("It's warm.")
+        if temp < 28 {
+            print("Perfect weather!")
+        }
+    } else {
+        print("It's cold.")
+    }
+    print("\n=== 比较函数 ===")
+    print("max(10, 20) = ", max(10, 20))
+    print("max(50, 30) = ", max(50, 30))
+    print("\n=== 绝对值函数 ===")
+    print("abs_value(-3.14) = ", abs_value(-3.14))
+    print("abs_value(3.14) = ", abs_value(3.14))
+    return 0
+}

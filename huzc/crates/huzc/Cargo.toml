@@ -1,0 +1,25 @@
+[package]
+name = "huzc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Huzi language compiler CLI (lex, parse, LLVM codegen, link)"
+repository.workspace = true
+
+[[bin]]
+name = "huzc"
+path = "src/main.rs"
+
+[lib]
+name = "huzc"
+path = "src/lib.rs"
+
+[dependencies]
+huzi-ast = { path = "../huzi-ast" }
+huzi-lexer = { path = "../huzi-lexer" }
+huzi-parser = { path = "../huzi-parser" }
+huzi-codegen = { path = "../huzi-codegen" }
+huzi-error = { path = "../huzi-error" }
+clap = { version = "4.5", features = ["derive"] }
+inkwell = { version = "0.5.0", features = ["llvm18-0"] }

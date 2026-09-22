@@ -1,0 +1,8 @@
+fn zero<T>() -> i32 {
+    return 0
+}
+
+fn main() -> i32 {
+    let x = zero()
+    return 0
+}

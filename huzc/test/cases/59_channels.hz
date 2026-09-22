@@ -1,0 +1,33 @@
+fn worker(ch: i64) -> i32 {
+    let mut i = 0
+    while i < 3 {
+        chan_send(ch, concat("msg ", to_string(i)))
+        i = i + 1
+    }
+    return 0
+}
+
+fn summer(ch: i64) -> i32 {
+    let raw1 = chan_recv(ch)
+    let p1 = parse_int(raw1)
+    let raw2 = chan_recv(ch)
+    let p2 = parse_int(raw2)
+    return p1.1 + p2.1
+}
+
+fn main() -> i32 {
+    let ch = chan_new(16)
+    let h = spawn(worker, ch)
+    let mut got = 0
+    while got < 3 {
+        print(chan_recv(ch))
+        got = got + 1
+    }
+    join(h)
+    let ch2 = chan_new(16)
+    let h2 = spawn(summer, ch2)
+    chan_send(ch2, "20")
+    chan_send(ch2, "22")
+    print(join(h2))
+    return 0
+}

@@ -1,0 +1,76 @@
+fn next_seed(seed: i32) -> i32 {
+    let mut s = (seed * 1103515245 + 12345) % 2147483647
+    if s < 0 {
+        s = -s
+    }
+    return s
+}
+
+fn random_in_range(seed: i32, min: i32, max: i32) -> i32 {
+    let s = next_seed(seed)
+    return min + s % (max - min + 1)
+}
+
+fn abs_val(x: i32) -> i32 {
+    if x < 0 {
+        return -x
+    }
+    return x
+}
+
+fn main() -> i32 {
+    print("=== 猜数字游戏 ===")
+    print("我想了一个 1 到 100 之间的数字...")
+    print("你能猜出它是多少吗？\n")
+    let mut seed = 42
+    seed = next_seed(seed)
+    let secret = random_in_range(seed, 1, 100)
+    let mut guess = 0
+    let mut attempts = 0
+    let mut won = false
+    while attempts < 10 {
+        if attempts == 0 {
+            guess = 50
+        } elif attempts == 1 {
+            guess = 25
+        } elif attempts == 2 {
+            guess = 37
+        } elif attempts == 3 {
+            guess = 43
+        } elif attempts == 4 {
+            guess = 40
+        } elif attempts == 5 {
+            guess = 41
+        } elif attempts == 6 {
+            guess = 42
+        } else {
+            seed = next_seed(seed)
+            guess = random_in_range(seed, 1, 100)
+        }
+        attempts = attempts + 1
+        print("猜测 #", attempts, ": ", guess)
+        if guess == secret {
+            print("恭喜你！猜对了！")
+            print("你用了 ", attempts, " 次猜对。")
+            won = true
+            break
+        } elif guess < secret {
+            print("太小了！")
+        } else {
+            print("太大了！")
+        }
+    }
+    if !won {
+        print("游戏结束！")
+        print("正确答案是：", secret)
+    }
+    print("\n=== 随机数测试 ===")
+    print("生成 5 个随机数：")
+    let mut s2 = 100
+    for i in 0..5 {
+        s2 = next_seed(s2)
+        let r = random_in_range(s2, 1, 100)
+        print("  ", i + 1, ": ", r)
+    }
+    return 0
+}

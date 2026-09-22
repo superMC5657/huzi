@@ -1,0 +1,17 @@
+struct Point {
+    x: i32,
+}
+
+trait Printable {
+    fn show(self, flag: str) -> str
+}
+
+impl Printable for Point {
+    fn show(self, flag: i32) -> str {
+        return "point"
+    }
+}
+
+fn main() -> i32 {
+    return 0
+}

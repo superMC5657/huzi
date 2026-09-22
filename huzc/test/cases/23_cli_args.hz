@@ -1,0 +1,12 @@
+fn main() -> i32 {
+    let n = arg_count()
+    print(concat("参数个数: ", to_string(n)))
+    print(concat("程序名: ", arg(0)))
+    let mut i = 1
+    while i < n {
+        print(concat(concat("参数[", to_string(i)), concat("] = ", arg(i))))
+        i = i + 1
+    }
+    print(concat("越界 arg(99): [", concat(arg(99), "]")))
+    0
+}

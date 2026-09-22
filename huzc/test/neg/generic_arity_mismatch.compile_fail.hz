@@ -1,0 +1,9 @@
+# 负例：泛型函数调用时类型实参数量错配
+fn id<T>(x: T) -> T {
+    return x
+}
+
+fn main() -> i32 {
+    let a = id<i32, str>(42)
+    0
+}

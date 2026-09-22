@@ -1,0 +1,13 @@
+[package]
+name = "huzi-parser"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Parser for the Huzi programming language"
+repository.workspace = true
+
+[dependencies]
+huzi-ast = { path = "../huzi-ast" }
+huzi-lexer = { path = "../huzi-lexer" }
+huzi-error = { path = "../huzi-error" }

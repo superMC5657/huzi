@@ -1,0 +1,9 @@
+fn main() -> i32 {
+    let s = "hello"
+    print(s[0])
+    print(s[1])
+    print(s[len(s) - 1])
+    print(len(s))
+    print("hey"[1])
+    0
+}

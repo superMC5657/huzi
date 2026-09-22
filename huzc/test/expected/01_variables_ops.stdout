@@ -1,0 +1,27 @@
+=== 算术运算符 ===
+x + y = 13
+x - y = 7
+x * y = 30
+x / y = 3
+x % y = 1
+
+=== 比较运算符 ===
+x > y:  true
+x < y:  false
+x >= y: true
+x <= y: false
+x == y: false
+x != y: true
+
+=== 逻辑运算符 ===
+true && false = false
+true || false = true
+
+=== 自增自减 ===
+counter after +1: 1
+counter after +1: 2
+
+=== 负数运算 ===
+neg = -42
+-neg = 42
+abs(neg) = 42

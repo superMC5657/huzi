@@ -1,0 +1,15 @@
+# 负例：两种不同枚举用 == 比较，编译必须失败（类型不同）。
+enum A {
+    X(i32),
+    Unit
+}
+enum B {
+    X(i32),
+    Unit
+}
+fn main() -> i32 {
+    let a = A::X(1)
+    let b = B::X(1)
+    print(a == b)
+    0
+}

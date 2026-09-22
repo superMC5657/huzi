@@ -1,0 +1,10 @@
+# 负例:无返回值函数的调用值不可赋给变量,编译必须失败(exit != 0)。
+fn greet() {
+    print("hi")
+}
+
+fn main() -> i32 {
+    let x = greet()
+    print(x)
+    return 0
+}

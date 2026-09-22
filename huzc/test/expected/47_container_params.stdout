@@ -1,0 +1,13 @@
+sum1: 6
+sum2: 10
+tag: my_container
+direct len: 4
+direct elem 0: 1
+after update 0: 99
+direct sum: 108
+sum3: 108
+has apple: true
+map len: 2
+reg map len: 2
+reg has apple: true
+reg get banana: true20

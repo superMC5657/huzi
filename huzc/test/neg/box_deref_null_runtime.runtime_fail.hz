@@ -1,0 +1,6 @@
+# 负例:运行时对空 Box 解引用,必须以非零退出码终止。
+fn main() -> i32 {
+    let b: Box<i32> = null
+    print(*b)
+    return 0
+}

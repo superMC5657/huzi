@@ -1,0 +1,97 @@
+fn is_prime(n: i32) -> bool {
+    if n <= 1 {
+        return false
+    }
+    if n <= 3 {
+        return true
+    }
+    if n % 2 == 0 || n % 3 == 0 {
+        return false
+    }
+    let mut i = 5
+    while i * i <= n {
+        if n % i == 0 || n % (i + 2) == 0 {
+            return false
+        }
+        i = i + 6
+    }
+    return true
+}
+
+fn nth_prime(n: i32) -> i32 {
+    let mut count = 0
+    let mut candidate = 2
+    while count < n {
+        if is_prime(candidate) {
+            count = count + 1
+            if count == n {
+                return candidate
+            }
+        }
+        candidate = candidate + 1
+    }
+    return candidate
+}
+
+fn count_primes(n: i32) -> i32 {
+    let mut count = 0
+    for i in 2..n {
+        if is_prime(i) {
+            count = count + 1
+        }
+    }
+    return count
+}
+
+fn print_first_n_primes(n: i32) -> i32 {
+    let mut count = 0
+    let mut candidate = 2
+    while count < n {
+        if is_prime(candidate) {
+            if count > 0 {
+                print(", ")
+            }
+            print(candidate)
+            count = count + 1
+        }
+        candidate = candidate + 1
+    }
+    print("")
+    return 0
+}
+
+fn main() -> i32 {
+    print("=== 素数判断 ===\n")
+    let test_numbers = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 19, 23, 29, 30, 31, 37, 41, 43, 47]
+    for i in 0..22 {
+        let num = test_numbers[i]
+        let prime_str = if is_prime(num) { "是素数" } else { "不是素数" }
+        print(num, " ", prime_str)
+    }
+    print("\n=== 前 N 个素数 ===")
+    print("\n前 10 个素数:")
+    print_first_n_primes(10)
+    print("\n\n前 20 个素数:")
+    print_first_n_primes(20)
+    print("\n\n=== 第 N 个素数 ===")
+    print("第 1 个素数：", nth_prime(1))
+    print("第 5 个素数：", nth_prime(5))
+    print("第 10 个素数：", nth_prime(10))
+    print("第 25 个素数：", nth_prime(25))
+    print("第 50 个素数：", nth_prime(50))
+    print("\n=== 素数计数 ===")
+    print("小于 10 的素数个数：", count_primes(10))
+    print("小于 50 的素数个数：", count_primes(50))
+    print("小于 100 的素数个数：", count_primes(100))
+    print("\n=== 特殊素数 ===")
+    print("\n孪生素数对 (小于 100):")
+    let mut twin_count = 0
+    for i in 2..98 {
+        if is_prime(i) && is_prime(i + 2) {
+            print("  (", i, ", ", i + 2, ")")
+            twin_count = twin_count + 1
+        }
+    }
+    print("共 ", twin_count, " 对")
+    return 0
+}

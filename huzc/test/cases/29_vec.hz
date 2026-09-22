@@ -1,0 +1,21 @@
+fn main() -> i32 {
+    let mut v = vec(1, 2, 3)
+    print("v[0] =", v[0])
+    print("len =", len(v))
+    v[1] = 20
+    print("v[1] =", v[1])
+    push(v, 4)
+    push(v, 5)
+    print("len =", len(v))
+    let mut total = 0
+    for x in v {
+        total = total + x
+    }
+    print("total =", total)
+    let mut s = vec("foo", "bar")
+    push(s, "baz")
+    print("len =", len(s))
+    print(s[2])
+    print(concat(s[0], s[1]))
+    0
+}

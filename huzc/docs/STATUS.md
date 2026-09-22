@@ -1,0 +1,82 @@
+# Huzi 项目完成状态（STATUS）
+
+> 只回答“做完什么、没做什么”。实现细节见 `USAGE.md`（用户手册）与 `dev/开发文档.md`（技术架构）。
+> 更新日期：2026-09-19，分支 `master`，工作树干净。
+
+## 1. 总体结论
+
+* 核心语言 + 编译器后端 + 工具链已闭环，可构建、可发版。
+* 路线图 7 项已全部完成：`defer` / `fmt` / `RC` / `泛型` / `Trait` / `包管理` / `网络并发`（明细见 git 历史中的 `TODO.md`）。
+* `Roadmap Q0 / Q1 / Q2` 全部达成：CI 全量门禁、性能基准门禁、边界负例补齐、泛型实参自动推导、循环引用打破示例、vec/map 参数与字段支持、生态目录去误导与手册拆分。
+* CI 状态：GitHub Actions workflow 已移除，项目后续**不做 CI**；质量门禁以本地 `bash test.sh`（回归）与 `test/bench_compare.py`（性能基准）手动执行为准。
+
+## 2. 已完成清单
+
+### 语言核心
+
+- [x] 基本类型：`i32/i64/f32/f64/bool/char/str`
+- [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec<T>`、`Map`/`Map<str, str>`/`Map<i32, i32>`（支持作为函数形参与结构体字段）、`Box<T>`（含嵌套 `Box<Box<T>>`；`T` 可为结构体或 `i32/i64/f64/bool/str` 标量，标量经前缀 `*b` 解引用读写）
+- [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查）、`defer`（防止嵌套 return/defer）
+- [x] 模块：`import` 相对路径、去重、循环拦截、`mod::fn()` 调用
+- [x] 泛型函数 + 泛型结构体（支持调用点实参自动推导与显式标注）
+- [x] Trait + impl（静态分发与签名类型完备性校验）
+- [x] 错误处理：泛型 `Result<T>`（自举标准库 `core.result`）+ 后缀 `?` 运算符（成功解包 value、失败提前返回整个 Result，defer 照常执行；规则见 `rfc/rfc_result_question.md`）
+- [x] 模块内泛型可用：库模块可定义泛型结构体/函数，用户代码经 `mod::gen_fn(...)` 限定调用自动单态化（修复模板泄漏/签名注册顺序/限定调用单态化三处缺口）
+
+### 标准库内置
+
+- [x] I/O：`print/read_line/read_int/read_float/is_eof`
+- [x] CLI 参数：`arg_count/arg/arg_ok`
+- [x] 字符串：`len/concat/to_string/split/substring/trim/contains/parse_int/parse_float` + 下标 + 字典序比较
+- [x] 数学：`abs/sqrt/pow/sin/cos/tan/floor/ceil/round`（含 `math::` 前缀）
+- [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms`
+- [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
+- [x] 内存：`free_str/free_vec/free_box/ref_count`（支持手动打破循环引用）
+- [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len/map_keys`
+- [x] TCP：`tcp_connect/send/recv/close/listen/accept`
+- [x] 线程：`spawn/join`
+- [x] 通道：`chan_new/chan_send/chan_recv`（跨线程传 str 消息，环形缓冲 + 自旋锁，句柄可作 spawn 实参）
+- [x] `for x in 调用(...)`：直接遍历返回 `vec<T>` 的函数调用结果（含 `split` 与模块函数），无需先存变量
+- [x] 右值字段访问：`f(...).0`、`g(...).field` 对调用结果直接取元组/结构体字段
+- [x] `str_from_bytes(vec<i32>) -> str`：字节向量构造字符串（自举标准库 UTF-8 编码的底层支撑）
+- [x] let 元组字段元素类型推断：`let kinds = r.1`（元组右值字段取 vec）后可直接索引/遍历
+- [x] 自举里程碑：`examples/hzlex`（工作区根目录 `examples/`，与编译器仓库同级）用 Huzi 重写词法器，selftest 断言全过，并对 90 个文件（全部测试示例 + 标准库源码与自测）词法分析零失败
+- [x] 字符级 UTF-8 API（自举标准库 `alloc::stringx`）：`char_len/chars/char_at/char_sub`，中英文混排按"字"计数、遍历与截取（示例 `57_unicode_string`）
+
+### 编译器与工具链
+
+- [x] 五阶段流水线：Lexer → Parser → CodeGen(LLVM IR) → Verify → Linker
+- [x] 标准库根解析：支持 `HUZI_LIB` 环境变量与相邻 `../huzi-src` 标准库解析
+- [x] IR 优化：`--release` / `--opt-level 0-3`
+- [x] 调试：`-g/--debug` DWARF，GDB/LLDB 按源码行调试
+- [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
+- [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接；个别位置如结构体字段间可能整体偏移但不丢失），`fmt --check test/cases` 门禁恢复可用
+- [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）
+- [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲
+- [x] 跨平台：Windows(`lld-link/msvc/mingw`)、Linux/macOS(`clang`)——按编译器宿主平台选择运行时 API 与链接器，支持各平台本机编译，暂不支持交叉编译
+
+### 测试与质量
+
+- [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
+- [x] 集成回归：`bash test.sh`（62 示例 + 60 负例测试全部通过，交互示例跳过）
+- [x] 性能门禁：`test/bench_compare.py`（huzi release / Rust -O <= 2.0x）
+- [x] 构建产物：Release 产物三平台自动化归档上传
+- [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
+
+## 3. 明确不做（非缺失，是取舍）
+
+* 无精确 GC：Box 走引用计数（RC），str/vec 为手动 free + 进程退出 OS 回收；RC 循环引用需手动 free_box 打破
+* 泛型无 `where` 约束、无特化、无泛型枚举穷尽
+* 包管理无中心仓库、无 semver 求解、无 lock 传递合并
+* 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
+
+## 4. 文档地图（去哪看什么）
+
+| 想知道 | 去哪看 |
+|---|---|
+| 怎么用语言/编译器选项/内置函数 | `USAGE.md` |
+| 架构/流水线/模块职责 | `dev/开发文档.md` |
+| 泛型冻结规则 | `rfc/rfc_p4_generics.md` |
+| 历史规划 7 项的 IN/OUT | `../.omo/plans/section3-roadmap-plan.md`（内部） |
+| 新增 builtin 同步规则 | `../AGENTS.md` 验证流程第 4 条（reference.md 补签名 → STATUS.md 打勾 → test/cases 示例，同提交） |
+| 本文件 | 只看状态，不看方法 |

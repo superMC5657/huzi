@@ -1,0 +1,78 @@
+fn is_leap_year(year: i32) -> bool {
+    if year % 4 != 0 {
+        return false
+    }
+    if year % 100 != 0 {
+        return true
+    }
+    if year % 400 != 0 {
+        return false
+    }
+    return true
+}
+
+fn days_in_month(year: i32, month: i32) -> i32 {
+    let days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    if month == 2 && is_leap_year(year) {
+        return 29
+    }
+    return days[month - 1]
+}
+
+fn get_season(month: i32) -> str {
+    if month >= 3 && month <= 5 {
+        return "春季"
+    }
+    if month >= 6 && month <= 8 {
+        return "夏季"
+    }
+    if month >= 9 && month <= 11 {
+        return "秋季"
+    }
+    return "冬季"
+}
+
+fn day_of_year(year: i32, month: i32, day: i32) -> i32 {
+    let mut total = day
+    let mut m = 1
+    while m < month {
+        total = total + days_in_month(year, m)
+        m = m + 1
+    }
+    return total
+}
+
+fn main() -> i32 {
+    print("=== 闰年判断 ===\n")
+    let test_years = [1900, 1904, 2000, 2004, 2100, 2020, 2024, 2025, 2026, 2400]
+    for i in 0..10 {
+        let year = test_years[i]
+        let leap_str = if is_leap_year(year) { "是闰年" } else { "不是闰年" }
+        print(year, " ", leap_str)
+    }
+    print("\n=== 每月天数 ===")
+    print("\n平年:")
+    for month in 1..13 {
+        print("  第", month, "月：", days_in_month(2023, month), "天")
+    }
+    print("\n闰年 (2024):")
+    for month in 1..13 {
+        print("  第", month, "月：", days_in_month(2024, month), "天")
+    }
+    print("\n=== 季节判断 ===")
+    for month in 1..13 {
+        print("  第", month, "月：", get_season(month))
+    }
+    print("\n=== 一年中的第几天 ===")
+    print("2024-01-01: 第", day_of_year(2024, 1, 1), "天")
+    print("2024-03-01: 第", day_of_year(2024, 3, 1), "天")
+    print("2024-06-15: 第", day_of_year(2024, 6, 15), "天")
+    print("2024-12-31: 第", day_of_year(2024, 12, 31), "天")
+    print("\n2023-03-01: 第", day_of_year(2023, 3, 1), "天")
+    print("2023-12-31: 第", day_of_year(2023, 12, 31), "天")
+    print("\n=== 特殊日期 ===")
+    print("2000 年 2 月有 ", days_in_month(2000, 2), " 天")
+    print("1900 年 2 月有 ", days_in_month(1900, 2), " 天")
+    print("2024 年 2 月有 ", days_in_month(2024, 2), " 天")
+    return 0
+}

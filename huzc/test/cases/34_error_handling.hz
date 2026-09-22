@@ -1,0 +1,38 @@
+print(concat("arg_ok(0): ", to_string(arg_ok(0))))
+
+print(concat("arg_ok(99): ", to_string(arg_ok(99))))
+
+print(concat("arg(99) empty: ", to_string(arg(99) == "")))
+
+let path = "test/out/err_demo.txt"
+
+let ok = write_file(path, "hello\n")
+
+print(concat("write ok: ", to_string(ok)))
+
+print(concat("file ok: ", to_string(read_file_ok(path))))
+
+print(concat("file err empty: ", to_string(read_file_err(path) == "")))
+
+let data = read_file(path)
+
+print(concat("round trip: ", to_string(data == "hello\n")))
+
+let missing_path = "test/out/no_such_file_xyz.txt"
+
+print(concat("missing ok: ", to_string(read_file_ok(missing_path))))
+
+print(concat("missing err: ", read_file_err(missing_path)))
+
+if read_file_ok(missing_path) {
+    print("unexpected")
+} else {
+    let missing = read_file(missing_path)
+    print(concat("branch missing len: ", to_string(len(missing))))
+}
+
+if false {
+    panic("boom")
+}
+
+print("done")

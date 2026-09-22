@@ -1,0 +1,6 @@
+# 负例: 空 vec 执行 pop 必须报运行时错误 (exit != 0)
+fn main() -> i32 {
+    let mut v = vec<i32>()
+    pop(v)
+    return 0
+}

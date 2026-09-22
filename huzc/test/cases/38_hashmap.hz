@@ -1,0 +1,40 @@
+fn main() -> i32 {
+    let mut m = map_new()
+    map_put(m, "apple", 10)
+    map_put(m, "banana", 20)
+    print("len = ", map_len(m))
+    let r1 = map_get(m, "apple")
+    print(r1)
+    print(r1.0, r1.1)
+    let r2 = map_get(m, "missing")
+    print(r2)
+    print(map_has(m, "banana"))
+    print(map_has(m, "missing"))
+    map_put(m, "apple", 99)
+    let r3 = map_get(m, "apple")
+    print(r3)
+    print(map_remove(m, "banana"))
+    print(map_has(m, "banana"))
+    print("len = ", map_len(m))
+    print(map_remove(m, "missing"))
+    let mut i = 0
+    while i < 100 {
+        map_put(m, concat("k", to_string(i)), i)
+        i = i + 1
+    }
+    print("len = ", map_len(m))
+    let mut ok = 0
+    let mut total = 0
+    let mut j = 0
+    while j < 100 {
+        let r = map_get(m, concat("k", to_string(j)))
+        if r.0 {
+            ok = ok + 1
+            total = total + r.1
+        }
+        j = j + 1
+    }
+    print("ok = ", ok)
+    print("total = ", total)
+    0
+}

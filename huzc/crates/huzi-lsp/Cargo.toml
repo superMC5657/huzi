@@ -1,0 +1,27 @@
+[package]
+name = "huzi-lsp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Huzi language server (FULL full-document diagnostics over stdio)"
+
+[[bin]]
+name = "huzi-lsp"
+path = "src/main.rs"
+
+[dependencies]
+tower-lsp-server = "0.23"
+tokio = { version = "1", features = ["full"] }
+ropey = "1.6"
+dashmap = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+url = "2"
+
+huzi-lexer = { path = "../huzi-lexer" }
+huzi-parser = { path = "../huzi-parser" }
+huzi-ast = { path = "../huzi-ast" }
+huzi-error = { path = "../huzi-error" }

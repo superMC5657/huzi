@@ -1,0 +1,35 @@
+let t = (1, "hello", true)
+
+print(t)
+
+let p: (i64, f64) = (3, 2)
+
+print(p)
+
+let mut point = (10, 20)
+
+print(point.0, point.1)
+
+point.0 = 42
+
+print(point)
+
+let nested = (1, (2, 3))
+
+print(nested.1.0)
+
+fn divmod(a: i32, b: i32) -> (i32, i32) {
+    return (a / b, a % b)
+}
+
+fn scale(t: (i32, i32), k: i32) -> (i32, i32) {
+    return (t.0 * k, t.1 * k)
+}
+
+let q = divmod(17, 5)
+
+print(q)
+
+let s = scale((1, 2), 3)
+
+print(s)

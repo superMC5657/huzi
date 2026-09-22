@@ -1,0 +1,5 @@
+import core.result
+
+let r = result::unwrap_or(result::ok_i32(42), 0)
+
+print(r)

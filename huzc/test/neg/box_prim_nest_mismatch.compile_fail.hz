@@ -1,0 +1,5 @@
+# 负例:Box 层数错配(基础类型嵌套),编译必须失败(exit != 0)。
+fn main() -> i32 {
+    let x: Box<i32> = box(box(42))
+    return 0
+}

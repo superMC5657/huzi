@@ -1,0 +1,59 @@
+fn celsius_to_fahrenheit(c: f64) -> f64 {
+    return c * 1.8 + 32.0
+}
+
+fn fahrenheit_to_celsius(f: f64) -> f64 {
+    return (f - 32.0) / 1.8
+}
+
+fn celsius_to_kelvin(c: f64) -> f64 {
+    return c + 273.15
+}
+
+fn kelvin_to_celsius(k: f64) -> f64 {
+    return k - 273.15
+}
+
+fn fahrenheit_to_kelvin(f: f64) -> f64 {
+    return (f - 32.0) / 1.8 + 273.15
+}
+
+fn kelvin_to_fahrenheit(k: f64) -> f64 {
+    return (k - 273.15) * 1.8 + 32.0
+}
+
+fn main() -> i32 {
+    print("=== 温度转换器 ===\n")
+    print("--- 摄氏转华氏 ---")
+    print("0°C   = ", celsius_to_fahrenheit(0.0), "°F")
+    print("10°C  = ", celsius_to_fahrenheit(10.0), "°F")
+    print("20°C  = ", celsius_to_fahrenheit(20.0), "°F")
+    print("25°C  = ", celsius_to_fahrenheit(25.0), "°F")
+    print("30°C  = ", celsius_to_fahrenheit(30.0), "°F")
+    print("37°C  = ", celsius_to_fahrenheit(37.0), "°F")
+    print("100°C = ", celsius_to_fahrenheit(100.0), "°F")
+    print("\n--- 华氏转摄氏 ---")
+    print("32°F   = ", fahrenheit_to_celsius(32.0), "°C")
+    print("50°F   = ", fahrenheit_to_celsius(50.0), "°C")
+    print("68°F   = ", fahrenheit_to_celsius(68.0), "°C")
+    print("77°F   = ", fahrenheit_to_celsius(77.0), "°C")
+    print("98.6°F = ", fahrenheit_to_celsius(98.6), "°C")
+    print("212°F  = ", fahrenheit_to_celsius(212.0), "°C")
+    print("\n--- 摄氏转开尔文 ---")
+    print("-273.15°C = ", celsius_to_kelvin(-273.15), "K")
+    print("0°C       = ", celsius_to_kelvin(0.0), "K")
+    print("25°C      = ", celsius_to_kelvin(25.0), "K")
+    print("100°C     = ", celsius_to_kelvin(100.0), "K")
+    print("\n--- 开尔文转摄氏 ---")
+    print("0K    = ", kelvin_to_celsius(0.0), "°C")
+    print("273K  = ", kelvin_to_celsius(273.0), "°C")
+    print("298K  = ", kelvin_to_celsius(298.0), "°C")
+    print("373K  = ", kelvin_to_celsius(373.0), "°C")
+    print("\n=== 常用温度参考 ===")
+    print("绝对零度：    -273.15°C / ", celsius_to_fahrenheit(-273.15), "°F / 0K")
+    print("水的冰点：    0°C / ", celsius_to_fahrenheit(0.0), "°F / ", celsius_to_kelvin(0.0), "K")
+    print("室温：        25°C / ", celsius_to_fahrenheit(25.0), "°F / ", celsius_to_kelvin(25.0), "K")
+    print("人体温度：    37°C / ", celsius_to_fahrenheit(37.0), "°F / ", celsius_to_kelvin(37.0), "K")
+    print("水的沸点：    100°C / ", celsius_to_fahrenheit(100.0), "°F / ", celsius_to_kelvin(100.0), "K")
+    return 0
+}

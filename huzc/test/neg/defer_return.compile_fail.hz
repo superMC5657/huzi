@@ -1,0 +1,8 @@
+fn foo() {
+    defer return
+}
+
+fn main() -> i32 {
+    foo()
+    return 0
+}

@@ -1,0 +1,40 @@
+fn main() -> i32 {
+    print("=== 字符串字面量 ===")
+    let greeting = "Hello, Huzi!"
+    print(greeting)
+    print("\n=== 字符串长度 ===")
+    let text = "Programming"
+    print("Text: ", text)
+    print("Length: ", len(text))
+    let empty = ""
+    print("Empty string length: ", len(empty))
+    print("\n=== 字符串拼接 ===")
+    let first = "Hello"
+    let second = "World"
+    let combined = concat(first, ", ", second, "!")
+    print(combined)
+    let name = "Huzi"
+    let welcome = concat("Welcome to ", name, " Language!")
+    print(welcome)
+    print("\n=== 数值转字符串 ===")
+    let num = 42
+    let num_str = to_string(num)
+    print("Number: ", num, " -> String: ", num_str)
+    let pi = 3.14159
+    let pi_str = to_string(pi)
+    print("Pi: ", pi, " -> String: ", pi_str)
+    print("\n=== 复杂字符串操作 ===")
+    let a = "foo"
+    let b = "bar"
+    let c = "baz"
+    let result = concat(a, " + ", b, " + ", c, " = ", "foobarbaz")
+    print(result)
+    print("\n=== 字符串和变量组合 ===")
+    let x = 10
+    let y = 20
+    let sum = x + y
+    let sum_str = to_string(sum)
+    let msg = concat("Sum of ", to_string(x), " and ", to_string(y), " is ", sum_str)
+    print(msg)
+    return 0
+}

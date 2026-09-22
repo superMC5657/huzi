@@ -1,0 +1,74 @@
+fn array_max(arr: [i32; 10], len: i32) -> i32 {
+    let mut max_val = arr[0]
+    for i in 1..len {
+        if arr[i] > max_val {
+            max_val = arr[i]
+        }
+    }
+    return max_val
+}
+
+fn array_min(arr: [i32; 10], len: i32) -> i32 {
+    let mut min_val = arr[0]
+    for i in 1..len {
+        if arr[i] < min_val {
+            min_val = arr[i]
+        }
+    }
+    return min_val
+}
+
+fn array_avg(arr: [i32; 10], len: i32) -> f64 {
+    let mut sum = 0
+    for i in 0..len {
+        sum = sum + arr[i]
+    }
+    return sum / len
+}
+
+fn array_contains(arr: [i32; 10], len: i32, target: i32) -> bool {
+    for i in 0..len {
+        if arr[i] == target {
+            return true
+        }
+    }
+    return false
+}
+
+fn main() -> i32 {
+    print("=== 数组字面量 ===")
+    let numbers = [5, 2, 8, 1, 9, 3, 7, 4, 6, 10]
+    print("Array: ", numbers[0], ", ", numbers[1], ", ", numbers[2], ", ...")
+    print("\n=== 数组最值 ===")
+    let max_val = array_max(numbers, 10)
+    let min_val = array_min(numbers, 10)
+    print("Max = ", max_val)
+    print("Min = ", min_val)
+    print("\n=== 数组求和 ===")
+    let mut sum = 0
+    for i in 0..10 {
+        sum = sum + numbers[i]
+    }
+    print("Sum = ", sum)
+    print("\n=== 数组查找 ===")
+    print("Contains 5: ", array_contains(numbers, 10, 5))
+    print("Contains 15: ", array_contains(numbers, 10, 15))
+    print("\n=== 数组遍历 ===")
+    for i in 0..10 {
+        print("numbers[", i, "] = ", numbers[i])
+    }
+    print("\n=== 数组修改 ===")
+    let mut arr = [1, 2, 3, 4, 5]
+    print("Original: ", arr[0], ", ", arr[1], ", ", arr[2], ", ", arr[3], ", ", arr[4])
+    arr[0] = 100
+    arr[4] = 500
+    print("Modified: ", arr[0], ", ", arr[1], ", ", arr[2], ", ", arr[3], ", ", arr[4])
+    print("\n=== 数组计算 ===")
+    let data = [10, 20, 30, 40, 50]
+    let mut total = 0
+    for i in 0..5 {
+        total = total + data[i]
+    }
+    print("Total = ", total)
+    return 0
+}

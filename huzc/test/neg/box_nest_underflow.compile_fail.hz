@@ -1,0 +1,9 @@
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn main() -> i32 {
+    let x: Box<Box<Node>> = box(Node { val: 1, next: null })
+    return 0
+}

@@ -1,0 +1,13 @@
+[package]
+name = "huzi-codegen"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "LLVM code generation for the Huzi programming language"
+repository.workspace = true
+
+[dependencies]
+huzi-ast = { path = "../huzi-ast" }
+huzi-error = { path = "../huzi-error" }
+inkwell = { version = "0.5.0", features = ["llvm18-0"] }

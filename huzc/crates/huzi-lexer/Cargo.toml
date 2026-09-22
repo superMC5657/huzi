@@ -1,0 +1,11 @@
+[package]
+name = "huzi-lexer"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Lexer for the Huzi programming language"
+repository.workspace = true
+
+[dependencies]
+huzi-error = { path = "../huzi-error" }

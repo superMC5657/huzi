@@ -1,0 +1,80 @@
+fn simple_interest(principal: f64, rate: f64, time: f64) -> f64 {
+    return principal * rate * time
+}
+
+fn simple_amount(principal: f64, rate: f64, time: f64) -> f64 {
+    return principal + simple_interest(principal, rate, time)
+}
+
+fn compound_amount(principal: f64, rate: f64, time: f64) -> f64 {
+    return principal * pow(1.0 + rate, time)
+}
+
+fn compound_interest(principal: f64, rate: f64, time: f64) -> f64 {
+    return compound_amount(principal, rate, time) - principal
+}
+
+fn monthly_compound(principal: f64, annual_rate: f64, years: f64) -> f64 {
+    let monthly_rate = annual_rate / 12.0
+    let months = years * 12.0
+    return compound_amount(principal, monthly_rate, months) - principal
+}
+
+fn doubling_time(rate: f64) -> f64 {
+    return 72.0 / (rate * 100.0)
+}
+
+fn main() -> i32 {
+    print("=== 简单利息计算器 ===\n")
+    print("--- 单利计算 ---")
+    let p = 10000.0
+    let r = 0.05
+    let t = 3.0
+    print("本金：", p, " 元")
+    print("年利率：", r * 100.0, "%")
+    print("时间：", t, " 年")
+    print("单利：", simple_interest(p, r, t), " 元")
+    print("终值：", simple_amount(p, r, t), " 元")
+    print("\n=== 复利计算 ===")
+    print("\n--- 年复利 ---")
+    print("本金：", p, " 元")
+    print("年利率：", r * 100.0, "%")
+    print("时间：", t, " 年")
+    print("复利：", compound_interest(p, r, t), " 元")
+    print("终值：", compound_amount(p, r, t), " 元")
+    print("\n=== 不同年限比较 (本金 10000 元，年利率 5%) ===")
+    print("\n--- 单利 ---")
+    for year in 1..11 {
+        let y = year
+        let amount = simple_amount(10000.0, 0.05, y)
+        print(y, "年：", amount, " 元")
+    }
+    print("\n--- 复利 ---")
+    for year in 1..11 {
+        let y = year
+        let amount = compound_amount(10000.0, 0.05, y)
+        print(y, "年：", amount, " 元")
+    }
+    print("\n=== 不同利率比较 (本金 10000 元，10 年) ===")
+    let rates = [0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08]
+    print("\n--- 单利终值 ---")
+    for i in 0..7 {
+        let rate = rates[i]
+        let amount = simple_amount(10000.0, rate, 10.0)
+        print(rate * 100.0, "%: ", amount, " 元")
+    }
+    print("\n--- 复利终值 ---")
+    for i in 0..7 {
+        let rate = rates[i]
+        let amount = compound_amount(10000.0, rate, 10.0)
+        print(rate * 100.0, "%: ", amount, " 元")
+    }
+    print("\n=== 72 法则 - 投资翻倍时间 ===")
+    let test_rates = [0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.12]
+    for i in 0..8 {
+        let rate = test_rates[i]
+        let years = doubling_time(rate)
+        print("利率 ", rate * 100.0, "%: 约 ", years, " 年翻倍")
+    }
+    return 0
+}

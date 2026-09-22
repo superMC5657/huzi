@@ -1,0 +1,8 @@
+Node {val: 1, next: null}
+1
+has-outer
+42
+null
+empty2
+Msg {tag: hi, val: 7}
+hi7

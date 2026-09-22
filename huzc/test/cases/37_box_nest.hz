@@ -1,0 +1,32 @@
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+struct Msg {
+    tag: str,
+    val: i32,
+}
+
+fn main() -> i32 {
+    let mut outer: Box<Box<Node>> = box(box(Node { val: 1, next: null }))
+    print(outer)
+    print(outer.val)
+    if outer == null {
+        print("empty")
+    }
+    if outer != null {
+        print("has-outer")
+    }
+    outer.val = 42
+    print(outer.val)
+    let empty: Box<Box<Node>> = null
+    print(empty)
+    if empty == null {
+        print("empty2")
+    }
+    let mut m: Box<Msg> = box(Msg { tag: "hi", val: 7 })
+    print(m)
+    print(m.tag, m.val)
+    return 0
+}

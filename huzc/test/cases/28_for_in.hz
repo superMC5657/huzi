@@ -1,0 +1,38 @@
+let mut total = 0
+
+for n in [10, 20, 30, 40] {
+    total = total + n
+}
+
+print("sum:", total)
+
+let words = ["huzi", "is", "fun"]
+
+for w in words {
+    print(w)
+}
+
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+let pts = [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }]
+
+let mut max_x = 0
+
+for p in pts {
+    if p.x > max_x {
+        max_x = p.x
+    }
+}
+
+print("max x:", max_x)
+
+let mut squares = 0
+
+for i in 1..5 {
+    squares = squares + i * i
+}
+
+print("squares:", squares)

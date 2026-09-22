@@ -1,0 +1,5 @@
+# 负例:引用未定义变量,编译必须失败(exit != 0)。
+fn main() -> i32 {
+    print(unknown_xyz)
+    0
+}

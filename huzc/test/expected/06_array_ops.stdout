@@ -1,0 +1,32 @@
+=== 数组字面量 ===
+Array: 5, 2, 8, ...
+
+=== 数组最值 ===
+Max = 10
+Min = 1
+
+=== 数组求和 ===
+Sum = 55
+
+=== 数组查找 ===
+Contains 5: true
+Contains 15: false
+
+=== 数组遍历 ===
+numbers[0] = 5
+numbers[1] = 2
+numbers[2] = 8
+numbers[3] = 1
+numbers[4] = 9
+numbers[5] = 3
+numbers[6] = 7
+numbers[7] = 4
+numbers[8] = 6
+numbers[9] = 10
+
+=== 数组修改 ===
+Original: 1, 2, 3, 4, 5
+Modified: 100, 2, 3, 4, 500
+
+=== 数组计算 ===
+Total = 150

@@ -1,0 +1,15 @@
+[]
+0
+[1, 2, 3]
+3
+[1, 20, 3]
+total =24
+Point {x: 3, y: 4}
+Rect {origin: Point {x: 3, y: 4}, w: 100, h: 50}
+Point {x: 3, y: 4}
+Data {nums: [1, 2, 3], total: 6}
+[Point {x: 3, y: 4}, Point {x: 1, y: 2}]
+[foo, bar]
+[1.500000, 2.000000]
+[true, false]
+v =[1, 20, 3]

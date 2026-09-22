@@ -1,0 +1,15 @@
+fn calculate(a: f64, op: char, b: f64) -> f64 {
+    if op == '+' {
+        return a + b
+    }
+    if op == '-' {
+        return a - b
+    }
+    if op == '*' {
+        return a * b
+    }
+    if op == '/' {
+        return a / b
+    }
+    return 0.0
+}

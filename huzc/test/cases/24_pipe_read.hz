@@ -1,0 +1,15 @@
+fn main() -> i32 {
+    let mut lines = 0
+    let mut done = false
+    while !done {
+        let line = read_line()
+        if is_eof() {
+            done = true
+        } else {
+            print(concat("<< ", line))
+            lines = lines + 1
+        }
+    }
+    print(concat("共读取 ", concat(to_string(lines), " 行")))
+    0
+}

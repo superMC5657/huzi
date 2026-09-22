@@ -1,0 +1,25 @@
+fn main() -> i32 {
+    print("=== split ===")
+    let parts = split("foo,bar,baz", ",")
+    print(len(parts))
+    print(parts[0])
+    print(parts[2])
+    print(parts)
+    for p in parts {
+        print(p)
+    }
+    let q = split("a::b::c", "::")
+    print(len(q))
+    print(q[1])
+    print(split("x-y", "-"))
+    print("=== substring ===")
+    print(substring("hello", 1, 4))
+    print(substring("hello", 0, 5))
+    print("=== trim ===")
+    print(trim("   hi  "))
+    print(len(trim("   ")))
+    print("=== contains ===")
+    print(contains("hello", "ell"))
+    print(contains("hello", "xyz"))
+    return 0
+}

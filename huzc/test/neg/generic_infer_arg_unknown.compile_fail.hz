@@ -1,0 +1,23 @@
+struct Point {
+    x: i32,
+}
+
+trait Measurable {
+    fn length(self) -> i32
+}
+
+impl Measurable for Point {
+    fn length(self) -> i32 {
+        return self.x
+    }
+}
+
+fn id<T>(x: T) -> T {
+    return x
+}
+
+fn main() -> i32 {
+    let p = Point { x: 1 }
+    let v = id(p.length())
+    return 0
+}

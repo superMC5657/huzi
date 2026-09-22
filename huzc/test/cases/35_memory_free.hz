@@ -1,0 +1,32 @@
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn main() -> i32 {
+    let mut s = concat("hello, ", "world")
+    print("str len =", len(s))
+    free_str(s)
+    print("str len =", len(s))
+    free_str(s)
+    print("str len =", len(s))
+    let mut v = vec(1, 2, 3)
+    print("vec len =", len(v))
+    print(v)
+    free_vec(v)
+    print("vec len =", len(v))
+    print(v)
+    free_vec(v)
+    print("vec len =", len(v))
+    push(v, 42)
+    print("vec len =", len(v))
+    print(v[0])
+    print(v)
+    let mut b: Box<Node> = box(Node { val: 7, next: null })
+    print(b.val)
+    free_box(b)
+    print(b == null)
+    free_box(b)
+    print(b == null)
+    0
+}

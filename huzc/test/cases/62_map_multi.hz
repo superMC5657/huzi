@@ -1,0 +1,52 @@
+struct StrRegistry {
+    data: Map<str, str>,
+}
+
+struct IntRegistry {
+    data: Map<i32, i32>,
+}
+
+fn sum_int_map(m: Map<i32, i32>) -> i32 {
+    return map_len(m)
+}
+
+fn lookup_str(m: Map<str, str>, k: str) -> str {
+    let r = map_get(m, k)
+    if r.0 {
+        return r.1
+    }
+    return "missing"
+}
+
+fn main() -> i32 {
+    let mut ss: Map<str, str> = map_new()
+    map_put(ss, "hello", "world")
+    map_put(ss, "foo", "bar")
+    print("ss len = ", map_len(ss))
+    let a = map_get(ss, "hello")
+    print(a)
+    print(a.0, a.1)
+    print(lookup_str(ss, "foo"))
+    print(map_has(ss, "hello"))
+    print(map_remove(ss, "foo"))
+    print(map_has(ss, "foo"))
+    let keys = map_keys(ss)
+    print(keys)
+    let reg = StrRegistry { data: ss }
+    print("reg len = ", map_len(reg.data))
+    print(map_has(reg.data, "hello"))
+    let mut ii: Map<i32, i32> = map_new()
+    map_put(ii, 1, 100)
+    map_put(ii, 2, 200)
+    print("ii len = ", map_len(ii))
+    let b = map_get(ii, 1)
+    print(b)
+    print(b.0, b.1)
+    print(map_has(ii, 2))
+    print(sum_int_map(ii))
+    let ireg = IntRegistry { data: ii }
+    print("ireg len = ", map_len(ireg.data))
+    let c = map_get(ireg.data, 2)
+    print(c.0, c.1)
+    0
+}

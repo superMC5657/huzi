@@ -1,0 +1,43 @@
+fn main() -> i32 {
+    print("=== 基本 while 循环 ===")
+    let mut i = 0
+    while i < 5 {
+        print("i = ", i)
+        i = i + 1
+    }
+    print("\n=== 累加直到条件 ===")
+    let mut sum = 0
+    let mut n = 1
+    while n <= 10 {
+        sum = sum + n
+        n = n + 1
+    }
+    print("Sum of 1 to 10 = ", sum)
+    print("\n=== 递减循环 ===")
+    let mut count = 5
+    while count > 0 {
+        print("Countdown: ", count)
+        count = count - 1
+    }
+    print("Blast off!")
+    print("\n=== 2 的幂 ===")
+    let mut power = 1
+    let mut exp = 0
+    while exp < 8 {
+        print("2^", exp, " = ", power)
+        power = power * 2
+        exp = exp + 1
+    }
+    print("\n=== 斐波那契数列 ===")
+    let mut fib_a = 1
+    let mut fib_b = 1
+    let mut fib_count = 0
+    while fib_count < 10 {
+        print("F(", fib_count, ") = ", fib_a)
+        let temp = fib_a + fib_b
+        fib_a = fib_b
+        fib_b = temp
+        fib_count = fib_count + 1
+    }
+    return 0
+}

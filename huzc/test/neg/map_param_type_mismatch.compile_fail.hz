@@ -1,0 +1,9 @@
+fn takes_map(m: Map) -> i32 {
+    return map_len(m)
+}
+
+fn main() -> i32 {
+    let x = "not a map"
+    takes_map(x)
+    return 0
+}

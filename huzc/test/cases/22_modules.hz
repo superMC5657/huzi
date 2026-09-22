@@ -1,0 +1,16 @@
+import mods.helpers
+import math
+
+let sum = helpers::add(3, 4)
+
+print(sum)
+
+print(helpers::greet("huzi"))
+
+let p = helpers::origin
+
+print("origin: ", p.x, p.y)
+
+print(math::sqrt(144.0))
+
+print(math::pow(2.0, 10.0))

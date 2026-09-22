@@ -1,0 +1,12 @@
+fn main() -> i32 {
+    let sent = chan_send(0, "nope")
+    if sent {
+        print("send-should-not-happen")
+    } else {
+        print("send-false")
+    }
+    let msg = chan_recv(0)
+    print(msg)
+    print("recv-done")
+    return 0
+}

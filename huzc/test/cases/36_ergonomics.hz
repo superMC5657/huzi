@@ -1,0 +1,26 @@
+struct Node {
+    val: i32,
+    next: Box<Node>,
+}
+
+fn greet(name: str) {
+    print("hello,", name)
+}
+
+fn bye() {
+    print("bye")
+    return
+}
+
+fn main() -> i32 {
+    greet("huzi")
+    bye()
+    let mut head: Box<Node> = box(Node { val: 1, next: null })
+    head.next = box(Node { val: 2, next: null })
+    print(head)
+    print(head.val, head.next.val)
+    let empty: Box<Node> = null
+    print(empty)
+    print(head.next.next)
+    return 0
+}

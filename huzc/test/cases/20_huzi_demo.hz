@@ -1,0 +1,100 @@
+fn main() -> i32 {
+    print("╔════════════════════════════════════════╗")
+    print("║     Huzi 编程语言功能演示             ║")
+    print("╚════════════════════════════════════════╝")
+    print("\n【1. 变量和数据类型】")
+    let int_val = 42
+    let float_val = 3.14159
+    let bool_val = true
+    let str_val = "Hello, Huzi!"
+    print("  整数：", int_val)
+    print("  浮点数：", float_val)
+    print("  布尔值：", bool_val)
+    print("  字符串：", str_val)
+    print("\n【2. 运算符】")
+    let a = 10
+    let b = 3
+    print("  a = ", a, ", b = ", b)
+    print("  a + b = ", a + b)
+    print("  a - b = ", a - b)
+    print("  a * b = ", a * b)
+    print("  a / b = ", a / b)
+    print("  a % b = ", a % b)
+    print("  a > b: ", a > b)
+    print("  a < b: ", a < b)
+    print("\n【3. 控制流 - if/else】")
+    let score = 85
+    if score >= 90 {
+        print("  成绩优秀!")
+    } elif score >= 60 {
+        print("  成绩及格!")
+    } else {
+        print("  需要努力哦!")
+    }
+    print("\n【4. 循环 - for】")
+    print("  计算 1 到 10 的和:")
+    let mut sum = 0
+    for i in 1..11 {
+        sum = sum + i
+    }
+    print("  结果：", sum)
+    print("\n  循环 - while:")
+    print("  2 的幂次:")
+    let mut p = 1
+    let mut i = 0
+    while i < 8 {
+        print("    2^", i, " = ", p)
+        p = p * 2
+        i = i + 1
+    }
+    print("\n【5. 函数】")
+    let x = 5
+    let y = 7
+    let max_val = if x > y { x } else { y }
+    print("  max(", x, ", ", y, ") = ", max_val)
+    print("\n【6. 数组】")
+    let arr = [10, 20, 30, 40, 50]
+    print("  数组：[10, 20, 30, 40, 50]")
+    print("  arr[0] = ", arr[0])
+    print("  arr[2] = ", arr[2])
+    print("  arr[4] = ", arr[4])
+    let arr_sum = arr[0] + arr[1] + arr[2] + arr[3] + arr[4]
+    print("  数组和：", arr_sum)
+    print("\n【7. 字符串操作】")
+    let s1 = "Hello"
+    let s2 = "World"
+    let combined = concat(s1, ", ", s2, "!")
+    print("  拼接：", combined)
+    print("  长度：", len(combined))
+    let num = 2024
+    let num_str = to_string(num)
+    print("  数字转字符串：", num, " -> ", num_str)
+    print("\n【8. 数学函数】")
+    print("  sqrt(16) = ", sqrt(16.0))
+    print("  pow(2, 10) = ", pow(2.0, 10.0))
+    print("  abs(-42) = ", abs(-42))
+    print("  sin(π/2) ≈ ", sin(1.5707963267948966))
+    print("  cos(0) = ", cos(0.0))
+    print("\n【9. 递归 - 阶乘】")
+    let mut fact = 1
+    for i in 1..6 {
+        fact = fact * i
+    }
+    print("  5! = ", fact)
+    print("\n【10. 综合示例 - 斐波那契】")
+    print("  斐波那契数列前 10 项:")
+    let mut fib_a = 1
+    let mut fib_b = 1
+    print("    ", fib_a)
+    print("    ", fib_b)
+    for i in 2..10 {
+        let fib_c = fib_a + fib_b
+        fib_a = fib_b
+        fib_b = fib_c
+        print("    ", fib_c)
+    }
+    print("\n═══════════════════════════════════════")
+    print("演示完成！感谢使用 Huzi 语言!")
+    print("═══════════════════════════════════════")
+    return 0
+}

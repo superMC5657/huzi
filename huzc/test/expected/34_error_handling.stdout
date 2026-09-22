@@ -1,0 +1,11 @@
+arg_ok(0): true
+arg_ok(99): false
+arg(99) empty: true
+write ok: true
+file ok: true
+file err empty: true
+round trip: true
+missing ok: false
+missing err: cannot open file
+branch missing len: 0
+done

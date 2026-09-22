@@ -1,0 +1,84 @@
+fn fib_recursive(n: i32) -> i32 {
+    if n <= 1 {
+        return n
+    }
+    return fib_recursive(n - 1) + fib_recursive(n - 2)
+}
+
+fn fib_iterative(n: i32) -> i32 {
+    if n <= 1 {
+        return n
+    }
+    let mut a = 0
+    let mut b = 1
+    for i in 2..n + 1 {
+        let temp = a + b
+        a = b
+        b = temp
+    }
+    return b
+}
+
+fn fib_array(n: i32) -> i32 {
+    if n <= 1 {
+        return n
+    }
+    let mut fibs = [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    fibs[0] = 0
+    fibs[1] = 1
+    for i in 2..n + 1 {
+        fibs[i] = fibs[i - 1] + fibs[i - 2]
+    }
+    return fibs[n]
+}
+
+fn golden_ratio(n: i32) -> f64 {
+    if n <= 1 {
+        return 1.0
+    }
+    let mut a = 0.0
+    let mut b = 1.0
+    for i in 2..n + 1 {
+        let temp = a + b
+        a = b
+        b = temp
+    }
+    let prev = a
+    if prev == 0.0 {
+        return 1.618033988749895
+    }
+    return b / prev
+}
+
+fn main() -> i32 {
+    print("=== 斐波那契数列多种实现 ===\n")
+    print("--- 方法 1：递归 ---")
+    for i in 0..11 {
+        print("F(", i, ") = ", fib_recursive(i))
+    }
+    print("\n--- 方法 2：迭代 ---")
+    for i in 0..11 {
+        print("F(", i, ") = ", fib_iterative(i))
+    }
+    print("\n--- 方法 3：数组 ---")
+    for i in 0..11 {
+        print("F(", i, ") = ", fib_array(i))
+    }
+    print("\n=== 计算较大数值 ===")
+    let n = 20
+    print("使用迭代计算 F(", n, "):")
+    print("F(", n, ") = ", fib_iterative(n))
+    print("\n=== 黄金比例 ===")
+    print("F(10)/F(9)  ≈ ", golden_ratio(10))
+    print("F(15)/F(14) ≈ ", golden_ratio(15))
+    print("F(20)/F(19) ≈ ", golden_ratio(20))
+    print("黄金比例 φ  ≈ 1.618033988749895")
+    print("\n=== 斐波那契数列前 20 项 ===")
+    for i in 0..20 {
+        if i > 0 {
+            print(", ")
+        }
+        print(fib_iterative(i))
+    }
+    return 0
+}

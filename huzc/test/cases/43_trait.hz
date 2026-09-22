@@ -1,0 +1,61 @@
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+struct Rectangle {
+    width: i32,
+    height: i32,
+}
+
+trait Printable {
+    fn show(self) -> str
+}
+
+trait Area {
+    fn area(self) -> i32
+}
+
+trait Transform {
+    fn scale(self, factor: i32) -> Point
+    fn double(self) -> Point
+}
+
+impl Printable for Point {
+    fn show(self: Point) -> str {
+        return concat("Point(", concat(to_string(self.x), concat(", ", concat(to_string(self.y), ")"))))
+    }
+}
+
+impl Area for Rectangle {
+    fn area(self: Rectangle) -> i32 {
+        return self.width * self.height
+    }
+}
+
+impl Printable for Rectangle {
+    fn show(self: Rectangle) -> str {
+        return concat("Rect(", concat(to_string(self.width), concat("x", concat(to_string(self.height), ")"))))
+    }
+}
+
+impl Transform for Point {
+    fn scale(self: Point, factor: i32) -> Point {
+        return Point { x: self.x * factor, y: self.y * factor }
+    }
+    fn double(self: Point) -> Point {
+        return self.scale(2)
+    }
+}
+
+fn main() -> i32 {
+    let p = Point { x: 3, y: 4 }
+    let r = Rectangle { width: 10, height: 20 }
+    print(p.show())
+    print(r.show())
+    print(r.area())
+    let p2 = p.double()
+    print(p2.show())
+    print(p.scale(3).show())
+    return 0
+}

@@ -1,0 +1,60 @@
+fn main() -> i32 {
+    print("=== 九九乘法表 ===\n")
+    print("--- 完整乘法表 ---")
+    for i in 1..10 {
+        for j in 1..10 {
+            let prod = i * j
+            if prod < 10 {
+                print(i, "×", j, "= ", prod, "  ")
+            } else {
+                print(i, "×", j, "=", prod, " ")
+            }
+        }
+        print("")
+    }
+    print("\n--- 上三角乘法表 ---")
+    for i in 1..10 {
+        for j in 1..10 {
+            if j < i {
+                print("        ")
+            } else {
+                let prod = i * j
+                if prod < 10 {
+                    print(i, "×", j, "= ", prod, "  ")
+                } else {
+                    print(i, "×", j, "=", prod, " ")
+                }
+            }
+        }
+        print("")
+    }
+    print("\n--- 下三角乘法表 ---")
+    for i in 1..10 {
+        for j in 1..i + 1 {
+            let prod = i * j
+            if prod < 10 {
+                print(i, "×", j, "= ", prod, "  ")
+            } else {
+                print(i, "×", j, "=", prod, " ")
+            }
+        }
+        print("")
+    }
+    print("\n--- 特定数字的乘法表 ---")
+    print("\n5 的乘法表:")
+    for j in 1..10 {
+        print("5 × ", j, " = ", 5 * j)
+    }
+    print("\n9 的乘法表:")
+    for j in 1..10 {
+        print("9 × ", j, " = ", 9 * j)
+    }
+    print("\n=== 乘法表规律 ===")
+    print("9 的乘法表手指记忆法：")
+    for j in 1..10 {
+        let tens = 9 * j / 10
+        let ones = 9 * j % 10
+        print("9 × ", j, " = ", 9 * j, " (十位:", tens, ", 个位:", ones, ", 和:", tens + ones, ")")
+    }
+    return 0
+}

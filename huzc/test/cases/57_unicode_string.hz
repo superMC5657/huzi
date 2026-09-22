@@ -1,0 +1,27 @@
+import alloc.stringx
+
+fn reverse_str(s: str) -> str {
+    let cs = stringx::chars(s)
+    let mut out = ""
+    let mut i = len(cs) - 1
+    while i >= 0 {
+        out = concat(out, cs[i])
+        i = i - 1
+    }
+    return out
+}
+
+fn main() -> i32 {
+    let s = "你好,Hz!"
+    print(len(s))
+    print(stringx::char_len(s))
+    let cs = stringx::chars(s)
+    for ch in cs {
+        print(ch)
+    }
+    print(stringx::char_at(s, 1))
+    print(stringx::char_sub(s, 0, 2))
+    print(stringx::char_sub(s, 2, 6))
+    print(reverse_str("人个一是我"))
+    return 0
+}

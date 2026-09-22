@@ -1,0 +1,17 @@
+struct Point {
+    x: i32,
+}
+
+trait Measurable {
+    fn length(self) -> i32
+}
+
+impl Measurable for Point {
+    fn length(self) -> str {
+        return "zero"
+    }
+}
+
+fn main() -> i32 {
+    return 0
+}

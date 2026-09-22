@@ -1,0 +1,6 @@
+# Top-level defer must fail compilation
+defer print("illegal top-level defer")
+
+fn main() -> i32 {
+    return 0
+}

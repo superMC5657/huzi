@@ -1,0 +1,10 @@
+[package]
+name = "huzi-error"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Error types and diagnostics rendering for the Huzi toolchain"
+repository.workspace = true
+
+[dependencies]

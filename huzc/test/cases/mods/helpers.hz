@@ -1,0 +1,16 @@
+fn add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+fn greet(name: str) -> str {
+    return concat("hello, ", name)
+}
+
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn origin() -> Point {
+    return Point { x: 0, y: 0 }
+}

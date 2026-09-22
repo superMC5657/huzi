@@ -1,0 +1,6 @@
+# 负例: vec 负下标越界，编译通过但运行必须失败 (exit != 0)
+fn main() -> i32 {
+    let v = vec(10, 20, 30)
+    print(v[0 - 1])
+    return 0
+}
