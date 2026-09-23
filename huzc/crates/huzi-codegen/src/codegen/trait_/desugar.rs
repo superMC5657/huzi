@@ -152,8 +152,18 @@ impl TraitDesugarer {
             }
             Expr::Match(m) => {
                 self.resolve_expr(&mut m.scrutinee, env)?;
+                let scrut_ty = self.infer_expr_type(&m.scrutinee, env);
                 for arm in &mut m.arms {
-                    self.resolve_block(&mut arm.body, env)?;
+                    let mut arm_env = env.clone();
+                    if let Pattern::Variable(name) = &arm.pattern {
+                        if let Some(t) = &scrut_ty {
+                            arm_env.insert(name.clone(), t.clone());
+                        }
+                    }
+                    if let Some(guard) = &mut arm.guard {
+                        self.resolve_expr(guard, &mut arm_env)?;
+                    }
+                    self.resolve_block(&mut arm.body, &mut arm_env)?;
                 }
             }
             _ => {}
@@ -375,6 +385,16 @@ impl TraitDesugarer {
                     other => other,
                 },
             },
+            Expr::Match(m) => {
+                if let Some(first_arm) = m.arms.first() {
+                    if let Some(stmt) = first_arm.body.statements.last() {
+                        if let Stmt::Expr(e) = &stmt.node {
+                            return self.infer_expr_type(&e.expr, env);
+                        }
+                    }
+                }
+                None
+            }
             _ => None,
         }
     }

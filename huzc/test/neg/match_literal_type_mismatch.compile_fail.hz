@@ -1,0 +1,10 @@
+# 负例：字面量模式类型与待匹配项类型不兼容（字符串与整数匹配），编译失败。
+fn main() -> i32 {
+    let s = "hello"
+    let res = match s {
+        123 => "number",
+        _ => "other",
+    }
+    print(res)
+    0
+}

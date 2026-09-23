@@ -1,0 +1,10 @@
+# 负例：match 守卫表达式必须求值为 bool，若为非 bool 编译失败。
+fn main() -> i32 {
+    let n = 10
+    let res = match n {
+        x if 123 => 1,
+        _ => 0,
+    }
+    print(res)
+    0
+}

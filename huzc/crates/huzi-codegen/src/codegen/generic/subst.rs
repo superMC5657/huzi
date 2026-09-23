@@ -89,6 +89,9 @@ pub fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, Type>) {
         Expr::Match(m) => {
             substitute_expr(&mut m.scrutinee, mapping);
             for arm in &mut m.arms {
+                if let Some(guard) = &mut arm.guard {
+                    substitute_expr(guard, mapping);
+                }
                 substitute_block(&mut arm.body, mapping);
             }
         }

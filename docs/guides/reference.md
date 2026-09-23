@@ -246,3 +246,27 @@ Huzi 支持点号方法调用语法 `receiver.method(args...)` 的多阶分派�
 3. **顶层/内置函数降解**：查找同名自由函数或内置操作（如 `v.len()`, `v.push(x)`, `v.pop()`, `s.trim()`, `s.contains(...)`，以及用户自定义 `fn double(x: i32) -> i32` 后的 `5.double()`），重写为 `func(receiver, args...)`。
 4. **自然链式调用**：支持流畅的链式方法级联，如 `p.scale(2).length_sq()`、`v.filter(|x| x > 2).take(3).map(|x| x * 10)` 或 `opt.map(|x| x + 1).unwrap_or(0)`。
 
+### 8.3 模式匹配、字面量与 Match Guards 守卫
+Huzi 提供了强大的模式匹配能力，支持对枚举、标量值（整数、浮点、布尔、字符、字符串）进行解构与条件分流：
+
+1. **字面量模式与变量绑定**：
+   - 标量值直接匹配：`0 => ...`, `-1 => ...`, `true => ...`, `'a' => ...`, `"hello" => ...`。
+   - 变量捕获模式：`ident => ...` 将待匹配项捕获为分支内的局部变量。
+2. **Match Guards 守卫表达式**：
+   - 语法：`pattern if condition => body`。
+   - 语义：仅当模式匹配且守卫表达式求值为 `true` 时才进入该分支体；若守卫求值为 `false`，则自动回退并继续尝试后续匹配分支。
+   - 示例：
+     ```huzi
+     match opt {
+         Option::Some(x) if x > 0 => print("positive: ", x),
+         Option::Some(x) if x == 0 => print("zero"),
+         Option::Some(x) => print("negative: ", x),
+         Option::None => print("none"),
+     }
+     ```
+3. **穷尽性保证与类型兼容**：
+   - 枚举匹配要求所有变体均被**无守卫**的分支覆盖，或提供无守卫的通配符 `_` / 变量兜底分支。
+   - 标量值（取值空间无限）匹配强制要求包含无守卫的 `_` 或变量兜底分支。
+   - 布尔类型匹配要求同时包含无守卫的 `true` 与 `false` 分支，或提供通配符兜底。
+   - 守卫表达式必须求值为 `bool` 类型，模式与待匹配项类型必须严格兼容。
+

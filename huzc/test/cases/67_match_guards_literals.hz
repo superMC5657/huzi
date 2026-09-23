@@ -1,0 +1,88 @@
+# 67_match_guards_literals.hz —— 字面量匹配、变量模式绑定与 Match Guards 守卫
+enum NumberCategory {
+    Even,
+    Odd,
+}
+
+enum NumberOpt {
+    Some(i32),
+    None,
+}
+
+fn describe_int(n: i32) -> str {
+    return match n {
+    0 => "zero",
+    1 => "one",
+    42 => "forty-two",
+    -1 => "minus-one",
+    x if x > 100 => "large positive",
+    x if x < -10 => "large negative",
+    _ => "other integer",
+}
+}
+
+fn describe_str(s: str) -> str {
+    return match s {
+    "hello" => "greeting",
+    "world" => "target",
+    "" => "empty",
+    w if len(w) > 6 => "long string",
+    other => "normal string",
+}
+}
+
+fn bool_to_int(b: bool) -> i32 {
+    return match b {
+    true => 1,
+    false => 0,
+}
+}
+
+fn describe_char(c: char) -> str {
+    return match c {
+    'a' => "char-a",
+    'z' => "char-z",
+    ch if ch == 'x' => "char-x",
+    _ => "other-char",
+}
+}
+
+fn classify_option(opt: NumberOpt) -> str {
+    return match opt {
+    NumberOpt::Some(x) if x > 0 => "positive some",
+    NumberOpt::Some(x) if x == 0 => "zero some",
+    NumberOpt::Some(x) => "negative some",
+    NumberOpt::None => "none",
+}
+}
+
+fn main() -> i32 {
+    # 1. 整数匹配与守卫
+    print(describe_int(0))
+    print(describe_int(1))
+    print(describe_int(42))
+    print(describe_int(-1))
+    print(describe_int(150))
+    print(describe_int(-50))
+    print(describe_int(7))
+    # 2. 字符串匹配与守卫
+    print(describe_str("hello"))
+    print(describe_str("world"))
+    print(describe_str(""))
+    print(describe_str("antigravity"))
+    print(describe_str("huzi"))
+    # 3. 布尔完全匹配
+    print(bool_to_int(true))
+    print(bool_to_int(false))
+    # 4. 字符匹配
+    print(describe_char('a'))
+    print(describe_char('z'))
+    print(describe_char('x'))
+    print(describe_char('q'))
+    # 5. 枚举变体与守卫组合
+    print(classify_option(NumberOpt::Some(10)))
+    print(classify_option(NumberOpt::Some(0)))
+    print(classify_option(NumberOpt::Some(-5)))
+    print(classify_option(NumberOpt::None))
+    0
+}

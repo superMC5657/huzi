@@ -313,6 +313,8 @@ fn format_if_expr(i: &IfExpr) -> String {
 fn format_pattern(p: &Pattern) -> String {
     match p {
         Pattern::Wildcard => "_".to_string(),
+        Pattern::Variable(name) => name.clone(),
+        Pattern::Literal(lit) => format_literal(lit),
         Pattern::Variant {
             enum_name,
             variant,
@@ -331,13 +333,18 @@ fn format_match_expr(m: &MatchExpr) -> String {
     let mut out = format!("match {} {{\n", format_expr(&m.scrutinee));
     for arm in &m.arms {
         let pat_str = format_pattern(&arm.pattern);
+        let arm_head = if let Some(guard) = &arm.guard {
+            format!("{} if {}", pat_str, format_expr(guard))
+        } else {
+            pat_str
+        };
         if arm.body.statements.len() == 1 {
             if let Stmt::Expr(e) = &arm.body.statements[0].node {
-                out.push_str(&format!("    {} => {},\n", pat_str, format_expr(&e.expr)));
+                out.push_str(&format!("    {} => {},\n", arm_head, format_expr(&e.expr)));
                 continue;
             }
         }
-        out.push_str(&format!("    {} => {{\n", pat_str));
+        out.push_str(&format!("    {} => {{\n", arm_head));
         for s in &arm.body.statements {
             out.push_str(&format!("        {}\n", format_stmt_inline(&s.node)));
         }

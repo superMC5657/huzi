@@ -84,6 +84,7 @@ pub struct MatchExpr {
 #[derive(Debug, Clone)]
 pub struct MatchArm {
     pub pattern: Pattern,
+    pub guard: Option<Expr>,
     pub body: Block,
 }
 
@@ -96,6 +97,10 @@ pub enum Pattern {
         variant: String,
         bindings: Vec<String>,
     },
+    /// 字面量模式（如 `0`, `42`, `-1`, `true`, `'a'`, `"hello"`）
+    Literal(Literal),
+    /// 变量绑定模式（如 `x`、`val`）
+    Variable(String),
     /// `_` — 通配符，匹配任意值。
     Wildcard,
 }

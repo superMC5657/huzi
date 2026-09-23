@@ -208,6 +208,13 @@ impl Monomorphizer {
                         }
                     }
                 }
+            } else if let Pattern::Variable(name) = &arm.pattern {
+                if let Some(ty) = &scrut_ty {
+                    self.inferrer.insert_var(name, ty.clone());
+                }
+            }
+            if let Some(guard) = &mut arm.guard {
+                self.monomorphize_expr(guard)?;
             }
             self.monomorphize_block(&mut arm.body)?;
             self.inferrer.leave_scope();

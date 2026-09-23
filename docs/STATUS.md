@@ -16,7 +16,7 @@
 
 - [x] 基本类型：`i32/i64/f32/f64/bool/char/str`
 - [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec<T>`、`Map`/`Map<str, str>`/`Map<i32, i32>`（支持作为函数形参与结构体字段）、`Box<T>`（含嵌套 `Box<Box<T>>`；`T` 可为结构体或 `i32/i64/f64/bool/str` 标量，标量经前缀 `*b` 解引用读写）
-- [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查）、`defer`（防止嵌套 return/defer）
+- [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查、守卫支持）、`defer`（防止嵌套 return/defer）
 - [x] 模块：`import` 相对路径、去重、循环拦截、`mod::fn()` 调用
 - [x] 泛型系统：泛型函数 + 泛型结构体 + 泛型枚举（支持调用点实参自动推导、变体显式标注与模式匹配解构）
 - [x] Trait + impl（静态分发与签名类型完备性校验）
@@ -26,6 +26,7 @@
 - [x] 固有方法块（Inherent `impl` blocks）与 UFCS（统一函数调用语法糖）：结构体可直接声明固有方法块 `impl TypeName { ... }` 而无需预先声明 Trait；支持 `receiver.method(...)` 多阶分派至固有方法、向量专有前缀（如 `vec_map`）、内置操作（`len`, `trim`, `contains`, `push`, `pop` 等）及任意同名顶层自由函数；原生支持流畅链式调用（用例 `65_inherent_impl_ufcs`，负例 `inherent_conflict`, `inherent_no_such_method`）
 - [x] 核心枚举与结构体流式固有方法：`Option<T>` 现代泛型枚举（`Some(T)` / `None`）及其固有方法（`is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then`）；`Result<T>` 固有方法（`is_ok`, `is_err`, `unwrap`, `unwrap_or`, `err_msg`），与 `?` 运算符 100% 互通（用例 `66_fluent_option_result_vec`）
 - [x] 集合高阶流式管道（自举标准库 `alloc.vec_algo`）：`vec_any` / `vec_all` / `vec_count` / `vec_take` / `vec_skip` / `vec_for_each`，配合 UFCS 支持链式流水线操作（`v.filter(...).take(2).map(...)`）
+- [x] 模式匹配全面强化：支持数值/浮点/布尔/字符/字符串字面量模式；支持变量绑定模式（`x => ...`）；支持匹配守卫（`pattern if condition => body`）；支持多分支同变体/同模式条件分流；严格校验守卫条件布尔类型与类型兼容性；完备穷尽性检查（用例 `67_match_guards_literals`，负例集 `match_guard_non_bool`, `match_guarded_wildcard_non_exhaustive`, `match_literal_type_mismatch`, `match_scalar_non_exhaustive`）
 
 ### 标准库内置
 
