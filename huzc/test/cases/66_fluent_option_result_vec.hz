@@ -1,0 +1,72 @@
+# 66_fluent_option_result_vec.hz —— Option/Result 固有方法与集合高阶流式管道综合测试
+import core.option
+import core.result
+import alloc.vec_algo
+
+fn divide(a: i32, b: i32) -> Result<i32> {
+    if b == 0 {
+        return result::err_i32("division by zero")
+    }
+    return result::ok_i32(a / b)
+}
+
+fn try_flow(a: i32, b: i32, c: i32) -> Result<i32> {
+    let d1 = divide(a, b)?
+    let d2 = divide(d1, c)?
+    return result::ok_i32(d2)
+}
+
+fn main() -> i32 {
+    # 1. Option<T> 固有方法与流式高阶调用
+    let opt_a = Option<i32>::Some(10)
+    print("opt_a.is_some:", opt_a.is_some())
+    print("opt_a.is_none:", opt_a.is_none())
+    print("opt_a.unwrap:", opt_a.unwrap())
+    print("opt_a.unwrap_or:", opt_a.unwrap_or(0))
+    let opt_mapped = opt_a.map(|x: i32| x * 3)
+    print("opt_mapped.unwrap:", opt_mapped.unwrap())
+    let opt_then = opt_a.and_then(|x: i32| Option<i32>::Some(x + 5))
+    print("opt_then.unwrap:", opt_then.unwrap())
+    let opt_none: Option<i32> = Option<i32>::None
+    print("opt_none.is_some:", opt_none.is_some())
+    print("opt_none.is_none:", opt_none.is_none())
+    print("opt_none.unwrap_or:", opt_none.unwrap_or(404))
+    let none_mapped = opt_none.map(|x: i32| x * 2)
+    print("none_mapped.is_none:", none_mapped.is_none())
+    # 2. Result<T> 固有方法与流式调用
+    let r1 = divide(100, 2)
+    print("r1.is_ok:", r1.is_ok())
+    print("r1.is_err:", r1.is_err())
+    print("r1.unwrap:", r1.unwrap())
+    print("r1.unwrap_or:", r1.unwrap_or(999))
+    let r2 = divide(100, 0)
+    print("r2.is_ok:", r2.is_ok())
+    print("r2.is_err:", r2.is_err())
+    print("r2.err_msg:", r2.err_msg())
+    print("r2.unwrap_or:", r2.unwrap_or(999))
+    # 配合 ? 运算符
+    let flow_ok = try_flow(100, 2, 5)
+    print("flow_ok.unwrap:", flow_ok.unwrap())
+    let flow_err = try_flow(100, 0, 5)
+    print("flow_err.is_err:", flow_err.is_err())
+    print("flow_err.msg:", flow_err.err_msg())
+    # 3. 向量高阶流式管道 (any, all, count, take, skip, filter, map, fold)
+    let mut nums = vec(1, 2, 3, 4, 5, 6)
+    print("nums.any(>5):", nums.any(|x: i32| x > 5))
+    print("nums.any(>10):", nums.any(|x: i32| x > 10))
+    print("nums.all(>0):", nums.all(|x: i32| x > 0))
+    print("nums.all(>3):", nums.all(|x: i32| x > 3))
+    print("nums.count(even):", nums.count(|x: i32| x % 2 == 0))
+    let taken = nums.take(3)
+    print("taken.len:", len(taken))
+    print("taken[2]:", taken[2])
+    let skipped = nums.skip(3)
+    print("skipped.len:", len(skipped))
+    print("skipped[0]:", skipped[0])
+    let stream_res = nums.filter(|x: i32| x % 2 == 0).take(2).map(|x: i32| x * 10)
+    print("stream_res.len:", len(stream_res))
+    for item in stream_res {
+        print("stream_item:", item)
+    }
+    return 0
+}

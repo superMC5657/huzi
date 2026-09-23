@@ -53,6 +53,38 @@ fn main() -> i32 {
     assert::assert_eq_i32(filtered[2], 1)
     let folded = vec_algo::vec_fold(v, 0, |acc: i32, x: i32| acc + x)
     assert::assert_eq_i32(folded, 15)
+
+    // ---- 现代高阶流式算子测试 (any, all, count, take, skip, for_each) ----
+    let nums = vec(2, 4, 6, 8, 10)
+    assert::assert_true(nums.any(|x: i32| x == 6))
+    assert::assert_true(!nums.any(|x: i32| x == 5))
+
+    assert::assert_true(nums.all(|x: i32| x % 2 == 0))
+    assert::assert_true(!nums.all(|x: i32| x > 5))
+
+    assert::assert_eq_i32(nums.count(|x: i32| x > 4), 3)
+
+    let taken = nums.take(3)
+    assert::assert_eq_i32(len(taken), 3)
+    assert::assert_eq_i32(taken[0], 2)
+    assert::assert_eq_i32(taken[2], 6)
+
+    let skipped = nums.skip(2)
+    assert::assert_eq_i32(len(skipped), 3)
+    assert::assert_eq_i32(skipped[0], 6)
+    assert::assert_eq_i32(skipped[2], 10)
+
+    nums.for_each(|x: i32| {
+        assert::assert_true(x > 0)
+        assert::assert_true(x % 2 == 0)
+    })
+
+    // ---- 综合链式流式管道 ----
+    let pipeline_res = nums.filter(|x: i32| x > 2).take(2).map(|x: i32| x * 10)
+    assert::assert_eq_i32(len(pipeline_res), 2)
+    assert::assert_eq_i32(pipeline_res[0], 40)
+    assert::assert_eq_i32(pipeline_res[1], 60)
+
     print("vec_algo_test passed")
     return 0
 }

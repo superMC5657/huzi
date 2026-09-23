@@ -169,7 +169,12 @@ impl TraitDesugarer {
         let receiver_ty = self.infer_expr_type(&mc.receiver, env);
 
         // 优先 1: 具名类型的固有方法或 Trait 方法
-        if let Some(Type::Named(type_name)) = &receiver_ty {
+        let base_type_name = match &receiver_ty {
+            Some(Type::Named(type_name)) => Some(type_name.as_str()),
+            Some(Type::Applied(type_name, _)) => Some(type_name.as_str()),
+            _ => None,
+        };
+        if let Some(type_name) = base_type_name {
             if let Some(methods) = self.implemented_methods.get(type_name) {
                 if methods.contains_key(&mc.method) {
                     let mangled = format!("{}__{}", type_name, mc.method);
@@ -218,32 +223,37 @@ impl TraitDesugarer {
         mc: &MethodCallExpr,
         receiver_ty: &Option<Type>,
     ) -> Result<Expr> {
-        match receiver_ty {
-            Some(Type::Named(type_name)) => {
-                let available: Vec<&str> = self
-                    .implemented_methods
-                    .get(type_name)
-                    .map(|m| m.keys().map(|k| k.as_str()).collect())
-                    .unwrap_or_default();
-                let hint = did_you_mean(&mc.method, available.iter().copied());
-                let mut msg = if available.is_empty() {
-                    format!(
-                        "类型 '{}' 没有方法 '{}':期望已实现的方法,实际该类型尚未实现任何方法,亦未找到同名全局函数",
-                        type_name, mc.method
-                    )
-                } else {
-                    format!(
-                        "类型 '{}' 没有方法 '{}':期望为 [{}] 之一,实际未找到",
-                        type_name,
-                        mc.method,
-                        available.join(", ")
-                    )
-                };
-                if let Some(h) = hint {
-                    msg.push_str(&format!(";帮助:{}", h));
-                }
-                Err(HuziError::new_global(msg))
+        let base_type_name = match receiver_ty {
+            Some(Type::Named(type_name)) => Some(type_name.as_str()),
+            Some(Type::Applied(type_name, _)) => Some(type_name.as_str()),
+            _ => None,
+        };
+        if let Some(type_name) = base_type_name {
+            let available: Vec<&str> = self
+                .implemented_methods
+                .get(type_name)
+                .map(|m| m.keys().map(|k| k.as_str()).collect())
+                .unwrap_or_default();
+            let hint = did_you_mean(&mc.method, available.iter().copied());
+            let mut msg = if available.is_empty() {
+                format!(
+                    "类型 '{}' 没有方法 '{}':期望已实现的方法,实际该类型尚未实现任何方法,亦未找到同名全局函数",
+                    type_name, mc.method
+                )
+            } else {
+                format!(
+                    "类型 '{}' 没有方法 '{}':期望为 [{}] 之一,实际未找到",
+                    type_name,
+                    mc.method,
+                    available.join(", ")
+                )
+            };
+            if let Some(h) = hint {
+                msg.push_str(&format!(";帮助:{}", h));
             }
+            return Err(HuziError::new_global(msg));
+        }
+        match receiver_ty {
             Some(other_ty) => Err(HuziError::new_global(format!(
                 "类型 '{}' 没有方法 '{}',且未找到匹配的 UFCS 同名函数;帮助:检查方法拼写或定义接受该类型为首参数的同名函数",
                 other_ty, mc.method
@@ -265,7 +275,29 @@ impl TraitDesugarer {
                 Literal::String(_) => Some(Type::Str),
                 Literal::Char(_) => Some(Type::Char),
             },
-            Expr::StructLiteral(s) => Some(Type::Named(s.name.clone())),
+            Expr::StructLiteral(s) => {
+                if !s.type_args.is_empty() {
+                    Some(Type::Applied(s.name.clone(), s.type_args.clone()))
+                } else {
+                    Some(Type::Named(s.name.clone()))
+                }
+            }
+            Expr::EnumConstruct(e) => {
+                let full_name = format!("{}::{}", e.enum_name, e.variant);
+                if let Some(ret) = self.fn_return_types.get(&full_name).or_else(|| self.fn_return_types.get(&e.variant)) {
+                    if let Some(r) = ret {
+                        return Some(r.clone());
+                    }
+                }
+                if self.known_types.contains(&e.enum_name) {
+                    if !e.type_args.is_empty() {
+                        return Some(Type::Applied(e.enum_name.clone(), e.type_args.clone()));
+                    } else {
+                        return Some(Type::Named(e.enum_name.clone()));
+                    }
+                }
+                None
+            }
             Expr::FieldAccess(fa) => {
                 let base_ty = self.infer_expr_type(&fa.base, env)?;
                 let s_name = match base_ty {
@@ -293,10 +325,15 @@ impl TraitDesugarer {
             }
             Expr::MethodCall(mc) => {
                 let receiver_ty = self.infer_expr_type(&mc.receiver, env)?;
-                if let Type::Named(type_name) = receiver_ty {
+                let base_name = match &receiver_ty {
+                    Type::Named(type_name) => Some(type_name.as_str()),
+                    Type::Applied(type_name, _) => Some(type_name.as_str()),
+                    _ => None,
+                };
+                if let Some(type_name) = base_name {
                     if let Some(ret) = self
                         .method_return_types
-                        .get(&type_name)
+                        .get(type_name)
                         .and_then(|m| m.get(&mc.method))
                     {
                         return ret.clone();

@@ -118,22 +118,18 @@ fn builtin_fn_return_types() -> HashMap<String, Option<Type>> {
         "split".to_string(),
         Some(Type::Applied("vec".to_string(), vec![Type::Str])),
     );
-    map.insert(
-        "vec_map".to_string(),
-        Some(Type::Applied("vec".to_string(), vec![])),
-    );
-    map.insert(
-        "vec_filter".to_string(),
-        Some(Type::Applied("vec".to_string(), vec![])),
-    );
-    map.insert(
-        "map".to_string(),
-        Some(Type::Applied("vec".to_string(), vec![])),
-    );
-    map.insert(
-        "filter".to_string(),
-        Some(Type::Applied("vec".to_string(), vec![])),
-    );
+    for f in ["vec_map", "vec_filter", "map", "filter", "vec_take", "take", "vec_skip", "skip"] {
+        map.insert(
+            f.to_string(),
+            Some(Type::Applied("vec".to_string(), vec![])),
+        );
+    }
+    for f in ["vec_any", "any", "vec_all", "all"] {
+        map.insert(f.to_string(), Some(Type::Bool));
+    }
+    for f in ["vec_count", "count", "vec_for_each", "for_each"] {
+        map.insert(f.to_string(), Some(Type::I32));
+    }
     for f in [
         "pop", "print", "println", "eprint", "eprintln", "panic", "assert", "vec_fold", "fold",
     ] {

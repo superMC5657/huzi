@@ -115,6 +115,10 @@ impl Parser {
     fn parse_impl_method(&mut self, target_type: &str) -> Result<FnStmt> {
         self.expect(&Token::Fn, "Expected 'fn' in impl block")?;
         let method_name = self.expect_ident("Expected method name in impl block")?;
+        let type_params = self.parse_optional_type_params()?;
+        let num_params = type_params.len();
+        self.push_type_params(&type_params);
+
         self.expect(&Token::LParen, "Expected '(' after method name")?;
 
         let mut params = Vec::new();
@@ -163,12 +167,14 @@ impl Parser {
 
         let prev_in_fn = self.in_function;
         self.in_function = true;
-        let body = self.parse_block()?;
+        let body_res = self.parse_block();
         self.in_function = prev_in_fn;
+        self.pop_type_params(num_params);
+        let body = body_res?;
 
         Ok(FnStmt {
             name: method_name,
-            type_params: Vec::new(),
+            type_params,
             params,
             return_type,
             body,

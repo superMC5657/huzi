@@ -82,6 +82,9 @@ pub fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, Type>) {
             for arg in &mut e.args {
                 substitute_expr(arg, mapping);
             }
+            for targ in &mut e.type_args {
+                *targ = substitute_type(targ, mapping);
+            }
         }
         Expr::Match(m) => {
             substitute_expr(&mut m.scrutinee, mapping);

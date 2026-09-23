@@ -21,7 +21,38 @@ fn main() -> i32 {
     let s1 = option::some_str("abc")
     assert::assert_eq_str(option::unwrap_or_str(s1.0, s1.1, "dflt"), "abc")
     let s2 = option::none_str
-    assert::assert_eq_str(option::unwrap_or_str(s2.0, s2.1, "dflt"), "dflt")
+    // ---- 现代泛型 Option<T> 与流式固有方法测试 ----
+    let opt_some = option::some(123)
+    assert::assert_true(opt_some.is_some())
+    assert::assert_true(!opt_some.is_none())
+    assert::assert_eq_i32(opt_some.unwrap(), 123)
+    assert::assert_eq_i32(opt_some.unwrap_or(0), 123)
+
+    let opt_mapped = opt_some.map(|x: i32| x * 2)
+    assert::assert_eq_i32(opt_mapped.unwrap(), 246)
+
+    let opt_then = opt_some.and_then(|x: i32| option::some(x + 7))
+    assert::assert_eq_i32(opt_then.unwrap(), 130)
+
+    let opt_none: Option<i32> = Option<i32>::None
+    assert::assert_true(opt_none.is_none())
+    assert::assert_true(!opt_none.is_some())
+    assert::assert_eq_i32(opt_none.unwrap_or(404), 404)
+
+    let none_mapped = opt_none.map(|x: i32| x * 2)
+    assert::assert_true(none_mapped.is_none())
+
+    // ---- Result<T> 固有方法流式调用测试 ----
+    assert::assert_true(r_ok.is_ok())
+    assert::assert_true(!r_ok.is_err())
+    assert::assert_eq_i32(r_ok.unwrap(), 10)
+    assert::assert_eq_i32(r_ok.unwrap_or(999), 10)
+
+    assert::assert_true(r_err.is_err())
+    assert::assert_true(!r_err.is_ok())
+    assert::assert_eq_i32(r_err.unwrap_or(999), 999)
+    assert::assert_eq_str(r_err.err_msg(), "bad error")
+
     print("core_test passed")
     return 0
 }

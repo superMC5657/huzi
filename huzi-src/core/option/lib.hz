@@ -1,3 +1,72 @@
+// Option<T> — 泛型可选值枚举与固有流式方法。
+
+enum Option<T> {
+    Some(T),
+    None,
+}
+
+impl Option {
+    fn is_some<T>(self: Option<T>) -> bool {
+        return match self {
+            Option::Some(v) => true,
+            Option::None => false,
+        }
+    }
+
+    fn is_none<T>(self: Option<T>) -> bool {
+        return match self {
+            Option::Some(v) => false,
+            Option::None => true,
+        }
+    }
+
+    fn unwrap<T>(self: Option<T>) -> T {
+        return match self {
+            Option::Some(v) => v,
+            Option::None => panic("called `Option::unwrap()` on a `None` value"),
+        }
+    }
+
+    fn unwrap_or<T>(self: Option<T>, dflt: T) -> T {
+        return match self {
+            Option::Some(v) => v,
+            Option::None => dflt,
+        }
+    }
+
+    fn map<T, U>(self: Option<T>, f: fn(T) -> U) -> Option<U> {
+        return match self {
+            Option::Some(v) => Option<U>::Some(f(v)),
+            Option::None => Option<U>::None,
+        }
+    }
+
+    fn and_then<T, U>(self: Option<T>, f: fn(T) -> Option<U>) -> Option<U> {
+        return match self {
+            Option::Some(v) => f(v),
+            Option::None => Option<U>::None,
+        }
+    }
+}
+
+fn some<T>(val: T) -> Option<T> {
+    return Option<T>::Some(val)
+}
+
+fn none<T>() -> Option<T> {
+    return Option<T>::None
+}
+
+fn is_some<T>(opt: Option<T>) -> bool {
+    return opt.is_some()
+}
+
+fn is_none<T>(opt: Option<T>) -> bool {
+    return opt.is_none()
+}
+
+
+// ---- 向后兼容函数 ----
 fn some_i32(val: i32) -> (bool, i32) {
     return (true, val)
 }

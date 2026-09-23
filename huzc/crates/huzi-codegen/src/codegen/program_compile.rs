@@ -77,7 +77,11 @@ impl<'ctx> CodeGen<'ctx> {
             .into_iter()
             .filter(|d| d.type_params.is_empty())
             .collect();
-        self.register_type_definitions(&concrete_structs, &enum_defs)?;
+        let concrete_enums: Vec<EnumDef> = enum_defs
+            .into_iter()
+            .filter(|d| d.type_params.is_empty())
+            .collect();
+        self.register_type_definitions(&concrete_structs, &concrete_enums)?;
         Ok(())
     }
 

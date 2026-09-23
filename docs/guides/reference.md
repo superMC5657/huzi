@@ -162,6 +162,28 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 - `vec_map<T, U>(v: vec<T>, f: fn(T) -> U) -> vec<U>`: 对动态数组中每个元素应用函数/闭包 `f`，收集并返回新的映射数组。
 - `vec_filter<T>(v: vec<T>, pred: fn(T) -> bool) -> vec<T>`: 过滤动态数组，仅保留使谓词 `pred` 返回 `true` 的元素。
 - `vec_fold<T, Acc>(v: vec<T>, init: Acc, f: fn(Acc, T) -> Acc) -> Acc`: 从初始累加值 `init` 开始，依次结合元素应用折叠函数 `f`，返回最终累积结果。
+- `vec_any<T>(v: vec<T>, pred: fn(T) -> bool) -> bool`: 检查动态数组中是否存在任意元素满足谓词 `pred`。
+- `vec_all<T>(v: vec<T>, pred: fn(T) -> bool) -> bool`: 检查动态数组中是否所有元素均满足谓词 `pred`。
+- `vec_count<T>(v: vec<T>, pred: fn(T) -> bool) -> i32`: 统计动态数组中满足谓词 `pred` 的元素数量。
+- `vec_take<T>(v: vec<T>, n: i32) -> vec<T>`: 获取动态数组前 `n` 个元素（若 `n <= 0` 返回空向量，若 `n >= len` 返回全量拷贝）。
+- `vec_skip<T>(v: vec<T>, n: i32) -> vec<T>`: 跳过动态数组前 `n` 个元素，返回由剩余元素组成的新动态数组。
+- `vec_for_each<T>(v: vec<T>, f: fn(T) -> ())`: 依次对动态数组每个元素执行副作用闭包 `f`。
+
+### 4.13 核心枚举与结构体流式固有方法 (`core.option`, `core.result`)
+
+- **`Option<T>`**（代数数据类型：`enum Option<T> { Some(T), None }`）：
+  - `opt.is_some() -> bool`: 判断是否为 `Some`。
+  - `opt.is_none() -> bool`: 判断是否为 `None`。
+  - `opt.unwrap() -> T`: 获取内部值；若为 `None` 则触发 `panic("called Option::unwrap on a None value")`。
+  - `opt.unwrap_or(default: T) -> T`: 获取内部值；若为 `None` 则返回提供的默认值 `default`。
+  - `opt.map(f: fn(T) -> U) -> Option<U>`: 对内部值应用变换函数，返回映射后的 `Option<U>`。
+  - `opt.and_then(f: fn(T) -> Option<U>) -> Option<U>`: 链式绑定函数（Monadic bind），支持级联可能返回 None 的后续步骤。
+- **`Result<T>`**（错误处理结构体：`struct Result<T> { ok: bool, value: T, error: str }`）：
+  - `res.is_ok() -> bool`: 判断计算是否成功。
+  - `res.is_err() -> bool`: 判断计算是否失败。
+  - `res.unwrap() -> T`: 获取成功值；若失败则触发 `panic("called Result::unwrap on an Err value: ...")`。
+  - `res.unwrap_or(default: T) -> T`: 获取成功值；若失败则返回默认值 `default`。
+  - `res.err_msg() -> str`: 获取错误描述字符串。与后缀 `?` 运算符完全互通互补。
 
 ---
 
@@ -220,7 +242,7 @@ impl Point {
 ### 8.2 UFCS (Uniform Function Call Syntax) 统一函数调用
 Huzi 支持点号方法调用语法 `receiver.method(args...)` 的多阶分派：
 1. **固有 / Trait 方法**：优先查找接收者类型上的固有方法或已实现的 Trait 方法，重写为 `Type__method(receiver, args...)`。
-2. **向量专属前缀降解**：当接收者推导为 `vec` 且存在 `vec_{method}`（如 `vec_map`, `vec_filter`, `vec_fold`）时，自动降解为 `vec_{method}(receiver, args...)`。
+2. **向量专属前缀降解**：当接收者推导为 `vec` 且存在 `vec_{method}`（如 `vec_map`, `vec_filter`, `vec_fold`, `vec_take`, `vec_skip` 等）时，自动降解为 `vec_{method}(receiver, args...)`。
 3. **顶层/内置函数降解**：查找同名自由函数或内置操作（如 `v.len()`, `v.push(x)`, `v.pop()`, `s.trim()`, `s.contains(...)`，以及用户自定义 `fn double(x: i32) -> i32` 后的 `5.double()`），重写为 `func(receiver, args...)`。
-4. **自然链式调用**：支持流畅的链式方法级联，如 `p.scale(2).length_sq()` 或 `v.map(|x| x * 2).filter(|x| x > 5)`。
+4. **自然链式调用**：支持流畅的链式方法级联，如 `p.scale(2).length_sq()`、`v.filter(|x| x > 2).take(3).map(|x| x * 10)` 或 `opt.map(|x| x + 1).unwrap_or(0)`。
 

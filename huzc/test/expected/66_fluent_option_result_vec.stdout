@@ -1,0 +1,33 @@
+opt_a.is_some:true
+opt_a.is_none:false
+opt_a.unwrap:10
+opt_a.unwrap_or:10
+opt_mapped.unwrap:30
+opt_then.unwrap:15
+opt_none.is_some:false
+opt_none.is_none:true
+opt_none.unwrap_or:404
+none_mapped.is_none:true
+r1.is_ok:true
+r1.is_err:false
+r1.unwrap:50
+r1.unwrap_or:50
+r2.is_ok:false
+r2.is_err:true
+r2.err_msg:division by zero
+r2.unwrap_or:999
+flow_ok.unwrap:10
+flow_err.is_err:true
+flow_err.msg:division by zero
+nums.any(>5):true
+nums.any(>10):false
+nums.all(>0):true
+nums.all(>3):false
+nums.count(even):3
+taken.len:3
+taken[2]:3
+skipped.len:3
+skipped[0]:4
+stream_res.len:2
+stream_item:20
+stream_item:40

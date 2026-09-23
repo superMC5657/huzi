@@ -17,16 +17,16 @@ impl TraitDesugarer {
         program: &Program,
         modules: &[ModuleCode],
     ) -> Result<()> {
-        self.collect_from_stmts(&program.statements)?;
+        self.collect_from_stmts(None, &program.statements)?;
         for m in modules {
             if let Some(prog) = &m.program {
-                self.collect_from_stmts(&prog.statements)?;
+                self.collect_from_stmts(Some(&m.name), &prog.statements)?;
             }
         }
         Ok(())
     }
 
-    fn collect_from_stmts(&mut self, stmts: &[Spanned<Stmt>]) -> Result<()> {
+    fn collect_from_stmts(&mut self, mod_prefix: Option<&str>, stmts: &[Spanned<Stmt>]) -> Result<()> {
         for s in stmts {
             match &s.node {
                 Stmt::Struct(d) => {
@@ -67,6 +67,10 @@ impl TraitDesugarer {
                     self.traits.insert(t.name.clone(), t.clone());
                 }
                 Stmt::Fn(f) => {
+                    if let Some(prefix) = mod_prefix {
+                        self.fn_return_types
+                            .insert(format!("{}::{}", prefix, f.name), f.return_type.clone());
+                    }
                     self.fn_return_types
                         .insert(f.name.clone(), f.return_type.clone());
                 }
@@ -129,11 +133,15 @@ impl TraitDesugarer {
         let at = |message: String| HuziError::new(message, span.line, span.column);
         for m in &i.methods {
             if !m.params.is_empty() && m.params[0].name == "self" {
-                let expected_self_type = Type::Named(i.target_type.clone());
-                if m.params[0].param_type != expected_self_type {
+                let matches_target = match &m.params[0].param_type {
+                    Type::Named(n) => n == &i.target_type,
+                    Type::Applied(n, _) => n == &i.target_type,
+                    _ => false,
+                };
+                if !matches_target {
                     return Err(at(format!(
-                        "方法 '{}' 的 'self' 类型与固有实现目标不一致:期望 '{}',实际 '{}'",
-                        m.name, expected_self_type, m.params[0].param_type
+                        "方法 '{}' 的 'self' 类型与固有实现目标不一致:期望目标类型 '{}',实际 '{}'",
+                        m.name, i.target_type, m.params[0].param_type
                     )));
                 }
             }

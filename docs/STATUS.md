@@ -24,6 +24,8 @@
 - [x] 模块内泛型可用：库模块可定义泛型结构体/函数，用户代码经 `mod::gen_fn(...)` 限定调用自动单态化（修复模板泄漏/签名注册顺序/限定调用单态化三处缺口）
 - [x] 闭包与高阶函数：匿名函数语法（`|x, y| expr` / `|x| { ... }` / `|| expr`）、按值环境捕获、一等函数类型（`fn(T1, T2) -> Ret`）、命名函数自动升格为闭包 thunk、标准库高阶原语 `vec_map` / `vec_filter` / `vec_fold`（用例 `64_closures`，负例 `closure_arity_mismatch`）
 - [x] 固有方法块（Inherent `impl` blocks）与 UFCS（统一函数调用语法糖）：结构体可直接声明固有方法块 `impl TypeName { ... }` 而无需预先声明 Trait；支持 `receiver.method(...)` 多阶分派至固有方法、向量专有前缀（如 `vec_map`）、内置操作（`len`, `trim`, `contains`, `push`, `pop` 等）及任意同名顶层自由函数；原生支持流畅链式调用（用例 `65_inherent_impl_ufcs`，负例 `inherent_conflict`, `inherent_no_such_method`）
+- [x] 核心枚举与结构体流式固有方法：`Option<T>` 现代泛型枚举（`Some(T)` / `None`）及其固有方法（`is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then`）；`Result<T>` 固有方法（`is_ok`, `is_err`, `unwrap`, `unwrap_or`, `err_msg`），与 `?` 运算符 100% 互通（用例 `66_fluent_option_result_vec`）
+- [x] 集合高阶流式管道（自举标准库 `alloc.vec_algo`）：`vec_any` / `vec_all` / `vec_count` / `vec_take` / `vec_skip` / `vec_for_each`，配合 UFCS 支持链式流水线操作（`v.filter(...).take(2).map(...)`）
 
 ### 标准库内置
 

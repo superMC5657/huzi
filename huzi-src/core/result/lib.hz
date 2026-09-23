@@ -8,25 +8,58 @@ struct Result<T> {
     err: str,
 }
 
+impl Result {
+    fn is_ok<T>(self: Result<T>) -> bool {
+        return self.ok
+    }
+
+    fn is_err<T>(self: Result<T>) -> bool {
+        return !self.ok
+    }
+
+    fn unwrap<T>(self: Result<T>) -> T {
+        if self.ok {
+            return self.value
+        }
+        panic(concat("called `Result::unwrap()` on an `Err` value: ", self.err))
+    }
+
+    fn unwrap_or<T>(self: Result<T>, dflt: T) -> T {
+        if self.ok {
+            return self.value
+        }
+        return dflt
+    }
+
+    fn err_msg<T>(self: Result<T>) -> str {
+        return self.err
+    }
+}
+
 fn is_ok<T>(r: Result<T>) -> bool {
-    return r.ok
+    return r.is_ok()
 }
 
 fn is_err<T>(r: Result<T>) -> bool {
-    return !r.ok
+    return r.is_err()
+}
+
+fn unwrap<T>(r: Result<T>) -> T {
+    return r.unwrap()
 }
 
 /// 成功时取 value,失败时取 dflt(不触发 `?` 的提前返回)。
 fn unwrap_or<T>(r: Result<T>, dflt: T) -> T {
-    if r.ok {
-        return r.value
-    }
-    return dflt
+    return r.unwrap_or(dflt)
 }
 
 /// 失败时的错误信息(成功时为空串)。
 fn err_msg<T>(r: Result<T>) -> str {
-    return r.err
+    return r.err_msg()
+}
+
+fn ok<T>(val: T) -> Result<T> {
+    return Result<T> { ok: true, value: val, err: "" }
 }
 
 fn ok_i32(val: i32) -> Result<i32> {

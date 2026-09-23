@@ -160,4 +160,94 @@ fn fold<T, Acc>(v: vec<T>, init: Acc, f: fn(Acc, T) -> Acc) -> Acc {
     return vec_fold(v, init, f)
 }
 
+fn vec_any<T>(v: vec<T>, pred: fn(T) -> bool) -> bool {
+    for x in v {
+        if pred(x) {
+            return true
+        }
+    }
+    return false
+}
+
+fn any<T>(v: vec<T>, pred: fn(T) -> bool) -> bool {
+    return vec_any(v, pred)
+}
+
+fn vec_all<T>(v: vec<T>, pred: fn(T) -> bool) -> bool {
+    for x in v {
+        if !pred(x) {
+            return false
+        }
+    }
+    return true
+}
+
+fn all<T>(v: vec<T>, pred: fn(T) -> bool) -> bool {
+    return vec_all(v, pred)
+}
+
+fn vec_count<T>(v: vec<T>, pred: fn(T) -> bool) -> i32 {
+    let mut cnt = 0
+    for x in v {
+        if pred(x) {
+            cnt = cnt + 1
+        }
+    }
+    return cnt
+}
+
+fn count<T>(v: vec<T>, pred: fn(T) -> bool) -> i32 {
+    return vec_count(v, pred)
+}
+
+fn vec_take<T>(v: vec<T>, n: i32) -> vec<T> {
+    let mut res = vec<T>()
+    let total = len(v)
+    let mut limit = n
+    if limit > total {
+        limit = total
+    }
+    let mut i = 0
+    while i < limit {
+        push(res, v[i])
+        i = i + 1
+    }
+    return res
+}
+
+fn take<T>(v: vec<T>, n: i32) -> vec<T> {
+    return vec_take(v, n)
+}
+
+fn vec_skip<T>(v: vec<T>, n: i32) -> vec<T> {
+    let mut res = vec<T>()
+    let total = len(v)
+    let mut start = n
+    if start < 0 {
+        start = 0
+    }
+    let mut i = start
+    while i < total {
+        push(res, v[i])
+        i = i + 1
+    }
+    return res
+}
+
+fn skip<T>(v: vec<T>, n: i32) -> vec<T> {
+    return vec_skip(v, n)
+}
+
+fn vec_for_each<T>(v: vec<T>, f: fn(T)) -> i32 {
+    for x in v {
+        f(x)
+    }
+    return 0
+}
+
+fn for_each<T>(v: vec<T>, f: fn(T)) -> i32 {
+    return vec_for_each(v, f)
+}
+
+
 

@@ -258,12 +258,8 @@ impl Monomorphizer {
         if type_args.is_empty() {
             return Ok(None);
         }
-        // 模板按定义名(不带模块前缀)收录:限定调用(result::is_ok)取
-        // 末段查找,单态化产物也以裸名注册进主程序。
-        let bare_callee = bare_name(callee_name);
         let (template, span) = self
-            .fn_templates
-            .get(bare_callee)
+            .fn_template_for(callee_name)
             .cloned()
             .ok_or_else(|| {
                 let hint = did_you_mean(callee_name, self.fn_templates.keys().map(|s| s.as_str()));
@@ -282,14 +278,18 @@ impl Monomorphizer {
                 callee_name,
                 template.type_params.len(),
                 type_args.len(),
-                bare_callee,
+                callee_name,
                 template.type_params.join(", ")
             )));
         }
         for a in type_args.iter() {
             self.validate_type_arg(a)?;
         }
-        let mangled = mangle_name(bare_callee, type_args);
+        let mangled = if let Some((prefix, base)) = callee_name.split_once("::") {
+            format!("{}::{}", prefix, mangle_name(base, type_args))
+        } else {
+            mangle_name(callee_name, type_args)
+        };
         if !self.instantiated_fns.contains_key(&mangled) {
             self.instantiate_fn(&template, span, type_args, &mangled)?;
         }
@@ -386,7 +386,7 @@ pub(super) fn monomorphize_all(
     // 阶段 1: 从主程序与所有模块中收集泛型模板及已知类型
     for m in modules.iter() {
         if let Some(prog) = &m.program {
-            mono.collect_templates(prog)?;
+            mono.collect_module_templates(&m.name, prog)?;
         }
     }
     mono.collect_templates(program)?;
@@ -409,6 +409,16 @@ pub(super) fn monomorphize_all(
         Stmt::Fn(f) => f.type_params.is_empty(),
         _ => true,
     });
+    for m in modules.iter_mut() {
+        if let Some(prog) = &mut m.program {
+            prog.statements.retain(|s| match &s.node {
+                Stmt::Struct(d) => d.type_params.is_empty(),
+                Stmt::Enum(d) => d.type_params.is_empty(),
+                Stmt::Fn(f) => f.type_params.is_empty(),
+                _ => true,
+            });
+        }
+    }
 
     for def in mono.instantiated_structs.into_values() {
         new_program.statements.push(Spanned::new(Stmt::Struct(def), 1, 1));

@@ -6,6 +6,14 @@ use huzi_error::{HuziError, Result, did_you_mean};
 
 impl Monomorphizer {
     pub(super) fn collect_templates(&mut self, program: &Program) -> Result<()> {
+        self.collect_scoped_templates(None, program)
+    }
+
+    pub(super) fn collect_module_templates(&mut self, mod_name: &str, program: &Program) -> Result<()> {
+        self.collect_scoped_templates(Some(mod_name), program)
+    }
+
+    fn collect_scoped_templates(&mut self, mod_prefix: Option<&str>, program: &Program) -> Result<()> {
         for s in &program.statements {
             match &s.node {
                 Stmt::Struct(d) => {
@@ -17,6 +25,10 @@ impl Monomorphizer {
                         let span = s.span;
                         self.validate_struct_template(d)
                             .map_err(|e| e.with_position(span.line, span.column))?;
+                        if let Some(prefix) = mod_prefix {
+                            let qualified = format!("{}::{}", prefix, d.name);
+                            self.struct_templates.insert(qualified, d.clone());
+                        }
                         self.struct_templates.insert(d.name.clone(), d.clone());
                     }
                 }
@@ -27,6 +39,10 @@ impl Monomorphizer {
                         let span = s.span;
                         self.validate_enum_template(d)
                             .map_err(|e| e.with_position(span.line, span.column))?;
+                        if let Some(prefix) = mod_prefix {
+                            let qualified = format!("{}::{}", prefix, d.name);
+                            self.enum_templates.insert(qualified, d.clone());
+                        }
                         self.enum_templates.insert(d.name.clone(), d.clone());
                     }
                 }
@@ -35,9 +51,23 @@ impl Monomorphizer {
                         let span = s.span;
                         self.validate_fn_template(f)
                             .map_err(|e| e.with_position(span.line, span.column))?;
+                        if let Some(prefix) = mod_prefix {
+                            let qualified = format!("{}::{}", prefix, f.name);
+                            self.fn_templates.insert(qualified, (f.clone(), s.span));
+                        }
                         self.fn_templates
                             .insert(f.name.clone(), (f.clone(), s.span));
                     } else {
+                        if let Some(prefix) = mod_prefix {
+                            let qualified = format!("{}::{}", prefix, f.name);
+                            self.inferrer.fn_signatures.insert(
+                                qualified,
+                                (
+                                    f.params.iter().map(|p| p.param_type.clone()).collect(),
+                                    f.return_type.clone(),
+                                ),
+                            );
+                        }
                         self.inferrer.fn_signatures.insert(
                             f.name.clone(),
                             (
