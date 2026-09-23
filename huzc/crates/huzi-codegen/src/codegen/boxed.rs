@@ -41,30 +41,57 @@ impl<'ctx> CodeGen<'ctx> {
         matches!(ty, Type::Box(_))
     }
 
+    /// AST 类型是否为 `weak Box<_>`。
+    pub(super) fn is_weak_ast(ty: &Type) -> bool {
+        matches!(ty, Type::Weak(_))
+    }
+
+    /// AST 类型是否为强 Box 或弱 weak Box。
+    pub(super) fn is_box_or_weak_ast(ty: &Type) -> bool {
+        matches!(ty, Type::Box(_) | Type::Weak(_))
+    }
+
+    /// 变量是否为 weak 类型。
+    pub(super) fn is_weak_var(&self, name: &str) -> bool {
+        self.local_ast.get(name).map(Self::is_weak_ast).unwrap_or(false)
+    }
+
+    /// 表达式是否为 weak 类型。
+    pub(super) fn is_weak_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::Ident(name) => self.is_weak_var(name),
+            Expr::FieldAccess(fa) => self
+                .field_ast_type(&fa.base, &fa.field)
+                .map(|t| Self::is_weak_ast(&t))
+                .unwrap_or(false),
+            _ => false,
+        }
+    }
+
     /// 表达式是否为 `null` 字面量。
     pub(super) fn is_null_expr(expr: &Expr) -> bool {
         matches!(expr, Expr::Null)
     }
 
-    /// 表达式是否求值为 Box(变量槽标记 / Box 字段 / `box` 构造)。
+    /// 表达式是否求值为 Box 或 weak Box(变量槽标记 / 字段 / `box` 构造)。
     pub(super) fn is_box_expr(&self, expr: &Expr) -> bool {
         match expr {
             Expr::BoxAlloc(_) => true,
             Expr::Null => false,
             Expr::Ident(name) => self
                 .scope_lookup(name)
-                .map(|s| Self::is_box_slot(&s))
+                .map(|s| Self::is_box_slot(&s) || self.is_weak_var(name))
                 .unwrap_or(false),
             Expr::FieldAccess(fa) => self
                 .field_ast_type(&fa.base, &fa.field)
-                .map(|t| Self::is_box_ast(&t))
+                .map(|t| Self::is_box_or_weak_ast(&t))
                 .unwrap_or(false),
             Expr::Call(call) => {
                 if let Expr::Ident(name) = &*call.callee {
                     let key = self.qualify_name(name);
                     self.fn_return_ast
                         .get(&key)
-                        .map(Self::is_box_ast)
+                        .map(Self::is_box_or_weak_ast)
                         .unwrap_or(false)
                 } else {
                     false
@@ -89,22 +116,26 @@ impl<'ctx> CodeGen<'ctx> {
     pub(super) fn check_box_assignable(&self, value_expr: &Expr, expected: &Type) -> Result<()> {
         match value_expr {
             Expr::Null => {
-                if !Self::is_box_ast(expected) {
+                if !Self::is_box_or_weak_ast(expected) {
                     return Err(HuziError::new_global(format!(
-                        "null can only be assigned to a Box<T> slot (found '{}'); add a `: Box<...>` annotation or assign to a Box field/parameter",
+                        "null can only be assigned to a Box<T> or weak Box<T> slot (found '{}'); add a `: Box<...>` annotation or assign to a Box field/parameter",
                         expected
                     )));
                 }
                 Ok(())
             }
             Expr::BoxAlloc(inner) => {
-                if !Self::is_box_ast(expected) {
+                if !Self::is_box_or_weak_ast(expected) {
                     return Err(HuziError::new_global(format!(
                         "Cannot assign a Box value to non-Box type '{}'; use a `: Box<...>` slot",
                         expected
                     )));
                 }
-                self.check_box_nest_match(inner, expected)
+                let target_expected = match expected {
+                    Type::Weak(inner_box) => inner_box.as_ref(),
+                    _ => expected,
+                };
+                self.check_box_nest_match(inner, target_expected)
             }
             _ => Ok(()),
         }
@@ -184,8 +215,9 @@ impl<'ctx> CodeGen<'ctx> {
             self.context.ptr_type(inkwell::AddressSpace::default()).into()
         };
         let cell_bytes = self.elem_bytes_i32(cell_ty)?;
+        let sixteen = self.context.i32_type().const_int(16, false);
         let eight = self.context.i32_type().const_int(8, false);
-        let total_bytes = self.builder.build_int_add(cell_bytes, eight, "box_sz").unwrap();
+        let total_bytes = self.builder.build_int_add(cell_bytes, sixteen, "box_sz").unwrap();
         let malloc_fn = self.module.get_function("malloc").expect("malloc in prelude");
         let raw_ptr = self
             .builder
@@ -195,10 +227,19 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap_left()
             .into_pointer_value();
         let one_i64 = self.context.i64_type().const_int(1, false);
+        // raw_ptr + 0: weak_count = 1
         self.builder.build_store(raw_ptr, one_i64).unwrap();
+        // raw_ptr + 8: strong_count = 1
+        let strong_ptr = unsafe {
+            self.builder
+                .build_gep(self.context.i8_type(), raw_ptr, &[eight], "box_strong_init")
+                .unwrap()
+        };
+        self.builder.build_store(strong_ptr, one_i64).unwrap();
+        // raw_ptr + 16: user_ptr
         let user_ptr = unsafe {
             self.builder
-                .build_gep(self.context.i8_type(), raw_ptr, &[eight], "box_user")
+                .build_gep(self.context.i8_type(), raw_ptr, &[sixteen], "box_user")
                 .unwrap()
         };
         self.builder.build_store(user_ptr, val).unwrap();
@@ -240,6 +281,9 @@ impl<'ctx> CodeGen<'ctx> {
                 .into_pointer_value();
             ptr = loaded;
             load_ty = ptr_ty;
+        }
+        if self.is_weak_expr(expr) {
+            ptr = self.emit_load_weak(ptr)?;
         }
         Ok((ptr, nest.ultimate))
     }
@@ -334,16 +378,22 @@ impl<'ctx> CodeGen<'ctx> {
                 "Cannot infer the type of 'null'; add a `: Box<T>` annotation (e.g. `let x: Box<Node> = null`)",
             )
         })?;
-        if !Self::is_box_ast(ann) {
+        if !Self::is_box_or_weak_ast(ann) {
             return Err(HuziError::new_global(format!(
-                "null can only be assigned to a Box<T> slot (found '{}')",
+                "null can only be assigned to a Box<T> or weak Box<T> slot (found '{}')",
                 ann
             )));
         }
+        let is_weak = Self::is_weak_ast(ann);
         let ptr_ty = self.type_to_llvm(ann)?;
         let box_inner = self.box_nest_of_ast(ann)?;
         let alloca = self.build_box_alloca(ptr_ty, &stmt.name)?;
-        self.register_droppable(alloca, ptr_ty, super::drop::DropKind::Box);
+        let drop_kind = if is_weak {
+            super::drop::DropKind::WeakBox
+        } else {
+            super::drop::DropKind::Box
+        };
+        self.register_droppable(alloca, ptr_ty, drop_kind);
         self.builder.build_store(alloca, ptr_ty.const_zero()).unwrap();
         self.scope_insert(
             stmt.name.clone(),
@@ -357,6 +407,7 @@ impl<'ctx> CodeGen<'ctx> {
                 map_kind: None,
             },
         );
+        self.local_ast.insert(stmt.name.clone(), ann.clone());
         self.declare_local(&stmt.name, alloca, ptr_ty, span);
         Ok(())
     }

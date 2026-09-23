@@ -34,6 +34,7 @@ impl Lexer {
             "false" => Token::False,
             "import" => Token::Import,
             "export" => Token::Export,
+            "weak" => Token::Weak,
             _ => Token::Ident(ident),
         };
 

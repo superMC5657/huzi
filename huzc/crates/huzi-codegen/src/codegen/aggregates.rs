@@ -52,6 +52,12 @@ impl<'ctx> CodeGen<'ctx> {
             self.check_map_field_assignable(field_expr, &info.ast_ty)?;
             let value = self.compile_expr(field_expr)?;
             let value = self.coerce_value(info.ty, value)?;
+            if Self::is_weak_ast(&info.ast_ty)
+                && !matches!(field_expr, Expr::Null)
+                && value.is_pointer_value()
+            {
+                self.emit_retain_weak(value.into_pointer_value())?;
+            }
             let field_ptr = self
                 .builder
                 .build_struct_gep(struct_ty, tmp, index as u32, "field_ptr")

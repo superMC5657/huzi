@@ -1,0 +1,58 @@
+struct Node {
+    val: i32,
+    next: Box<Node>,
+    parent: weak Box<Node>,
+}
+
+fn test_basic_counts() {
+    let node: Box<Node> = box(Node { val: 10, next: null, parent: null })
+    print("init strong rc: ", ref_count(node))
+    print("init weak rc: ", weak_count(node))
+    let w1: weak Box<Node> = node
+    print("after w1 strong rc: ", ref_count(node))
+    print("after w1 weak rc: ", weak_count(node))
+    let w2: weak Box<Node> = w1
+    print("after w2 weak rc: ", weak_count(node))
+}
+
+fn test_cyclic_tree() {
+    let mut p: Box<Node> = box(Node { val: 1, next: null, parent: null })
+    let mut c: Box<Node> = box(Node { val: 2, next: null, parent: null })
+    p.next = c
+    c.parent = p
+    print("parent strong rc: ", ref_count(p))
+    print("parent weak rc: ", weak_count(p))
+    print("child val via parent: ", p.next.val)
+    print("parent val via child weak: ", c.parent.val)
+}
+
+fn test_auto_zero_scope() {
+    let mut weak_holder: weak Box<Node> = null
+    print("init weak_holder is null: ", weak_holder == null)
+    {
+        let inner: Box<Node> = box(Node { val: 99, next: null, parent: null })
+        weak_holder = inner
+        print("inner alive weak is null: ", weak_holder == null)
+        print("inner alive weak val: ", weak_holder.val)
+    }
+    print("after scope drop weak is null: ", weak_holder == null)
+}
+
+fn test_auto_zero_free() {
+    let mut b: Box<Node> = box(Node { val: 777, next: null, parent: null })
+    let w: weak Box<Node> = b
+    print("before free w is null: ", w == null)
+    print("before free w val: ", w.val)
+    free_box(b)
+    print("after free b is null: ", b == null)
+    print("after free w is null: ", w == null)
+}
+
+fn main() -> i32 {
+    test_basic_counts()
+    test_cyclic_tree()
+    test_auto_zero_scope()
+    test_auto_zero_free()
+    print("weak reference test complete")
+    return 0
+}

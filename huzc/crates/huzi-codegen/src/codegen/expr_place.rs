@@ -22,20 +22,33 @@ impl<'ctx> CodeGen<'ctx> {
             )));
         }
 
-        if Self::is_null_expr(&expr.value) && !Self::is_box_slot(&slot) {
+        let is_weak = self.is_weak_var(name);
+        let is_box = Self::is_box_slot(&slot);
+
+        if Self::is_null_expr(&expr.value) && !is_box && !is_weak {
             return Err(HuziError::new_global(format!(
-                "null can only be assigned to a Box<T> slot (variable '{}' is not a Box)",
+                "null can only be assigned to a Box<T> or weak Box<T> slot (variable '{}' is not a Box)",
                 name
             )));
         }
-        if matches!(&*expr.value, Expr::BoxAlloc(_)) && !Self::is_box_slot(&slot) {
+        if matches!(&*expr.value, Expr::BoxAlloc(_)) && !is_box && !is_weak {
             return Err(HuziError::new_global(format!(
                 "Cannot assign a Box value to non-Box variable '{}'",
                 name
             )));
         }
 
-        if Self::is_box_slot(&slot) {
+        if is_weak {
+            let old_ptr = self
+                .builder
+                .build_load(slot.ty, slot.ptr, "rc_old_weak")
+                .unwrap()
+                .into_pointer_value();
+            if !matches!(&*expr.value, Expr::Null) && value.is_pointer_value() {
+                self.emit_retain_weak(value.into_pointer_value())?;
+            }
+            self.emit_release_weak(old_ptr)?;
+        } else if is_box {
             let old_ptr = self
                 .builder
                 .build_load(slot.ty, slot.ptr, "rc_old")
@@ -61,12 +74,24 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         self.ensure_mutable(&expr.target)?;
         let mut is_box_field = false;
+        let mut is_weak_field = false;
         if let Some(expected) = self.field_ast_type(&fa.base, &fa.field) {
             self.check_box_assignable(&expr.value, &expected)?;
             is_box_field = Self::is_box_ast(&expected);
+            is_weak_field = Self::is_weak_ast(&expected);
         }
         let (field_ptr, field_ty) = self.compile_addr(&expr.target)?;
-        if is_box_field {
+        if is_weak_field {
+            let old_ptr = self
+                .builder
+                .build_load(field_ty, field_ptr, "rc_old_weak_field")
+                .unwrap()
+                .into_pointer_value();
+            if !matches!(&*expr.value, Expr::Null) && value.is_pointer_value() {
+                self.emit_retain_weak(value.into_pointer_value())?;
+            }
+            self.emit_release_weak(old_ptr)?;
+        } else if is_box_field {
             let old_ptr = self
                 .builder
                 .build_load(field_ty, field_ptr, "rc_old_field")
@@ -313,7 +338,7 @@ impl<'ctx> CodeGen<'ctx> {
                 let (_, fields) = self.struct_def_of_expr(&fa.base)?;
                 let info = fields.iter().find(|info| info.name == fa.field)?;
                 // Box(含嵌套)字段:最内层 pointee 才是下一层结构体。
-                if Self::is_box_ast(&info.ast_ty) {
+                if Self::is_box_or_weak_ast(&info.ast_ty) {
                     let nest = self.box_nest_of_ast(&info.ast_ty).ok()??;
                     return self.struct_def_by_type(nest.ultimate);
                 }
@@ -349,15 +374,18 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         expr: &FieldAccessExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let is_weak = self
+            .field_ast_type(&expr.base, &expr.field)
+            .map(|t| Self::is_weak_ast(&t))
+            .unwrap_or(false);
+
         // 基址是 Box 时先自动解引用,逐层生效(`head.next.val`)。
-        match self.compile_addr_deref(&expr.base) {
+        let loaded = match self.compile_addr_deref(&expr.base) {
             Ok((base_ptr, base_ty)) => {
                 let (field_ptr, field_ty) = self.gep_field(base_ptr, base_ty, &expr.field)?;
-                let loaded = self
-                    .builder
+                self.builder
                     .build_load(field_ty, field_ptr, "field")
-                    .unwrap();
-                Ok(loaded)
+                    .unwrap()
             }
             Err(base_err) => {
                 // 右值基座(调用结果等值位置):暂存临时槽再取字段,
@@ -374,12 +402,16 @@ impl<'ctx> CodeGen<'ctx> {
                 let tmp = self.build_alloca(sty.into(), "field_rvalue_tmp")?;
                 self.builder.build_store(tmp, sv).unwrap();
                 let (field_ptr, field_ty) = self.gep_field(tmp, sty.into(), &expr.field)?;
-                let loaded = self
-                    .builder
+                self.builder
                     .build_load(field_ty, field_ptr, "field")
-                    .unwrap();
-                Ok(loaded)
+                    .unwrap()
             }
+        };
+
+        if is_weak && loaded.is_pointer_value() {
+            let valid = self.emit_load_weak(loaded.into_pointer_value())?;
+            return Ok(valid.into());
         }
+        Ok(loaded)
     }
 }

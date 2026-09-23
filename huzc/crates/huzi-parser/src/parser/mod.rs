@@ -186,6 +186,20 @@ impl Parser {
         if self.check(&Token::Fn) {
             return self.parse_fn_type();
         }
+        if self.check(&Token::Weak) {
+            self.advance();
+            let inner = self.parse_type()?;
+            match &inner {
+                Type::Box(_) => return Ok(Type::Weak(Box::new(inner))),
+                _ => {
+                    return Err(HuziError::new(
+                        format!("'weak' modifier can only be applied to 'Box<T>' (found '{}')", inner),
+                        self.current_line(),
+                        self.current_col(),
+                    ));
+                }
+            }
+        }
         self.parse_named_or_generic_type()
     }
 

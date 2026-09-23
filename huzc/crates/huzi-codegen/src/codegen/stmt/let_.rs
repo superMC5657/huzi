@@ -175,7 +175,12 @@ impl<'ctx> CodeGen<'ctx> {
         var_type: inkwell::types::BasicTypeEnum<'ctx>,
         is_box: bool,
     ) -> Result<inkwell::values::PointerValue<'ctx>> {
-        let alloca = if is_box {
+        let is_weak = self.is_weak_var(&stmt.name);
+        let alloca = if is_weak {
+            let a = self.build_box_alloca(var_type, &stmt.name)?;
+            self.register_droppable(a, var_type, DropKind::WeakBox);
+            a
+        } else if is_box {
             let a = self.build_box_alloca(var_type, &stmt.name)?;
             self.register_droppable(a, var_type, DropKind::Box);
             a
@@ -184,7 +189,11 @@ impl<'ctx> CodeGen<'ctx> {
         };
         self.builder.build_store(alloca, value).unwrap();
 
-        if is_box
+        if is_weak {
+            if !matches!(value_expr, Expr::Null) && value.is_pointer_value() {
+                self.emit_retain_weak(value.into_pointer_value())?;
+            }
+        } else if is_box
             && !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
                 && value.is_pointer_value() {
                     self.emit_retain_box(value.into_pointer_value())?;
@@ -284,14 +293,29 @@ impl<'ctx> CodeGen<'ctx> {
             None
         };
 
-        let alloca = if box_inner.is_some() {
+        let is_weak = stmt
+            .type_annotation
+            .as_ref()
+            .map(Self::is_weak_ast)
+            .unwrap_or(false);
+        let drop_kind = if is_weak {
+            DropKind::WeakBox
+        } else {
+            DropKind::Box
+        };
+
+        let alloca = if box_inner.is_some() || is_weak {
             let a = self.build_box_alloca(ty, &stmt.name)?;
-            self.register_droppable(a, ty, DropKind::Box);
+            self.register_droppable(a, ty, drop_kind);
             a
         } else {
             self.build_alloca(ty, &stmt.name)?
         };
         self.builder.build_store(alloca, ty.const_zero()).unwrap();
+
+        if let Some(ann) = &stmt.type_annotation {
+            self.local_ast.insert(stmt.name.clone(), ann.clone());
+        }
 
         // 无初值声明的 map 种类由标注决定。
         let map_kind = stmt

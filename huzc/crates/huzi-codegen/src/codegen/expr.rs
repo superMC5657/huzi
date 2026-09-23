@@ -12,6 +12,10 @@ impl<'ctx> CodeGen<'ctx> {
                         .builder
                         .build_load(slot.ty, slot.ptr, "load")
                         .unwrap();
+                    if self.is_weak_var(name) && loaded.is_pointer_value() {
+                        let valid = self.emit_load_weak(loaded.into_pointer_value())?;
+                        return Ok(valid.into());
+                    }
                     Ok(loaded)
                 }
                 None => {
@@ -372,6 +376,7 @@ impl<'ctx> CodeGen<'ctx> {
             "free_vec" => Some(self.compile_free_vec(arguments)),
             "free_box" => Some(self.compile_free_box(arguments)),
             "ref_count" => Some(self.compile_ref_count(arguments)),
+            "weak_count" => Some(self.compile_weak_count(arguments)),
             "tcp_connect" => Some(self.compile_tcp_connect(arguments)),
             "tcp_send" => Some(self.compile_tcp_send(arguments)),
             "tcp_recv" => Some(self.compile_tcp_recv(arguments)),

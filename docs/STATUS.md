@@ -1,13 +1,14 @@
 # Huzi 项目完成状态（STATUS）
 
 > 只回答“做完什么、没做什么”。实现细节见 `USAGE.md`（用户手册）与 `dev/开发文档.md`（技术架构）。
-> 更新日期：2026-09-23，分支 `master`。
+> 更新日期：2026-09-24，分支 `master`。
 
 ## 1. 总体结论
 
 * 核心语言 + 编译器后端 + 工具链已闭环，可构建、可发版。
 * 路线图 7 项已全部完成：`defer` / `fmt` / `RC` / `泛型` / `Trait` / `包管理` / `网络并发`（明细见 git 历史中的 `TODO.md`）。
 * `Roadmap Q0 / Q1 / Q2` 全部达成：CI 全量门禁、性能基准门禁、边界负例补齐、泛型实参自动推导、循环引用打破示例、vec/map 参数与字段支持、生态目录去误导与手册拆分。
+* 内存管理终极演进：落地 Swift 风格自动置零弱引用（`weak Box<T>`），双计数 16 字节头部布局，强引用析构后弱引用自动置零（Auto-Zeroing），根本性杜绝循环引用泄漏。
 * CI 状态：GitHub Actions workflow 已移除，项目后续**不做 CI**；质量门禁以本地门禁为准：cwd=`huzc` 执行 `bash test.sh`（回归）与 `test/bench_compare.py`（性能基准），或 cwd=仓库根执行 `bash check.sh` / `bash huzc/test.sh`（路径前加 `huzc/` 前缀）。
 
 ## 2. 已完成清单
@@ -16,6 +17,7 @@
 
 - [x] 基本类型：`i32/i64/f32/f64/bool/char/str`
 - [x] 复合类型：数组 `[T;N]`、元组、结构体、枚举（含 payload）、`vec<T>`、`Map`/`Map<str, str>`/`Map<i32, i32>`（支持作为函数形参与结构体字段）、`Box<T>`（含嵌套 `Box<Box<T>>`；`T` 可为结构体或 `i32/i64/f64/bool/str` 标量，标量经前缀 `*b` 解引用读写）
+- [x] 自动置零弱引用（Swift 风格 `weak Box<T>`）：双计数 16 字节头部布局（`[-16..-8]` 弱引用计数，`[-8..0]` 强引用计数）；支持 `weak field: Box<T>` 字段与 `let mut w: weak Box<T>` 局部变量；强引用析构后弱引用读取时自动置零（Auto-Zeroing 返回 `null`）；两阶段物理销毁（强引用清零释放隐式弱计数，弱引用清零释放底层 16 字节外壳）；从根本上打破父子节点、双向链表与树形结构循环引用，100% 自动确定性回收且零性能倒退（用例 `74_weak_reference`）
 - [x] 控制流：`if/elif/else`、`for ..` / `for in`、`while`、`break/continue`、`match`（穷尽检查、守卫支持）、`defer`（防止嵌套 return/defer）
 - [x] 模块：`import` 相对路径、去重、循环拦截、`mod::fn()` 调用
 - [x] 泛型系统：泛型函数 + 泛型结构体 + 泛型枚举（支持调用点实参自动推导、变体显式标注与模式匹配解构）
@@ -42,8 +44,8 @@
 - [x] 子进程与管道：内置原语 `process_run(cmd) -> (i32, str)` 与标准库 `std.process`（`Command` builder 模式、`Output` 解析，用例 `72_process_run`，标准库自测 `process_test`）
 - [x] 跨平台路径处理：自举标准库 `std.path`（`is_sep`, `is_abs`, `path_join`, `base`, `dir`, `ext`, `stem`, `normalize`，全面兼容 Windows 与 POSIX 风格路径，标准库自测 `path_test`）
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
-- [x] 自动内存管理 (RAII Drop)：`vec<T>` 与 `Box<T>` 出作用域、循环迭代、函数返回或 `?` 报错短路时确定性全自动释放堆内存，底层统一 8 字节 RC 头部布局零 GC 停顿；兼容显式 `free_vec/free_box`（正例 `73_auto_drop_vec`）
-- [x] 内存原语：`free_str/free_vec/free_box/ref_count`（浅释放语义、二次 `free` 为 no-op；`ref_count` 快照做环泄漏报告，未打破经 `panic` 运行时告警，正例 `40_rc` 环 2-2 → 打破 2-1，负例 `rc_cycle_leak`；类型不匹配编译期拒绝，负例 `free_str_non_str`）
+- [x] 自动内存管理与双计数弱引用 (RAII Drop + Swift-style Weak)：`vec<T>` 与 `Box<T>` 出作用域、循环迭代、函数返回或 `?` 报错短路时确定性全自动释放堆内存，底层统一 16 字节双计数头部布局零 GC 停顿；内置 `weak_count(b)` 查询弱引用计数；兼容显式 `free_vec/free_box`（正例 `73_auto_drop_vec`, `74_weak_reference`）
+- [x] 内存原语：`free_str/free_vec/free_box/ref_count/weak_count`（浅释放语义、二次 `free` 为 no-op；`ref_count`/`weak_count` 快照做引用计数诊断；负例 `rc_cycle_leak`；类型不匹配编译期拒绝，负例 `free_str_non_str`）
 - [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len/map_keys`
 - [x] TCP：`tcp_connect/send/recv/close/listen/accept`（实参个数/类型不匹配编译期拒绝，负例 `tcp_send_arity`）
 - [x] 线程：`spawn/join`（句柄类型不匹配编译期拒绝，负例 `join_bad_type`）
@@ -75,7 +77,7 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 原生测试套件：`huzc test` 一键全绿覆盖 151 个用例与负例，支持名称过滤与子集执行
+- [x] 原生测试套件：`huzc test` 一键全绿覆盖 152 个用例与负例，支持名称过滤与子集执行
 - [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；全量示例与负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/4] 抽查
 - [x] 构建产物：Release 产物三平台自动化归档上传
@@ -83,7 +85,7 @@
 
 ## 3. 明确不做（非缺失，是取舍）
 
-* 无精确 GC（不做 tracing 收集器）：采用确定性作用域析构（RAII Drop）与引用计数统一模型；`vec` 与 `Box` 出作用域自动确定性释放堆内存，别名赋值自动 retain 引用计数，零 GC 暂停开销；RC 循环引用需手动打破（`ref_count` 快照诊断 + `panic` 告警，正例 `40_rc`，负例 `rc_cycle_leak`）
+* 无精确 GC（不做 tracing 收集器）：采用确定性作用域析构（RAII Drop）与双计数引用计数（Swift 风格强弱引用）统一模型；`vec` 与 `Box` 出作用域自动确定性释放堆内存，别名赋值自动 retain 引用计数，零 GC 暂停开销；循环引用通过 `weak Box<T>` 弱引用彻底消除，访问失效对象自动置零（Auto-Zeroing），无需手动打破（用例 `74_weak_reference`）
 * 泛型无 `where` 约束、无特化
 * 包管理无中心仓库、无下载校验和、无 semver 自动升级（求解只选最高满足版，不改写清单）
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`

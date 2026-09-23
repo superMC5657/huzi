@@ -311,3 +311,13 @@ fn compound_assignment_parses() {
         assert_eq!(a.operator, *expected_op);
     }
 }
+
+#[test]
+fn weak_box_type_parses() {
+    let program = parse("struct Node { next: Box<Node>, weak parent: Box<Node>, child: weak Box<Node> }");
+    let Stmt::Struct(s) = &program.statements[0].node else { panic!("expected struct"); };
+    assert_eq!(s.fields.len(), 3);
+    assert_eq!(s.fields[0].field_type, Type::Box(Box::new(Type::Named("Node".to_string()))));
+    assert_eq!(s.fields[1].field_type, Type::Weak(Box::new(Type::Box(Box::new(Type::Named("Node".to_string()))))));
+    assert_eq!(s.fields[2].field_type, Type::Weak(Box::new(Type::Box(Box::new(Type::Named("Node".to_string()))))));
+}

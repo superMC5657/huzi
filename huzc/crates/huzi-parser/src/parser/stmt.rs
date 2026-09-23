@@ -156,10 +156,31 @@ impl Parser {
 
         let mut fields = Vec::new();
         while !self.check(&Token::RBrace) && !self.is_at_end() {
+            let is_weak_prefix = if self.check(&Token::Weak) {
+                self.advance();
+                true
+            } else {
+                false
+            };
             let field_name = self.expect_ident("Expected field name")?;
 
             self.expect(&Token::Colon, "Expected ':' after field name")?;
-            let field_type = self.parse_type()?;
+            let mut field_type = self.parse_type()?;
+            if is_weak_prefix {
+                match field_type {
+                    Type::Box(_) => field_type = Type::Weak(Box::new(field_type)),
+                    _ => {
+                        return Err(HuziError::new(
+                            format!(
+                                "'weak' modifier can only be applied to 'Box<T>' (found '{}')",
+                                field_type
+                            ),
+                            self.current_line(),
+                            self.current_col(),
+                        ));
+                    }
+                }
+            }
 
             fields.push(StructField {
                 name: field_name,

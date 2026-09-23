@@ -79,8 +79,17 @@ impl<'ctx> CodeGen<'ctx> {
             let arg_type = arg.get_type();
             let box_inner = self.box_nest_of_ast(&param.param_type)?;
 
+            let is_weak = Self::is_weak_ast(&param.param_type);
             let (alloca, slot_ty) = if Self::is_container_handle_type(&param.param_type) {
                 (arg.into_pointer_value(), self.vec_struct_type().into())
+            } else if is_weak {
+                let a = self.build_box_alloca(arg_type, &param.name)?;
+                self.register_droppable(a, arg_type, super::drop::DropKind::WeakBox);
+                if arg.is_pointer_value() {
+                    self.emit_retain_weak(arg.into_pointer_value())?;
+                }
+                self.builder.build_store(a, arg).unwrap();
+                (a, arg_type)
             } else if box_inner.is_some() {
                 let a = self.build_box_alloca(arg_type, &param.name)?;
                 self.register_droppable(a, arg_type, super::drop::DropKind::Box);
@@ -216,8 +225,9 @@ impl<'ctx> CodeGen<'ctx> {
                 for (i, elem_expr) in elements.iter().enumerate() {
                     let ast_ty = elem_types.get(i);
                     let is_box = ast_ty.map(Self::is_box_ast).unwrap_or(false);
+                    let is_weak = ast_ty.map(Self::is_weak_ast).unwrap_or(false);
                     let is_vec = ast_ty.map(Self::is_vec_ast).unwrap_or(false);
-                    if !is_box && !is_vec {
+                    if !is_box && !is_weak && !is_vec {
                         continue;
                     }
                     if let Expr::Ident(name) = elem_expr {
@@ -239,7 +249,9 @@ impl<'ctx> CodeGen<'ctx> {
                             .builder
                             .build_extract_value(value.into_struct_value(), i as u32, "tup_elem")
                             .unwrap();
-                        if is_box && fld.is_pointer_value() {
+                        if is_weak && fld.is_pointer_value() {
+                            self.emit_retain_weak(fld.into_pointer_value())?;
+                        } else if is_box && fld.is_pointer_value() {
                             self.emit_retain_box(fld.into_pointer_value())?;
                         } else if is_vec && fld.is_struct_value() {
                             let data = self
@@ -254,8 +266,13 @@ impl<'ctx> CodeGen<'ctx> {
             }
             _ => {
                 let is_ret_box = ret_ast.as_ref().map(Self::is_box_ast).unwrap_or(false);
+                let is_ret_weak = ret_ast.as_ref().map(Self::is_weak_ast).unwrap_or(false);
                 let is_ret_vec = ret_ast.as_ref().map(Self::is_vec_ast).unwrap_or(false);
-                if is_ret_box {
+                if is_ret_weak {
+                    if !matches!(value_expr, Expr::Null) && value.is_pointer_value() {
+                        self.emit_retain_weak(value.into_pointer_value())?;
+                    }
+                } else if is_ret_box {
                     if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
                         && value.is_pointer_value()
                     {

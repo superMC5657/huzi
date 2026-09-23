@@ -1,0 +1,18 @@
+init strong rc: 1
+init weak rc: 1
+after w1 strong rc: 1
+after w1 weak rc: 2
+after w2 weak rc: 3
+parent strong rc: 1
+parent weak rc: 2
+child val via parent: 2
+parent val via child weak: 1
+init weak_holder is null: true
+inner alive weak is null: false
+inner alive weak val: 99
+after scope drop weak is null: true
+before free w is null: false
+before free w val: 777
+after free b is null: true
+after free w is null: true
+weak reference test complete

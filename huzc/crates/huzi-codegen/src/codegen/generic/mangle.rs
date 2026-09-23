@@ -15,6 +15,7 @@ pub fn mangle_type(ty: &Type) -> String {
         Type::Unit => "unit".to_string(),
         Type::Named(s) | Type::Generic(s) => s.clone(),
         Type::Box(inner) => format!("Box__{}", mangle_type(inner)),
+        Type::Weak(inner) => format!("Weak__{}", mangle_type(inner)),
         Type::Applied(name, args) => {
             let mangled_args: Vec<_> = args.iter().map(mangle_type).collect();
             format!("{}__{}", name, mangled_args.join("_"))

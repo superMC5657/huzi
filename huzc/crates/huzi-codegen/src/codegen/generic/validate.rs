@@ -133,7 +133,7 @@ impl Monomorphizer {
                     return Err(HuziError::new_global(msg));
                 }
             }
-            Type::Box(inner) => self.validate_type_params(inner, in_scope, def_name)?,
+            Type::Box(inner) | Type::Weak(inner) => self.validate_type_params(inner, in_scope, def_name)?,
             Type::Applied(_, args) => {
                 for arg in args {
                     self.validate_type_params(arg, in_scope, def_name)?;
@@ -168,7 +168,7 @@ impl Monomorphizer {
                     return Err(self.diag(msg));
                 }
             }
-            Type::Box(inner) => self.validate_type_arg(inner)?,
+            Type::Box(inner) | Type::Weak(inner) => self.validate_type_arg(inner)?,
             Type::Applied(_, args) => {
                 for a in args {
                     self.validate_type_arg(a)?;

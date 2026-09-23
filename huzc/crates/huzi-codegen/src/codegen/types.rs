@@ -278,10 +278,14 @@ impl<'ctx> CodeGen<'ctx> {
                 if self.is_box_pointee(inner_ty) || Self::is_box_scalar(inner, inner_ty) {
                     return Ok(self.context.ptr_type(AddressSpace::default()).into());
                 }
-                return Err(HuziError::new_global(format!(
+                Err(HuziError::new_global(format!(
                     "Box<T> requires a named struct or scalar type (i32/i64/f64/bool/str) (found '{}')",
                     inner
-                )));
+                )))
+            }
+            Type::Weak(inner) => {
+                self.type_to_llvm(inner)?;
+                Ok(self.context.ptr_type(AddressSpace::default()).into())
             }
             // 元组是字面量结构体：LLVM 按结构比对它们，因此两个 `(i32, str)` 元组类型始终相等。
             Type::Tuple(elems) => {

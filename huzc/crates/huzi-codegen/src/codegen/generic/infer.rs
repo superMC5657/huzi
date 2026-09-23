@@ -190,7 +190,7 @@ impl TypeInferrer {
 
     fn infer_builtin_name_type(&self, name: &str) -> Option<Type> {
         match name {
-            "len" | "abs" | "read_int" | "rand" | "arg_count" | "map_len" | "ref_count" => {
+            "len" | "abs" | "read_int" | "rand" | "arg_count" | "map_len" | "ref_count" | "weak_count" => {
                 Some(Type::Named("i32".to_string()))
             }
             "time" => Some(Type::Named("i64".to_string())),
@@ -384,6 +384,11 @@ impl TypeInferrer {
             }
             Type::Box(inner_p) => {
                 if let Type::Box(inner_a) = arg_ty {
+                    self.unify_type(inner_p, inner_a, type_params, inferred)?;
+                }
+            }
+            Type::Weak(inner_p) => {
+                if let Type::Weak(inner_a) = arg_ty {
                     self.unify_type(inner_p, inner_a, type_params, inferred)?;
                 }
             }

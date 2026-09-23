@@ -20,6 +20,8 @@ pub enum Type {
     /// `Box<Box<T>>`(每层仍是指针,最内层为结构体或基础类型);
     /// `vec` 字段类型不受支持。
     Box(Box<Type>),
+    /// 自动置零弱引用：`weak Box<Node>`，不增加强引用计数，读取失效时求值为 null。
+    Weak(Box<Type>),
     Generic(String),
     Applied(String, Vec<Type>),
     /// 一等函数类型: `fn(T1, T2) -> Ret`
@@ -52,6 +54,7 @@ impl fmt::Display for Type {
                 write!(f, ")")
             }
             Type::Box(inner) => write!(f, "Box<{}>", inner),
+            Type::Weak(inner) => write!(f, "weak {}", inner),
             Type::Generic(name) => write!(f, "{}", name),
             Type::Applied(name, args) => {
                 write!(f, "{}<", name)?;
@@ -83,6 +86,7 @@ impl Type {
         match self {
             Type::Named(name) if name == "Self" => Type::Named(target.to_string()),
             Type::Box(inner) => Type::Box(Box::new(inner.substitute_self(target))),
+            Type::Weak(inner) => Type::Weak(Box::new(inner.substitute_self(target))),
             Type::Array(elem, len) => Type::Array(Box::new(elem.substitute_self(target)), *len),
             Type::Tuple(elems) => {
                 Type::Tuple(elems.iter().map(|e| e.substitute_self(target)).collect())

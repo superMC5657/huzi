@@ -68,6 +68,7 @@ impl<'ctx> CodeGen<'ctx> {
     /// 最内层须为已注册结构体或标量,否则报精确的 `Box<T>` 类型错误。
     pub(super) fn box_nest_of_ast(&self, ty: &Type) -> Result<Option<BoxNest<'ctx>>> {
         match ty {
+            Type::Weak(inner) => self.box_nest_of_ast(inner),
             Type::Box(_) => {
                 let mut depth = 0u32;
                 let mut cur = ty;

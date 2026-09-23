@@ -103,7 +103,7 @@ impl Monomorphizer {
                 };
                 *ty = Type::Named(mangled);
             }
-            Type::Box(inner) => self.monomorphize_type(inner)?,
+            Type::Box(inner) | Type::Weak(inner) => self.monomorphize_type(inner)?,
             Type::Array(elem, _) => self.monomorphize_type(elem)?,
             Type::Tuple(elems) => {
                 for elem in elems {

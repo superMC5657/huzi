@@ -14,6 +14,7 @@ use inkwell::values::PointerValue;
 pub(crate) enum DropKind {
     Box,
     Vec,
+    WeakBox,
 }
 
 /// 登记在作用域中的可析构槽位。
@@ -42,7 +43,25 @@ impl<'ctx> CodeGen<'ctx> {
         match slot.kind {
             DropKind::Box => self.emit_drop_box(slot.ptr, slot.ty),
             DropKind::Vec => self.emit_drop_vec(slot.ptr, slot.ty),
+            DropKind::WeakBox => self.emit_drop_weak_box(slot.ptr, slot.ty),
         }
+    }
+
+    /// 释放 WeakBox 槽位并将其置为 null。
+    pub(super) fn emit_drop_weak_box(
+        &mut self,
+        slot_ptr: PointerValue<'ctx>,
+        slot_ty: BasicTypeEnum<'ctx>,
+    ) -> Result<()> {
+        let cur = self
+            .builder
+            .build_load(slot_ty, slot_ptr, "drop_weak_cur")
+            .unwrap()
+            .into_pointer_value();
+        self.emit_release_weak(cur)?;
+        let null_ptr = slot_ty.into_pointer_type().const_null();
+        self.builder.build_store(slot_ptr, null_ptr).unwrap();
+        Ok(())
     }
 
     /// 释放 Box 槽位并将其置为 null。
@@ -119,7 +138,7 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// 重新分配 vec 堆底层缓冲，维护 8 字节 RC 头部。
+    /// 重新分配 vec 堆底层缓冲，维护 16 字节双计数 RC 头部。
     pub(super) fn realloc_vec_buffer(
         &mut self,
         data: PointerValue<'ctx>,
@@ -127,11 +146,12 @@ impl<'ctx> CodeGen<'ctx> {
         new_bytes: inkwell::values::IntValue<'ctx>,
     ) -> PointerValue<'ctx> {
         let i32_type = self.context.i32_type();
-        let minus_eight = i32_type.const_int((-8i64) as u64, true);
+        let minus_sixteen = i32_type.const_int((-16i64) as u64, true);
+        let sixteen = i32_type.const_int(16, false);
         let eight = i32_type.const_int(8, false);
         let raw_from_data = unsafe {
             self.builder
-                .build_gep(self.context.i8_type(), data, &[minus_eight], "vec_raw_old")
+                .build_gep(self.context.i8_type(), data, &[minus_sixteen], "vec_raw_old")
                 .unwrap()
         };
         let null_raw = self
@@ -145,7 +165,7 @@ impl<'ctx> CodeGen<'ctx> {
             .into_pointer_value();
         let alloc_bytes = self
             .builder
-            .build_int_add(new_bytes, eight, "vec_realloc_sz")
+            .build_int_add(new_bytes, sixteen, "vec_realloc_sz")
             .unwrap();
         let realloc_fn = self.module.get_function("realloc").expect("realloc in prelude");
         let new_raw = self
@@ -165,18 +185,26 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.builder.position_at_end(init_rc_bb);
         let one_i64 = self.context.i64_type().const_int(1, false);
+        // new_raw + 0: weak_count = 1
         self.builder.build_store(new_raw, one_i64).unwrap();
+        // new_raw + 8: strong_count = 1
+        let strong_ptr = unsafe {
+            self.builder
+                .build_gep(self.context.i8_type(), new_raw, &[eight], "vec_strong_init")
+                .unwrap()
+        };
+        self.builder.build_store(strong_ptr, one_i64).unwrap();
         self.builder.build_unconditional_branch(cont_bb).unwrap();
 
         self.builder.position_at_end(cont_bb);
         unsafe {
             self.builder
-                .build_gep(self.context.i8_type(), new_raw, &[eight], "vec_new_user")
+                .build_gep(self.context.i8_type(), new_raw, &[sixteen], "vec_new_user")
                 .unwrap()
         }
     }
 
-    /// 为新 vec 分配堆底层缓冲并初始化 8 字节 RC 头部为 1，返回指向用户数据的首指针。
+    /// 为新 vec 分配堆底层缓冲并初始化 16 字节头部为 weak_count=1, strong_count=1，返回指向用户数据的首指针。
     pub(super) fn alloc_vec_buffer(
         &mut self,
         elem_type: inkwell::types::BasicTypeEnum<'ctx>,
@@ -186,8 +214,9 @@ impl<'ctx> CodeGen<'ctx> {
         let i32_type = self.context.i32_type();
         let elem_bytes = self.elem_bytes_i32(elem_type)?;
         let total_bytes = self.builder.build_int_mul(elem_bytes, capacity, "vb_bytes").unwrap();
+        let sixteen = i32_type.const_int(16, false);
         let eight = i32_type.const_int(8, false);
-        let alloc_bytes = self.builder.build_int_add(total_bytes, eight, "vb_alloc_sz").unwrap();
+        let alloc_bytes = self.builder.build_int_add(total_bytes, sixteen, "vb_alloc_sz").unwrap();
         let malloc_fn = self.module.get_function("malloc").expect("malloc in prelude");
         let raw_ptr = self
             .builder
@@ -197,10 +226,18 @@ impl<'ctx> CodeGen<'ctx> {
             .unwrap_left()
             .into_pointer_value();
         let one_i64 = self.context.i64_type().const_int(1, false);
+        // raw_ptr + 0: weak_count = 1
         self.builder.build_store(raw_ptr, one_i64).unwrap();
+        // raw_ptr + 8: strong_count = 1
+        let strong_ptr = unsafe {
+            self.builder
+                .build_gep(self.context.i8_type(), raw_ptr, &[eight], "vb_strong_init")
+                .unwrap()
+        };
+        self.builder.build_store(strong_ptr, one_i64).unwrap();
         let data = unsafe {
             self.builder
-                .build_gep(self.context.i8_type(), raw_ptr, &[eight], name)
+                .build_gep(self.context.i8_type(), raw_ptr, &[sixteen], name)
                 .unwrap()
         };
         Ok(data)

@@ -25,6 +25,7 @@ pub enum Token {
     Impl,
     True,
     False,
+    Weak,
 
     // Literals
     Ident(String),

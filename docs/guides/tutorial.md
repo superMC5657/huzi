@@ -234,6 +234,36 @@ fn test_cycle() {
 二次 `free` 为 no-op；`defer` 按 LIFO 在函数退出前执行，保证打破后的释放兜底。
 完整可运行示例见 `test/cases/40_rc.hz`（环 2-2 → 打破 2-1）。
 
+### 5.1 弱引用打破循环（Swift 风格 `weak Box<T>`）
+
+为了彻底优雅地解决循环引用，Huzi 原生支持自动置零弱引用 `weak Box<T>`：
+- **不增加强引用计数**：弱引用指向对象，但不阻止其被正常析构。
+- **自动置零 (Auto-Zeroing)**：当强引用对象被释放后，任何指向它的弱引用在读取时自动变为 `null`，绝不产生野指针或悬垂引用。
+
+```huzi
+struct Node {
+    val: i32,
+    next: Box<Node>,
+    parent: weak Box<Node>, # 弱引用不形成强引用闭环
+}
+
+fn main() -> i32 {
+    let mut root: Box<Node> = box(Node { val: 1, next: null, parent: null })
+    let mut child: Box<Node> = box(Node { val: 2, next: null, parent: null })
+    root.next = child
+    child.parent = root # 形成父子双向关联，但 parent 为 weak
+
+    print("root strong rc: ", ref_count(root)) # 1
+    print("root weak rc: ", weak_count(root))   # 2 (含强引用集合的 1 个隐式弱计数)
+    print("child's parent val: ", child.parent.val) # 1
+
+    # 函数退出时，root 与 child 确定性 100% 自动释放，无需手动打破环路！
+    return 0
+}
+```
+
+完整可运行示例见 `test/cases/74_weak_reference.hz`。
+
 ---
 
 ## 6. 泛型与实参推导

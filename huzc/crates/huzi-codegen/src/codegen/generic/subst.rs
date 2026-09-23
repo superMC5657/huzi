@@ -12,6 +12,7 @@ pub fn substitute_type(ty: &Type, mapping: &HashMap<String, Type>) -> Type {
             }
         }
         Type::Box(inner) => Type::Box(Box::new(substitute_type(inner, mapping))),
+        Type::Weak(inner) => Type::Weak(Box::new(substitute_type(inner, mapping))),
         Type::Applied(name, args) => Type::Applied(
             name.clone(),
             args.iter().map(|a| substitute_type(a, mapping)).collect(),

@@ -50,6 +50,7 @@ mod match_expr;
 mod drop;
 mod mem_free;
 mod runtime;
+mod rc;
 mod stmt;
 mod stmt_branch;
 mod stmt_for;
