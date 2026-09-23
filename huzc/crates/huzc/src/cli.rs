@@ -45,6 +45,8 @@ pub enum Command {
     Add(AddArgs),
     /// 获取并本地缓存依赖包
     Fetch(FetchArgs),
+    /// 运行 Huzi 测试套件
+    Test(TestArgs),
 }
 
 #[derive(clap::Args, Clone, Debug)]
@@ -118,6 +120,25 @@ pub struct FetchArgs {
     /// 包含 huzi.toml 的项目目录
     #[arg(short, long, default_value = ".")]
     pub path: String,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct TestArgs {
+    /// 测试文件或目录路径（默认自动探测 test/cases）
+    #[arg(default_value = ".")]
+    pub path: String,
+
+    /// 过滤测试用例名称（子串匹配）
+    #[arg(short, long)]
+    pub filter: Option<String>,
+
+    /// 使用的链接器
+    #[arg(short, long, value_enum, default_value_t = LinkerKind::platform_default())]
+    pub linker: LinkerKind,
+
+    /// 发布模式运行测试
+    #[arg(short = 'r', long)]
+    pub release: bool,
 }
 
 /// Huzi 编程语言编译器

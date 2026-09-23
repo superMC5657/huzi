@@ -8,6 +8,7 @@
 pub mod cli;
 pub mod fmt;
 pub mod pkg;
+pub mod test_runner;
 mod modules;
 
 pub use fmt::{collect_comments, format_program, format_source, CommentInfo};

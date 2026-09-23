@@ -50,7 +50,26 @@ huzc run --path examples/task_engine -- --verbose
 huzc run -r test/cases/01_variables_ops.hz
 ```
 
-### 3.4 独立运行可执行程序
+### 3.4 原生测试运行器 (huzc test)
+
+Huzc 内置原生跨平台测试运行器，无需依赖 bash、timeout 或 diff，支持自动收集用例、预期输出比对、负例校验（`*.compile_fail.hz` 与 `*.runtime_fail.hz`）以及名称过滤：
+
+```bash
+# 运行指定测试目录（cwd=huzc；仓库根请用 huzc test huzc/test/cases 或 huzc test huzi-src/test/cases）
+huzc test test/cases
+huzc test ../huzi-src/test/cases
+
+# 运行单个测试用例
+huzc test test/cases/01_variables_ops.hz
+
+# 过滤指定名称测试（支持子串匹配）
+huzc test test/cases --filter compound
+
+# 发布模式运行测试
+huzc test test/cases -r
+```
+
+### 3.5 独立运行可执行程序
 
 ```bash
 # Windows（cwd=huzc；仓库根请用 huzc/test/out/01_variables_ops.exe）

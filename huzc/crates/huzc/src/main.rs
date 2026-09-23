@@ -58,6 +58,13 @@ fn main() {
                 huzc::pkg::run_fetch(&fetch_args);
                 return;
             }
+            cli::Command::Test(test_args) => {
+                let ok = huzc::test_runner::run_tests(&test_args);
+                if !ok {
+                    std::process::exit(1);
+                }
+                return;
+            }
         }
     }
 
