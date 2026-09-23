@@ -51,7 +51,9 @@
 - [x] 右值字段访问：`f(...).0`、`g(...).field` 对调用结果直接取元组/结构体字段
 - [x] `str_from_bytes(vec<i32>) -> str`：字节向量构造字符串（自举标准库 UTF-8 编码的底层支撑）
 - [x] let 元组字段元素类型推断：`let kinds = r.1`（元组右值字段取 vec）后可直接索引/遍历
-- [x] 自举里程碑：`examples/hzlex`（工作区根目录 `examples/`，与编译器仓库同级）用 Huzi 重写词法器，selftest 断言全过，并对 90 个文件（全部测试示例 + 标准库源码与自测）词法分析零失败
+- [x] 自举一期里程碑：`examples/hzlex` 用 Huzi 重写词法器，selftest 断言全过，全语料词法分析零失败
+- [x] 自举二期里程碑：`examples/hzparse` 用 Huzi 重写递归下降解析器与语法分析器，120 个源码文件全语料解析通过率 100%
+- [x] 自举三期里程碑：`examples/hzast` 纯 Huzi 抽象语法树（AST）与 Tree-Walking 解释求值器原型，闭环自测覆盖算术表达式树、变量环境绑定与修改、条件分支、While 循环累加、递归函数调用（阶乘/斐波那契）及字符串操作
 - [x] 字符级 UTF-8 API（自举标准库 `alloc::stringx`）：`char_len/chars/char_at/char_sub`，中英文混排按"字"计数、遍历与截取（示例 `57_unicode_string`）
 
 ### 编译器与工具链

@@ -130,5 +130,8 @@ fn corpus_files(root: str) -> vec<str> {
     push(out, with_root(root, "examples/hzlex/src/main.hz"))
     push(out, with_root(root, "examples/task_engine/src/main.hz"))
     push(out, with_root(root, "examples/task_engine/src/models.hz"))
+    push(out, with_root(root, "examples/hzast/src/ast.hz"))
+    push(out, with_root(root, "examples/hzast/src/eval.hz"))
+    push(out, with_root(root, "examples/hzast/src/main.hz"))
     return out
 }

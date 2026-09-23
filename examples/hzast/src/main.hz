@@ -1,0 +1,130 @@
+import ast
+import eval
+import core.assert
+
+fn test_arithmetic() -> i32 {
+    // (3 + 4) * 5 - 10 = 25
+    let add_e = ast::expr_bin("+", ast::expr_num(3), ast::expr_num(4))
+    let mul_e = ast::expr_bin("*", add_e, ast::expr_num(5))
+    let sub_e = ast::expr_bin("-", mul_e, ast::expr_num(10))
+    let env = eval::env_new
+    let fns = vec<FnDef>()
+    let v = eval::eval_expr(sub_e, env, fns)
+    assert::assert_eq_i32(ast::val_to_int(v), 25)
+    return 0
+}
+
+fn test_variables_and_assign() -> i32 {
+    // let x = 10; x = x + 20; return x * 2; => 60
+    let mut stmts = vec<Stmt>()
+    push(stmts, ast::stmt_let("x", ast::expr_num(10)))
+    let add_e = ast::expr_bin("+", ast::expr_var("x"), ast::expr_num(20))
+    push(stmts, ast::stmt_assign("x", add_e))
+    let mul_e = ast::expr_bin("*", ast::expr_var("x"), ast::expr_num(2))
+    push(stmts, ast::stmt_return(mul_e))
+    let env = eval::env_new
+    let fns = vec<FnDef>()
+    let res = eval::eval_block(stmts, env, fns)
+    assert::assert_true(res.0)
+    assert::assert_eq_i32(ast::val_to_int(res.1), 60)
+    return 0
+}
+
+fn test_conditional_if() -> i32 {
+    // let a = 15; let r = 0; if a > 10 { r = 100 } else { r = 200 }; return r; => 100
+    let mut stmts = vec<Stmt>()
+    push(stmts, ast::stmt_let("a", ast::expr_num(15)))
+    push(stmts, ast::stmt_let("r", ast::expr_num(0)))
+    let cond = ast::expr_bin(">", ast::expr_var("a"), ast::expr_num(10))
+    let mut then_b = vec<Stmt>()
+    push(then_b, ast::stmt_assign("r", ast::expr_num(100)))
+    let mut else_b = vec<Stmt>()
+    push(else_b, ast::stmt_assign("r", ast::expr_num(200)))
+    push(stmts, ast::stmt_if(cond, then_b, else_b))
+    push(stmts, ast::stmt_return(ast::expr_var("r")))
+    let env = eval::env_new
+    let fns = vec<FnDef>()
+    let res = eval::eval_block(stmts, env, fns)
+    assert::assert_true(res.0)
+    assert::assert_eq_i32(ast::val_to_int(res.1), 100)
+    return 0
+}
+
+fn test_while_loop() -> i32 {
+    // let sum = 0; let i = 1; while i <= 10 { sum = sum + i; i = i + 1 }; return sum; => 55
+    let mut stmts = vec<Stmt>()
+    push(stmts, ast::stmt_let("sum", ast::expr_num(0)))
+    push(stmts, ast::stmt_let("i", ast::expr_num(1)))
+    let cond = ast::expr_bin("<=", ast::expr_var("i"), ast::expr_num(10))
+    let mut loop_body = vec<Stmt>()
+    let sum_add = ast::expr_bin("+", ast::expr_var("sum"), ast::expr_var("i"))
+    push(loop_body, ast::stmt_assign("sum", sum_add))
+    let i_add = ast::expr_bin("+", ast::expr_var("i"), ast::expr_num(1))
+    push(loop_body, ast::stmt_assign("i", i_add))
+    push(stmts, ast::stmt_while(cond, loop_body))
+    push(stmts, ast::stmt_return(ast::expr_var("sum")))
+    let env = eval::env_new
+    let fns = vec<FnDef>()
+    let res = eval::eval_block(stmts, env, fns)
+    assert::assert_true(res.0)
+    assert::assert_eq_i32(ast::val_to_int(res.1), 55)
+    return 0
+}
+
+fn test_functions_and_recursion() -> i32 {
+    // fn fact(n) { if n <= 1 { return 1 }; return n * fact(n - 1); }
+    // fact(5) => 120
+    let mut fact_params = vec<str>()
+    push(fact_params, "n")
+    let mut fact_body = vec<Stmt>()
+    let cond = ast::expr_bin("<=", ast::expr_var("n"), ast::expr_num(1))
+    let mut then_b = vec<Stmt>()
+    push(then_b, ast::stmt_return(ast::expr_num(1)))
+    let else_b = vec<Stmt>()
+    push(fact_body, ast::stmt_if(cond, then_b, else_b))
+    let mut call_args = vec<Expr>()
+    let n_sub = ast::expr_bin("-", ast::expr_var("n"), ast::expr_num(1))
+    push(call_args, n_sub)
+    let fact_recur = ast::expr_call("fact", call_args)
+    let ret_expr = ast::expr_bin("*", ast::expr_var("n"), fact_recur)
+    push(fact_body, ast::stmt_return(ret_expr))
+    let fact_fn = ast::fn_def("fact", fact_params, fact_body)
+    let mut fns = vec<FnDef>()
+    push(fns, fact_fn)
+    let mut main_body = vec<Stmt>()
+    let mut main_call_args = vec<Expr>()
+    push(main_call_args, ast::expr_num(5))
+    push(main_body, ast::stmt_return(ast::expr_call("fact", main_call_args)))
+    let prog = ast::program_new(fns, main_body)
+    let res = eval::eval_program(prog)
+    assert::assert_eq_i32(ast::val_to_int(res), 120)
+    return 0
+}
+
+fn test_string_operations() -> i32 {
+    let concat_e = ast::expr_bin("+", ast::expr_str("hello "), ast::expr_str("huzi"))
+    let env = eval::env_new
+    let fns = vec<FnDef>()
+    let res = eval::eval_expr(concat_e, env, fns)
+    assert::assert_eq_str(ast::val_to_string(res), "hello huzi")
+    return 0
+}
+
+fn selftest() -> i32 {
+    test_arithmetic()
+    test_variables_and_assign()
+    test_conditional_if()
+    test_while_loop()
+    test_functions_and_recursion()
+    test_string_operations()
+    print("hzast selftest passed")
+    return 0
+}
+
+fn main() -> i32 {
+    if arg_count() >= 2 && arg(1) == "--selftest" {
+        return selftest()
+    }
+    // Default to running selftest
+    return selftest()
+}
