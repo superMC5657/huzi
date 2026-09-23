@@ -27,12 +27,48 @@ pub enum Stmt {
     Impl(ImplBlock),
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum LetPatternItem {
+    Ident { name: String, mutable: bool },
+    Tuple(Vec<LetPatternItem>),
+}
+
+impl LetPatternItem {
+    pub fn collect_bound_names<'a>(&'a self, out: &mut Vec<(&'a str, bool)>) {
+        match self {
+            LetPatternItem::Ident { name, mutable } => {
+                out.push((name.as_str(), *mutable));
+            }
+            LetPatternItem::Tuple(items) => {
+                for item in items {
+                    item.collect_bound_names(out);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct LetStmt {
     pub name: String,
     pub mutable: bool,
+    pub tuple_pattern: Option<Vec<LetPatternItem>>,
     pub type_annotation: Option<Type>,
     pub value: Option<Expr>,
+}
+
+impl LetStmt {
+    pub fn bound_names(&self) -> Vec<(&str, bool)> {
+        if let Some(items) = &self.tuple_pattern {
+            let mut out = Vec::new();
+            for item in items {
+                item.collect_bound_names(&mut out);
+            }
+            out
+        } else {
+            vec![(self.name.as_str(), self.mutable)]
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

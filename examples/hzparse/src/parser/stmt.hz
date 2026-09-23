@@ -286,10 +286,16 @@ fn pz_let(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats
     if cursor::pz_kw(kinds, texts, pos, "mut") {
         cursor::pz_next(pos)
     }
-    if !cursor::pz_is_ident(kinds, texts, pos) {
-        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected variable name")
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        if !typ::pz_let_pattern(kinds, texts, pos, errs, lines, cols) {
+            return false
+        }
+    } else {
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, lines, cols, "expected variable name")
+        }
+        cursor::pz_next(pos)
     }
-    cursor::pz_next(pos)
     if cursor::pz_at(kinds, texts, pos, ":") {
         cursor::pz_next(pos)
         if !typ::pz_type(kinds, texts, pos, errs, lines, cols) {

@@ -1,0 +1,5 @@
+# 负例：尝试解构非元组值
+fn main() -> i32 {
+    let (a, b) = 42
+    return a + b
+}

@@ -27,6 +27,7 @@
 - [x] 核心枚举与结构体流式固有方法：`Option<T>` 现代泛型枚举（`Some(T)` / `None`）及其固有方法（`is_some`, `is_none`, `unwrap`, `unwrap_or`, `map`, `and_then`）；`Result<T>` 固有方法（`is_ok`, `is_err`, `unwrap`, `unwrap_or`, `err_msg`），与 `?` 运算符 100% 互通（用例 `66_fluent_option_result_vec`）
 - [x] 集合高阶流式管道（自举标准库 `alloc.vec_algo`）：`vec_any` / `vec_all` / `vec_count` / `vec_take` / `vec_skip` / `vec_for_each`，配合 UFCS 支持链式流水线操作（`v.filter(...).take(2).map(...)`）
 - [x] 模式匹配全面强化：支持数值/浮点/布尔/字符/字符串字面量模式；支持变量绑定模式（`x => ...`）；支持匹配守卫（`pattern if condition => body`）；支持多分支同变体/同模式条件分流；严格校验守卫条件布尔类型与类型兼容性；完备穷尽性检查（用例 `67_match_guards_literals`，负例集 `match_guard_non_bool`, `match_guarded_wildcard_non_exhaustive`, `match_literal_type_mismatch`, `match_scalar_non_exhaustive`）
+- [x] 元组解构绑定：支持 `let (a, b) = expr`、局部独立可变性 `let (mut a, b)`、整组继承 `let mut (a, b)`、嵌套解构 `let (a, (b, c))` 以及通配忽略 `_`（用例 `68_tuple_destructuring`，负例 `tuple_destruct_arity_mismatch`, `tuple_destruct_non_tuple`）
 
 ### 标准库内置
 

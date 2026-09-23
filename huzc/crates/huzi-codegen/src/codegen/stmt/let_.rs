@@ -10,6 +10,9 @@ use huzi_error::{HuziError, Result};
 
 impl<'ctx> CodeGen<'ctx> {
     pub(super) fn compile_let(&mut self, stmt: &LetStmt, span: Span) -> Result<()> {
+        if let Some(items) = &stmt.tuple_pattern {
+            return self.compile_let_tuple_destructure(items, stmt, span);
+        }
         match &stmt.value {
             Some(Expr::ArrayLiteral(elements)) => self.compile_let_array(stmt, elements, span),
             Some(Expr::TupleLiteral(elements)) => self.compile_let_tuple(stmt, elements, span),

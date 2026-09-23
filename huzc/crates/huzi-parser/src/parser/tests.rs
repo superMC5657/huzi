@@ -249,3 +249,30 @@ fn fn_type_parses() {
     );
 }
 
+#[test]
+fn tuple_destructuring_parses() {
+    let program = parse("let (a, mut b) = (1, 2)\nlet (x, (y, mut z)) = pair\nlet mut (m, n) = t");
+    let Stmt::Let(l0) = &program.statements[0].node else { panic!("expected let"); };
+    let items0 = l0.tuple_pattern.as_ref().expect("expected tuple pattern");
+    assert_eq!(items0.len(), 2);
+    assert_eq!(items0[0], LetPatternItem::Ident { name: "a".to_string(), mutable: false });
+    assert_eq!(items0[1], LetPatternItem::Ident { name: "b".to_string(), mutable: true });
+
+    let Stmt::Let(l1) = &program.statements[1].node else { panic!("expected let"); };
+    let items1 = l1.tuple_pattern.as_ref().expect("expected tuple pattern");
+    assert_eq!(items1.len(), 2);
+    assert_eq!(items1[0], LetPatternItem::Ident { name: "x".to_string(), mutable: false });
+    match &items1[1] {
+        LetPatternItem::Tuple(sub) => {
+            assert_eq!(sub.len(), 2);
+            assert_eq!(sub[0], LetPatternItem::Ident { name: "y".to_string(), mutable: false });
+            assert_eq!(sub[1], LetPatternItem::Ident { name: "z".to_string(), mutable: true });
+        }
+        _ => panic!("expected nested tuple"),
+    }
+
+    let Stmt::Let(l2) = &program.statements[2].node else { panic!("expected let"); };
+    let items2 = l2.tuple_pattern.as_ref().expect("expected tuple pattern");
+    assert_eq!(items2[0], LetPatternItem::Ident { name: "m".to_string(), mutable: true });
+    assert_eq!(items2[1], LetPatternItem::Ident { name: "n".to_string(), mutable: true });
+}

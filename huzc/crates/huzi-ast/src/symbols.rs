@@ -68,7 +68,7 @@ fn collect_top_level(stmt: &crate::ast::Spanned<Stmt>, out: &mut Vec<Symbol>) {
                 collect_fn(stmt.span, m, out);
             }
         }
-        Stmt::Let(l) => out.push(let_symbol(stmt.span, l)),
+        Stmt::Let(l) => collect_let_symbols(stmt.span, l, out),
         Stmt::Import(i) => out.push(Symbol {
             name: i.name.clone(),
             kind: SymbolKind::Module,
@@ -173,7 +173,7 @@ fn collect_enum(span: Span, d: &EnumDef, out: &mut Vec<Symbol>) {
 fn collect_block(block: &Block, out: &mut Vec<Symbol>) {
     for stmt in &block.statements {
         match &stmt.node {
-            Stmt::Let(l) => out.push(let_symbol(stmt.span, l)),
+            Stmt::Let(l) => collect_let_symbols(stmt.span, l, out),
             Stmt::For(f) => {
                 out.push(Symbol {
                     name: f.var_name.clone(),
@@ -220,21 +220,26 @@ fn collect_block(block: &Block, out: &mut Vec<Symbol>) {
     }
 }
 
-/// `let` 符号的签名串:`let [mut ]name[: type]`。
-fn let_symbol(span: Span, l: &LetStmt) -> Symbol {
-    let mut detail = String::from("let ");
-    if l.mutable {
-        detail.push_str("mut ");
-    }
-    detail.push_str(&l.name);
-    if let Some(t) = &l.type_annotation {
-        detail.push_str(&format!(": {}", t));
-    }
-    Symbol {
-        name: l.name.clone(),
-        kind: SymbolKind::Variable,
-        span,
-        detail,
+/// 收集 `let` 语句定义的局部变量符号。
+fn collect_let_symbols(span: Span, l: &LetStmt, out: &mut Vec<Symbol>) {
+    for (name, mutable) in l.bound_names() {
+        if name == "_" {
+            continue;
+        }
+        let mut detail = String::from("let ");
+        if mutable {
+            detail.push_str("mut ");
+        }
+        detail.push_str(name);
+        if let Some(t) = &l.type_annotation {
+            detail.push_str(&format!(": {}", t));
+        }
+        out.push(Symbol {
+            name: name.to_string(),
+            kind: SymbolKind::Variable,
+            span,
+            detail,
+        });
     }
 }
 
@@ -303,6 +308,7 @@ mod tests {
             Stmt::Let(LetStmt {
                 name: name.to_string(),
                 mutable: false,
+                tuple_pattern: None,
                 type_annotation: Some(Type::I32),
                 value: None,
             }),

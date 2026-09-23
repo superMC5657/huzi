@@ -55,10 +55,14 @@ impl Formatter {
 
     fn format_let(&mut self, l: &LetStmt, line: usize) {
         let mut s = String::from("let ");
-        if l.mutable {
-            s.push_str("mut ");
+        if let Some(items) = &l.tuple_pattern {
+            Self::format_tuple_pattern(&mut s, items);
+        } else {
+            if l.mutable {
+                s.push_str("mut ");
+            }
+            s.push_str(&l.name);
         }
-        s.push_str(&l.name);
         if let Some(t) = &l.type_annotation {
             s.push_str(&format!(": {}", t));
         }
@@ -66,6 +70,31 @@ impl Formatter {
             s.push_str(&format!(" = {}", format_expr(v)));
         }
         self.line_at(&s, line);
+    }
+
+    fn format_pattern_item(s: &mut String, item: &LetPatternItem) {
+        match item {
+            LetPatternItem::Ident { name, mutable } => {
+                if *mutable {
+                    s.push_str("mut ");
+                }
+                s.push_str(name);
+            }
+            LetPatternItem::Tuple(items) => {
+                Self::format_tuple_pattern(s, items);
+            }
+        }
+    }
+
+    fn format_tuple_pattern(s: &mut String, items: &[LetPatternItem]) {
+        s.push('(');
+        for (i, it) in items.iter().enumerate() {
+            if i > 0 {
+                s.push_str(", ");
+            }
+            Self::format_pattern_item(s, it);
+        }
+        s.push(')');
     }
 
     fn format_defer(&mut self, inner: &Stmt, line: usize, end: usize) {

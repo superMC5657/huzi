@@ -23,6 +23,7 @@ fn let_stmt(name: &str, value: Expr) -> Spanned<Stmt> {
     sp(Stmt::Let(LetStmt {
         name: name.to_string(),
         mutable: false,
+        tuple_pattern: None,
         type_annotation: None,
         value: Some(value),
     }))
@@ -166,6 +167,7 @@ fn reexport_module_functions_callable_without_wrapper() {
         sp(Stmt::Let(LetStmt {
             name: "x".to_string(),
             mutable: false,
+            tuple_pattern: None,
             type_annotation: Some(Type::I32),
             value: Some(Expr::EnumConstruct(EnumConstructExpr {
                 enum_name: "my_math".to_string(),
@@ -373,6 +375,7 @@ fn vec_push_grows_and_verifies() {
         sp(Stmt::Let(LetStmt {
             name: "v".to_string(),
             mutable: true,
+            tuple_pattern: None,
             type_annotation: None,
             value: Some(call("vec", vec![Expr::Literal(Literal::Int(1))])),
         })),

@@ -1,0 +1,47 @@
+// 测试元组解构赋值特性
+// 1. 基础双元组解构
+let (a, b) = (10, 20)
+
+print(a, b)
+
+// 2. 元素可变性解构 (mut a, b)
+let (mut x, y) = (1, 2)
+
+x = x + 10
+
+print(x, y)
+
+// 3. 整体 mut 继承解构
+let (mut m, mut n) = (5, 6)
+
+m = m + 1
+
+n = n + 2
+
+print(m, n)
+
+// 4. 函数返回元组解构
+fn divmod(a: i32, b: i32) -> (i32, i32) {
+    return (a / b, a % b)
+}
+
+let (q, r) = divmod(17, 5)
+
+print(q, r)
+
+// 5. 嵌套元组解构
+let (p1, (p2, mut p3)) = (100, (200, 300))
+
+p3 = p3 + 1
+
+print(p1, p2, p3)
+
+// 6. 忽略绑定通配符 _
+let (first, _) = (42, 999)
+
+print(first)
+
+// 7. 显式类型标注元组解构
+let (name, age): (str, i32) = ("Alice", 30)
+
+print(name, age)

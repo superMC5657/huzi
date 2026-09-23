@@ -239,6 +239,19 @@ impl<'ctx> CodeGen<'ctx> {
     /// 模块限定调用取声明的返回类型。
     pub(super) fn static_type_of_value(&self, expr: &Expr) -> Option<Type> {
         match expr {
+            Expr::Literal(Literal::Int(_)) => Some(Type::Named("i32".to_string())),
+            Expr::Literal(Literal::Float(_)) => Some(Type::Named("f64".to_string())),
+            Expr::Literal(Literal::String(_)) => Some(Type::Named("str".to_string())),
+            Expr::Literal(Literal::Bool(_)) => Some(Type::Named("bool".to_string())),
+            Expr::Literal(Literal::Char(_)) => Some(Type::Named("char".to_string())),
+            Expr::Ident(name) => self.local_ast.get(name).cloned(),
+            Expr::TupleLiteral(elems) => {
+                let mut types = Vec::with_capacity(elems.len());
+                for e in elems {
+                    types.push(self.static_type_of_value(e)?);
+                }
+                Some(Type::Tuple(types))
+            }
             Expr::Call(c) => match &*c.callee {
                 Expr::Ident(fname) => {
                     let key = self.qualify_name(fname);

@@ -45,7 +45,11 @@ impl<'ctx> CodeGen<'ctx> {
                     if let Some(val) = &l.value {
                         self.collect_free_vars_expr(val, known, free_vars);
                     }
-                    known.insert(l.name.clone());
+                    for (name, _) in l.bound_names() {
+                        if name != "_" {
+                            known.insert(name.to_string());
+                        }
+                    }
                 }
                 Stmt::Expr(e) => self.collect_free_vars_expr(&e.expr, known, free_vars),
                 Stmt::Return(r) => {

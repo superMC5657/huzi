@@ -227,7 +227,19 @@ impl Monomorphizer {
             Stmt::Let(l) => {
                 if let Some(ann) = &mut l.type_annotation {
                     self.monomorphize_type(ann)?;
-                    self.inferrer.insert_var(&l.name, ann.clone());
+                    if let (Some(items), Type::Tuple(elem_tys)) = (&l.tuple_pattern, &ann) {
+                        for (it, et) in items.iter().zip(elem_tys) {
+                            let mut names = Vec::new();
+                            it.collect_bound_names(&mut names);
+                            for (n, _) in names {
+                                if n != "_" {
+                                    self.inferrer.insert_var(n, et.clone());
+                                }
+                            }
+                        }
+                    } else {
+                        self.inferrer.insert_var(&l.name, ann.clone());
+                    }
                 }
                 if let Some(val) = &mut l.value {
                     if let Expr::EnumConstruct(ec) = val {
@@ -244,7 +256,19 @@ impl Monomorphizer {
                     self.monomorphize_expr(val)?;
                     if l.type_annotation.is_none() {
                         if let Some(ty) = self.inferrer.infer_expr_type(val) {
-                            self.inferrer.insert_var(&l.name, ty);
+                            if let (Some(items), Type::Tuple(elem_tys)) = (&l.tuple_pattern, &ty) {
+                                for (it, et) in items.iter().zip(elem_tys) {
+                                    let mut names = Vec::new();
+                                    it.collect_bound_names(&mut names);
+                                    for (n, _) in names {
+                                        if n != "_" {
+                                            self.inferrer.insert_var(n, et.clone());
+                                        }
+                                    }
+                                }
+                            } else {
+                                self.inferrer.insert_var(&l.name, ty);
+                            }
                         }
                     }
                 }

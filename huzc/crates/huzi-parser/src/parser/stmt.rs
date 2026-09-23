@@ -43,13 +43,19 @@ impl Parser {
     pub(super) fn parse_let_statement(&mut self) -> Result<Stmt> {
         self.advance();
 
-        // `let mut name` 或 `let name`
+        // `let mut name` 或 `let name` 或 `let (a, b)` 或 `let mut (a, b)`
         let mutable = self.check(&Token::Mut);
         if mutable {
             self.advance();
         }
 
-        let name = self.expect_ident("Expected variable name")?;
+        let (name, tuple_pattern) = if self.check(&Token::LParen) {
+            let items = self.parse_tuple_pattern(mutable)?;
+            (String::new(), Some(items))
+        } else {
+            let name = self.expect_ident("Expected variable name")?;
+            (name, None)
+        };
 
         let type_annotation = if self.check(&Token::Colon) {
             self.advance();
@@ -68,9 +74,41 @@ impl Parser {
         Ok(Stmt::Let(LetStmt {
             name,
             mutable,
+            tuple_pattern,
             type_annotation,
             value,
         }))
+    }
+
+    /// 解析元组解构模式：`(a, b)` / `(mut a, b)` / `(a, (b, c))`
+    fn parse_tuple_pattern(&mut self, inherited_mut: bool) -> Result<Vec<LetPatternItem>> {
+        self.expect(&Token::LParen, "Expected '(' for tuple pattern")?;
+        let mut items = Vec::new();
+        while !self.check(&Token::RParen) && !self.is_at_end() {
+            let item_mut = if self.check(&Token::Mut) {
+                self.advance();
+                true
+            } else {
+                inherited_mut
+            };
+            if self.check(&Token::LParen) {
+                let sub_items = self.parse_tuple_pattern(item_mut)?;
+                items.push(LetPatternItem::Tuple(sub_items));
+            } else {
+                let name = self.expect_ident("Expected variable name in tuple pattern")?;
+                items.push(LetPatternItem::Ident {
+                    name,
+                    mutable: item_mut,
+                });
+            }
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.expect(&Token::RParen, "Expected ')' to close tuple pattern")?;
+        Ok(items)
     }
 
     pub(super) fn parse_optional_type_params(&mut self) -> Result<Vec<String>> {
