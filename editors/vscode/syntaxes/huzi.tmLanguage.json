@@ -112,7 +112,7 @@
       "patterns": [
         {
           "name": "storage.type.huzi",
-          "match": "\\b(i32|i64|u32|u64|f32|f64|bool|str|char|Box|vec|Map|HashMap|Option|Result)\\b"
+          "match": "\\b(i32|i64|u32|u64|f32|f64|bool|str|char|Box|vec|Map|HashMap|Option|Result|Self)\\b"
         }
       ]
     },

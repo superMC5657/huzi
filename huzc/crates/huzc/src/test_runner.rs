@@ -56,12 +56,7 @@ fn find_expected_stdout(case_path: &Path, name: &str) -> Option<PathBuf> {
     candidates.push(PathBuf::from("huzc/test/expected").join(&stdout_name));
     candidates.push(case_path.with_extension("stdout"));
 
-    for candidate in candidates {
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
+    candidates.into_iter().find(|c| c.is_file())
 }
 
 fn collect_cases_from_dir(dir: &Path, out: &mut Vec<TestCase>) {
@@ -71,7 +66,7 @@ fn collect_cases_from_dir(dir: &Path, out: &mut Vec<TestCase>) {
     };
     for entry in entries.flatten() {
         let p = entry.path();
-        if p.is_file() && p.extension().map_or(false, |ext| ext == "hz") {
+        if p.is_file() && p.extension().is_some_and(|ext| ext == "hz") {
             let filename = p.file_name().unwrap().to_string_lossy().to_string();
             let name = extract_test_name(&filename);
             let kind = determine_test_kind(&filename);

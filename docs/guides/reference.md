@@ -188,6 +188,27 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
   - `res.unwrap_or(default: T) -> T`: 获取成功值；若失败则返回默认值 `default`。
   - `res.err_msg() -> str`: 获取错误描述字符串。与后缀 `?` 运算符完全互通互补。
 
+### 4.14 进程创建与子进程管理 (自举标准库 `std.process`)
+
+- `process_run(cmd: str) -> (i32, str)`：执行系统命令并阻塞捕获其退出码与标准输出。
+- `command_new(program: str) -> Command`：创建 `Command` 构建器实例。
+- `command_arg(cmd: Command, arg: str) -> Command`：追加单个命令行实参。
+- `command_args(cmd: Command, args: vec<str>) -> Command`：批量追加命令行实参。
+- `command_run(cmd: Command) -> Output`：执行构建的命令，返回 `Output` 结构体。
+- `output_status(out: Output) -> i32`：获取命令退出码（0 表示成功）。
+- `output_stdout(out: Output) -> str`：获取子进程捕获的标准输出文本。
+
+### 4.15 跨平台路径处理 (自举标准库 `std.path`)
+
+- `path_is_sep(c: char) -> bool` / `is_sep(c: char) -> bool`：判断字符是否为路径分隔符（`/` 或 `\`）。
+- `path_is_abs(p: str) -> bool` / `is_abs(p: str) -> bool`：判断路径是否为绝对路径（支持 POSIX `/`、Windows 盘符 `C:\` 及 UNC 共享路径 `\\`）。
+- `path_join(a: str, b: str) -> str` / `combine(a: str, b: str) -> str`：安全拼接两个路径分量，自动规范化分隔符。
+- `path_base(p: str) -> str` / `base(p: str) -> str`：提取路径的文件名或末级目录名。
+- `path_dir(p: str) -> str` / `dir(p: str) -> str`：提取父目录路径（若无父级返回空串）。
+- `path_ext(p: str) -> str` / `ext(p: str) -> str`：提取文件扩展名（不含点号 `.`，无扩展名返回空串）。
+- `path_stem(p: str) -> str` / `stem(p: str) -> str`：提取文件名主干（不含扩展名与前导点）。
+- `path_normalize(p: str) -> str` / `normalize(p: str) -> str`：路径正规化（消除冗余的 `./` 分量并折叠 `../` 父级跳转）。
+
 ---
 
 ## 5. 运行时错误列表
@@ -297,6 +318,16 @@ Huzi 提供了强大的模式匹配能力，支持对枚举、标量值（整数
 Huzi 原生支持插值字符串与格式化内置函数：
 - **`format(tpl, args...)` 内置函数**：首参数为模板字符串字面量，后续参数与 `{}` 占位符一一对应；大括号字面量使用 `{{` 与 `}}` 转义；编译期自动解糖为零额外开销的 `concat` 与 `to_string` 调用，若占位符与参数数量不匹配在编译期报错。
 - **`f"..."` 字符串插值语法糖**：在双引号字符串前加 `f` 或 `F` 前缀，花括号内可嵌入任意合法表达式（如 `f"Point({self.x}, {self.y})"`、`f"Math: {a} + {b} = {a + b}"`）；解析器直接将其脱糖展开为对 `format` 内置函数的调用；支持链式方法调用（如 `f"Hello, {name}!".len()`）。
+
+### 8.6 复合赋值运算符
+支持对各类左值目标执行原地算术计算并写回：
+- **操作符集合**：`+=`（加法赋值）、`-=`（减法赋值）、`*=`（乘法赋值）、`/=`（除法赋值）、`%=`（取模赋值）。
+- **左值目标支持**：
+  - 普通局部变量：`x += 1`
+  - 数组/向量元素索引：`arr[idx] += 10`（索引表达式只求值一次，无重复副作用）
+  - 结构体字段：`p.x += 5`
+  - 堆指针解引用：`*b += 1`
+- **类型系统**：严格遵守静态强类型安全，右值整型向左值浮点数支持自动隐式拓宽。
 
 
 
