@@ -19,33 +19,37 @@ stmt      ::= import | export | fn_def | struct_def | enum_def | trait_def | imp
             | defer stmt | block | expr ("=" expr)?
 block     ::= "{" stmt* "}"
 type      ::= "[" type ";" int "]" | "(" ")" | "(" type ("," type)* ")"
+            | "fn" "(" (type ("," type)*)? ")" ("->" type)?
             | ident ("::" ident)* ("<" type ("," type)* ">")?
 expr      ::= assign
 assign    ::= or ("=" assign)?
 or        ::= and ("||" and)*            (* 其余层级：&& → ==,!= → <,<=,>,>= *)
-            (* → |,^ → & → +,- → *,/,% → 一元 !,- → 后缀 *)
+            (* → |,^ → & → +,- → *,/,% → 一元 !,-,* → 后缀 *)
 postfix   ::= primary ("[" expr "]" | "." (int | ident ["(" args ")"])
                       | "(" args ")" | "?")*
 primary   ::= int | float | string | char | true | false | ident_expr
             | "(" expr ("," expr)* ")" | "[" (expr ("," expr)*)? "]"
-            | if_expr | match_expr
+            | closure_expr | if_expr | match_expr
+closure   ::= "||" (block | expr)
+            | "|" (ident [":" type] ("," ident [":" type])*)? "|" ("->" type)? (block | expr)
 ident_expr::= "box" "(" expr ")" | "null" | "vec" "<" type ">" "(" ")"
-            | ident ("<" type ("," type)* ">" (call | struct_lit) | ("::" ident)+ (call)? | struct_lit)?
+            | ident ("<" type ("," type)* ">" (call | struct_lit | ("::" ident (call)?)) | ("::" ident)+ (call)? | struct_lit)?
 call      ::= "(" (expr ("," expr)*)? ")"
 struct_lit::= "{" ident ":" expr ("," ident ":" expr)* ","? "}"
 if_expr   ::= "if" expr block ("elif" expr block)* "else" (if_expr | block)
-match_expr::= "match" expr "{" (pattern "=>" (block | expr) ","?)* "}"
-pattern   ::= "_" | ident ("::" ident)? ("(" (ident ("," ident)*)? ")")?
+match_expr::= "match" expr "{" (pattern ("if" expr)? "=>" (block | expr) ","?)* "}"
+pattern   ::= "_" | ("-")? (int | float) | string | char | true | false
+            | ident ("::" ident)? ("(" (ident ("," ident)*)? ")")?
 ```
 
 顶层条目形状：`import a.b / a::b`；`export p / p::* / p::q`；`fn f<T>(x: T) -> R block`；
-`struct S<T> { f: T }`；`enum E { V, W(T, U) }`；`trait T { fn m(self, ...) -> R }`；
-`impl T for S { fn m(self: S, ...) -> R block }`；`let [mut] x [: T] [= expr]`；
+`struct S<T> { f: T }`；`enum E<T> { V, W(T) }`；`trait T { fn m(self, ...) -> R }`；
+`impl [T for] S<T> { fn m(self: S<T>, ...) -> R block }`；`let [mut] x [: T] [= expr]`；
 `for x in expr [".." expr] block`；`while expr block`。
 
 ## 3. 刻意不做（非缺口，是冻结边界）
 
-- 无 `match` 穷尽检查、无泛型单态化/约束求解：`match` 只验“模式形状 + `=>` + 体”。
+- 无 `match` 穷尽检查、无泛型单态化/约束求解：`match` 只验“模式形状 + (if 守卫)? + `=>` + 体”。
 - 无上下文相关语义检查：`defer` 是否在函数内、`return` 是否在 `defer` 内、变量是否定义——只查结构。
 - 无错误恢复：首错即停并报告 `token 下标 + 文本`（对标 `Parser::parse` 首错语义，而非 `parse_recoverable`）。
 - 无 AST 落盘：输出 8 类顶层计数 + 最大表达式嵌套深度，足以做自解析断言。
@@ -61,7 +65,7 @@ pattern   ::= "_" | ident ("::" ident)? ("(" (ident ("," ident)*)? ")")?
 
 ## 5. 验收线
 
-`./hzparse --selftest`：单元断言（词法复用 + 表达式优先级 + fn/struct/match/泛型/`?`/方法调用/元组下标各一）
-全过；语料 = `huzc/test/cases/*.hz` + `mods/*.hz` + `huzi-src` 全 `.hz` + `examples/hzlex|task_engine` 源码，
-**解析成功文件数 ≥ 90 且失败数为 0**（逐文件打印 `ok <path> fns=.. structs=.. depth=..`，失败即 non-zero 退出）。
+`./hzparse --selftest`：单元断言（词法复用 + 表达式优先级 + fn/struct/match/泛型/`?`/方法调用/元组下标/闭包/match guard 各一）
+全过；语料 = `huzc/test/cases/*.hz`（67 个）+ `mods/*.hz`（3 个）+ `huzi-src` 全 `.hz`（34 个）+ `examples/hzlex|task_engine` 源码（4 个），
+**解析成功文件数 108 且失败数为 0**（逐文件打印 `ok <path> fns=.. structs=.. depth=..`，失败即 non-zero 退出）。
 `huzc fmt --check examples/hzparse` 通过。

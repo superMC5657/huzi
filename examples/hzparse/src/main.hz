@@ -103,6 +103,12 @@ fn selftest_units() -> i32 {
     let st5 = check_ok("import std.log import alloc.stringx export assert export assert::* fn f() -> i32 { defer print(\"x\") while true { break } return 0 }")
     assert::assert_eq_i32(st5[5], 2)
     assert::assert_eq_i32(st5[6], 2)
+    # 泛型枚举、固有 impl、闭包与 match guard。
+    let modern = concat("enum Opt<T> { Some(T), None } ", "impl Opt { fn unwrap<T>(self: Opt<T>) -> T { return match self { Opt::Some(v) if true => v, _ => panic(\"none\") } } } ", "fn test_cl(f: fn(i32) -> bool) -> bool { let cl = |x| x > 0 return cl(1) && f(2) }")
+    let st6 = check_ok(modern)
+    assert::assert_eq_i32(st6[0], 2)
+    assert::assert_eq_i32(st6[2], 1)
+    assert::assert_eq_i32(st6[4], 1)
     # 负例:残缺函数定义必须失败且首错携带行列。
     let bad_err = assert_neg("fn broken( { ")
     print(concat("neg broken-fn :: ", bad_err))

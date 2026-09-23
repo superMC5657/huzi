@@ -82,6 +82,11 @@ fn pz_enum_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, 
         return cursor::pz_fail(errs, texts, pos, lines, cols, "expected enum name")
     }
     cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "<") {
+        if !typ::pz_typarams(kinds, texts, pos, errs, lines, cols) {
+            return false
+        }
+    }
     if !cursor::pz_at(kinds, texts, pos, "{") {
         return cursor::pz_fail(errs, texts, pos, lines, cols, "expected '{' after enum name")
     }
@@ -172,17 +177,26 @@ fn pz_trait_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>,
 fn pz_impl_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>, lines: vec<i32>, cols: vec<i32>) -> bool {
     cursor::pz_next(pos)
     if !cursor::pz_is_ident(kinds, texts, pos) {
-        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected trait name after 'impl'")
+        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected trait or type name after 'impl'")
     }
     cursor::pz_next(pos)
-    if !cursor::pz_kw(kinds, texts, pos, "for") {
-        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected 'for' after trait name")
+    if cursor::pz_at(kinds, texts, pos, "<") {
+        if !typ::pz_typarams(kinds, texts, pos, errs, lines, cols) {
+            return false
+        }
     }
-    cursor::pz_next(pos)
-    if !cursor::pz_is_ident(kinds, texts, pos) {
-        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected target type after 'for'")
+    if cursor::pz_kw(kinds, texts, pos, "for") {
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, lines, cols, "expected target type after 'for'")
+        }
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "<") {
+            if !typ::pz_typarams(kinds, texts, pos, errs, lines, cols) {
+                return false
+            }
+        }
     }
-    cursor::pz_next(pos)
     if !cursor::pz_at(kinds, texts, pos, "{") {
         return cursor::pz_fail(errs, texts, pos, lines, cols, "expected '{' after target type")
     }
@@ -196,6 +210,11 @@ fn pz_impl_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, 
             return cursor::pz_fail(errs, texts, pos, lines, cols, "expected method name in impl")
         }
         cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "<") {
+            if !typ::pz_typarams(kinds, texts, pos, errs, lines, cols) {
+                return false
+            }
+        }
         if !cursor::pz_at(kinds, texts, pos, "(") {
             return cursor::pz_fail(errs, texts, pos, lines, cols, "expected '(' after method name")
         }
