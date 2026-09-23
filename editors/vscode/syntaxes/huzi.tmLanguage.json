@@ -31,6 +31,47 @@
     "strings": {
       "patterns": [
         {
+          "name": "string.interpolated.huzi",
+          "begin": "([fF])(\")",
+          "beginCaptures": {
+            "1": { "name": "storage.type.string.huzi" },
+            "2": { "name": "punctuation.definition.string.begin.huzi" }
+          },
+          "end": "\"",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.huzi" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.huzi",
+              "match": "\\\\(n|t|r|\\\\|\"|0)"
+            },
+            {
+              "name": "constant.character.escape.huzi",
+              "match": "(\\{\\{|\\}\\})"
+            },
+            {
+              "name": "meta.interpolation.huzi",
+              "begin": "\\{",
+              "beginCaptures": {
+                "0": { "name": "punctuation.section.embedded.begin.huzi" }
+              },
+              "end": "\\}",
+              "endCaptures": {
+                "0": { "name": "punctuation.section.embedded.end.huzi" }
+              },
+              "patterns": [
+                { "include": "#strings" },
+                { "include": "#numbers" },
+                { "include": "#constants" },
+                { "include": "#definitions" },
+                { "include": "#builtins" },
+                { "include": "#operators" }
+              ]
+            }
+          ]
+        },
+        {
           "name": "string.quoted.double.huzi",
           "begin": "\"",
           "end": "\"",
@@ -129,7 +170,7 @@
       "patterns": [
         {
           "name": "support.function.stdlib.huzi",
-          "match": "\\b(print|vec|push|box|len|concat|to_string|abs|sqrt|pow|sin|cos|tan|floor|ceil|round|srand|rand|time|localtime|env_get|exit|panic|sleep_ms|read_line|read_int|read_float|is_eof|arg_count|arg|arg_ok|split|substring|trim|contains|parse_int|parse_float|read_file|read_file_ok|read_file_err|write_file|free_str|free_vec|free_box|ref_count|map_new|map_put|map_get|map_has|map_remove|map_len|map_keys|tcp_connect|tcp_send|tcp_recv|tcp_close|tcp_listen|tcp_accept|spawn|join|chan_new|chan_send|chan_recv|str_from_bytes)\\b"
+          "match": "\\b(print|format|vec|push|box|len|concat|to_string|abs|sqrt|pow|sin|cos|tan|floor|ceil|round|srand|rand|time|localtime|env_get|exit|panic|sleep_ms|read_line|read_int|read_float|is_eof|arg_count|arg|arg_ok|split|substring|trim|contains|parse_int|parse_float|read_file|read_file_ok|read_file_err|write_file|free_str|free_vec|free_box|ref_count|map_new|map_put|map_get|map_has|map_remove|map_len|map_keys|tcp_connect|tcp_send|tcp_recv|tcp_close|tcp_listen|tcp_accept|spawn|join|chan_new|chan_send|chan_recv|str_from_bytes)\\b"
         },
         {
           "name": "support.module.stdlib.huzi",

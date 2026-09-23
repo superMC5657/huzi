@@ -1,0 +1,7 @@
+msg1:User: id=101, name=Alice, active=true, score=95
+msg2:Escaped: {}, value=42
+msg3:Math: 10 + 20 = 30
+msg4:Origin: Point(3, 4)
+msg5:Braces: {literal}, val: 10
+msg6:Plain literal string
+length:13

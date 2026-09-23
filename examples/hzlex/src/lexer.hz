@@ -202,7 +202,13 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
         }
         let c = src[i]
         let start_col = col
-        if is_ident_start(c) {
+        let is_fstr = (c == 102 || c == 70) && i + 1 < n && src[i + 1] == 34
+        if is_fstr {
+            let r = lex_string(src, i + 1, line, start_col, kinds, texts, lines, cols)
+            ok = r.0
+            i = r.1
+            col = r.3
+        } elif is_ident_start(c) {
             let start = i
             while i < n && is_ident_cont(src[i]) {
                 i = i + 1

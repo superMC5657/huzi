@@ -28,6 +28,15 @@ pub enum Expr {
     Try(TryExpr),
     /// 闭包/匿名函数表达式：`|x, y| expr`、`|x| { ... }`、`|| expr`
     Closure(ClosureExpr),
+    /// 字符串插值表达式：`f"hello {name}!"`
+    FString(FStringExpr),
+}
+
+/// 字符串插值表达式定义
+#[derive(Debug, Clone)]
+pub struct FStringExpr {
+    pub template: String,
+    pub args: Vec<Expr>,
 }
 
 /// 闭包表达式定义

@@ -94,6 +94,7 @@ impl TypeInferrer {
             Expr::EnumConstruct(ec) => self.infer_enum_construct_type(ec),
             Expr::If(i) => self.infer_block_type(&i.then_branch),
             Expr::Assign(a) => self.infer_expr_type(&a.value),
+            Expr::FString(_) => Some(Type::Str),
             _ => None,
         }
     }

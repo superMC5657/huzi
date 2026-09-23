@@ -44,6 +44,7 @@ impl<'ctx> CodeGen<'ctx> {
             ))),
             Expr::Try(t) => self.compile_try(t),
             Expr::Closure(c) => self.compile_closure(c),
+            Expr::FString(_) => unreachable!("f-string must be desugared before codegen"),
         }
     }
 

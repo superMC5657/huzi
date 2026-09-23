@@ -54,7 +54,11 @@ impl Lexer {
         let c = self.peek();
 
         let token = if c.is_alphabetic() || c == '_' {
-            self.read_ident()?
+            if (c == 'f' || c == 'F') && self.peek_at(1) == Some('"') {
+                self.read_fstring()?
+            } else {
+                self.read_ident()?
+            }
         } else if c.is_numeric() {
             self.read_number()?
         } else {
@@ -143,6 +147,10 @@ impl Lexer {
 
     fn peek(&self) -> char {
         self.source[self.pos]
+    }
+
+    fn peek_at(&self, offset: usize) -> Option<char> {
+        self.source.get(self.pos + offset).copied()
     }
 
     fn advance(&mut self) {

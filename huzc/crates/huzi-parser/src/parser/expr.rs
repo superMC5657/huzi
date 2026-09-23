@@ -301,6 +301,10 @@ impl Parser {
                 self.advance();
                 Ok(Expr::Literal(Literal::String(s)))
             }
+            Token::FString(s) => {
+                self.advance();
+                self.parse_fstring(&s)
+            }
             Token::Char(c) => {
                 self.advance();
                 Ok(Expr::Literal(Literal::Char(c)))

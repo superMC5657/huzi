@@ -72,6 +72,11 @@ impl Monomorphizer {
                 }
             }
             Expr::Closure(c) => self.monomorphize_closure_expr(c)?,
+            Expr::FString(fs) => {
+                for a in &mut fs.args {
+                    self.monomorphize_expr(a)?;
+                }
+            }
             _ => {}
         }
         Ok(())

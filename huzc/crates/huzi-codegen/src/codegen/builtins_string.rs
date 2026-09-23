@@ -171,6 +171,11 @@ impl<'ctx> CodeGen<'ctx> {
 
         let arg = self.compile_expr(&arguments[0])?;
 
+        // 若参数本身已是字符串指针，直接返回。
+        if arg.is_pointer_value() {
+            return Ok(arg);
+        }
+
         // 布尔值使用较短的固定大小缓冲区，无需格式化字符串。
         if let inkwell::values::BasicValueEnum::IntValue(iv) = arg {
             if iv.get_type().get_bit_width() == 1 {

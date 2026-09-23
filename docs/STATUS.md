@@ -29,12 +29,13 @@
 - [x] 模式匹配全面强化：支持数值/浮点/布尔/字符/字符串字面量模式；支持变量绑定模式（`x => ...`）；支持匹配守卫（`pattern if condition => body`）；支持多分支同变体/同模式条件分流；严格校验守卫条件布尔类型与类型兼容性；完备穷尽性检查（用例 `67_match_guards_literals`，负例集 `match_guard_non_bool`, `match_guarded_wildcard_non_exhaustive`, `match_literal_type_mismatch`, `match_scalar_non_exhaustive`）
 - [x] 元组解构绑定：支持 `let (a, b) = expr`、局部独立可变性 `let (mut a, b)`、整组继承 `let mut (a, b)`、嵌套解构 `let (a, (b, c))` 以及通配忽略 `_`（用例 `68_tuple_destructuring`，负例 `tuple_destruct_arity_mismatch`, `tuple_destruct_non_tuple`）
 - [x] 固有静态方法与 Self 别名：支持在 `impl TypeName` 块中定义首参数无 `self` 的关联静态方法（如 `Type::new(...)`、工厂方法 `Type::origin()`）；支持在 `impl` 块的方法签名（参数与 `-> Self`）以及方法体内（`Self { ... }`）使用 `Self` 作为目标类型的别名；静态分发至修饰名顶层函数并支持后续实例方法链式调用（用例 `69_static_methods`，负例 `inherent_no_such_static_method`）
+- [x] 字符串插值与格式化：内置函数 `format("模板", args...)` 与 `f"..."` 语法糖；支持 `{}` 占位符、`{{` 和 `}}` 大括号转义、自动调用 `to_string`、表达式内联与链式调用；编译期参数完备性检查（用例 `70_string_format_interpolation`，负例 `format_arity_mismatch`）
 
 ### 标准库内置
 
 - [x] I/O：`print/read_line/read_int/read_float/is_eof`
 - [x] CLI 参数：`arg_count/arg/arg_ok`
-- [x] 字符串：`len/concat/to_string/split/substring/trim/contains/parse_int/parse_float` + 下标 + 字典序比较
+- [x] 字符串：`format/len/concat/to_string/split/substring/trim/contains/parse_int/parse_float` + 下标 + 字典序比较
 - [x] 数学：`abs/sqrt/pow/sin/cos/tan/floor/ceil/round`（含 `math::` 前缀）
 - [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms`
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`

@@ -1,5 +1,6 @@
 mod expr;
 mod expr_closure;
+mod expr_fstring;
 mod expr_generic;
 mod expr_if;
 mod pattern;
@@ -315,6 +316,7 @@ impl Parser {
                 | Token::Int(_)
                 | Token::Float(_)
                 | Token::String(_)
+                | Token::FString(_)
                 | Token::Char(_)
                 | Token::Ident(_)
                 | Token::LParen
@@ -346,6 +348,7 @@ impl Parser {
             (Token::Int(_), Token::Int(_)) => true,
             (Token::Float(_), Token::Float(_)) => true,
             (Token::String(_), Token::String(_)) => true,
+            (Token::FString(_), Token::FString(_)) => true,
             (Token::Char(_), Token::Char(_)) => true,
             (Token::Ident(_), Token::Ident(_)) => true,
             _ => std::mem::discriminant(peek_token) == std::mem::discriminant(token),

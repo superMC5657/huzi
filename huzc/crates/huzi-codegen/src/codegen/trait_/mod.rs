@@ -8,6 +8,7 @@
 //! 5. 输出脱糖后的 Program。
 
 mod desugar;
+mod format;
 mod validate;
 
 use super::ModuleCode;
@@ -99,7 +100,7 @@ fn builtin_fn_return_types() -> HashMap<String, Option<Type>> {
         map.insert(f.to_string(), Some(Type::I32));
     }
     let str_fns = [
-        "to_string", "concat", "trim", "substring", "read_line", "read_file", "arg",
+        "to_string", "concat", "trim", "substring", "read_line", "read_file", "arg", "format",
     ];
     for f in str_fns {
         map.insert(f.to_string(), Some(Type::Str));
@@ -315,6 +316,11 @@ fn rewrite_self_in_expr(expr: &mut Expr, target_type: &str) {
                     rewrite_self_in_expr(guard, target_type);
                 }
                 rewrite_self_in_block(&mut arm.body, target_type);
+            }
+        }
+        Expr::FString(fs) => {
+            for a in &mut fs.args {
+                rewrite_self_in_expr(a, target_type);
             }
         }
         _ => {}

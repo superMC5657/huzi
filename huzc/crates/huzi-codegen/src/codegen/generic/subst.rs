@@ -115,6 +115,11 @@ pub fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, Type>) {
                 ClosureBody::Block(b) => substitute_block(b, mapping),
             }
         }
+        Expr::FString(fs) => {
+            for a in &mut fs.args {
+                substitute_expr(a, mapping);
+            }
+        }
     }
 }
 

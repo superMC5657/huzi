@@ -31,6 +31,7 @@ pub enum Token {
     Int(i64),
     Float(f64),
     String(String),
+    FString(String),
     Char(char),
 
     // Operators
@@ -87,6 +88,7 @@ impl fmt::Display for Token {
             Token::Int(n) => write!(f, "{}", n),
             Token::Float(n) => write!(f, "{}", n),
             Token::String(s) => write!(f, "\"{}\"", s),
+            Token::FString(s) => write!(f, "f\"{}\"", s),
             Token::Char(c) => write!(f, "'{}'", c),
             Token::Eof => write!(f, "EOF"),
             Token::Question => write!(f, "?"),

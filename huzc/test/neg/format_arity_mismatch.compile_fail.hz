@@ -1,0 +1,5 @@
+fn main() -> i32 {
+    # 期望2个参数，实际只给1个
+    let s = format("Hello, {} and {}", 1)
+    return 0
+}

@@ -131,6 +131,57 @@ impl Lexer {
         Ok(Token::String(value))
     }
 
+    pub(super) fn read_fstring(&mut self) -> Result<Token> {
+        self.advance(); // consume 'f' or 'F'
+        self.advance(); // consume '"'
+        let mut value = String::new();
+
+        while !self.is_at_end() && self.peek() != '"' {
+            if self.peek() == '\n' {
+                return Err(HuziError::new(
+                    "Unterminated format string",
+                    self.line,
+                    self.column,
+                ));
+            }
+            if self.peek() == '\\' {
+                self.advance();
+                if self.is_at_end() {
+                    return Err(HuziError::new(
+                        "Unterminated format string",
+                        self.line,
+                        self.column,
+                    ));
+                }
+                let escaped = match self.peek() {
+                    'n' => '\n',
+                    't' => '\t',
+                    'r' => '\r',
+                    '\\' => '\\',
+                    '"' => '"',
+                    '0' => '\0',
+                    other => other,
+                };
+                value.push(escaped);
+            } else {
+                value.push(self.peek());
+            }
+            self.advance();
+        }
+
+        if self.is_at_end() {
+            return Err(HuziError::new(
+                "Unterminated format string",
+                self.line,
+                self.column,
+            ));
+        }
+
+        self.advance(); // consume closing '"'
+
+        Ok(Token::FString(value))
+    }
+
     pub(super) fn read_char(&mut self) -> Result<Token> {
         self.advance();
 

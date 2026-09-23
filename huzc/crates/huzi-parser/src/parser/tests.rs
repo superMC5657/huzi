@@ -276,3 +276,16 @@ fn tuple_destructuring_parses() {
     assert_eq!(items2[0], LetPatternItem::Ident { name: "m".to_string(), mutable: true });
     assert_eq!(items2[1], LetPatternItem::Ident { name: "n".to_string(), mutable: true });
 }
+
+#[test]
+fn fstring_parses_to_fstring_expr() {
+    let program = parse("let s = f\"ID: {id}, Name: {name}, Escaped: {{}}\"");
+    let Stmt::Let(l) = &program.statements[0].node else { panic!("expected let"); };
+    let Expr::FString(fs) = l.value.as_ref().expect("expected value") else { panic!("expected fstring"); };
+    assert_eq!(fs.template, "ID: {}, Name: {}, Escaped: {{}}");
+    assert_eq!(fs.args.len(), 2);
+    let Expr::Ident(id) = &fs.args[0] else { panic!("expected ident id"); };
+    assert_eq!(id, "id");
+    let Expr::Ident(name) = &fs.args[1] else { panic!("expected ident name"); };
+    assert_eq!(name, "name");
+}

@@ -22,6 +22,7 @@ pub(super) fn format_expr(expr: &Expr) -> String {
         Expr::MethodCall(m) => format_method_call(m),
         Expr::Try(t) => format_try(t),
         Expr::Closure(c) => format_closure(c),
+        Expr::FString(f) => format_fstring(f),
     }
 }
 
@@ -394,3 +395,44 @@ fn format_closure(c: &ClosureExpr) -> String {
         }
     }
 }
+
+fn format_fstring(f: &FStringExpr) -> String {
+    let mut out = String::from("f\"");
+    let chars: Vec<char> = f.template.chars().collect();
+    let n = chars.len();
+    let mut i = 0;
+    let mut arg_idx = 0;
+    while i < n {
+        if chars[i] == '{' {
+            if i + 1 < n && chars[i + 1] == '{' {
+                out.push_str("{{");
+                i += 2;
+            } else if i + 1 < n && chars[i + 1] == '}' {
+                out.push('{');
+                if arg_idx < f.args.len() {
+                    out.push_str(&format_expr(&f.args[arg_idx]));
+                    arg_idx += 1;
+                }
+                out.push('}');
+                i += 2;
+            } else {
+                out.push(chars[i]);
+                i += 1;
+            }
+        } else if chars[i] == '}' {
+            if i + 1 < n && chars[i + 1] == '}' {
+                out.push_str("}}");
+                i += 2;
+            } else {
+                out.push(chars[i]);
+                i += 1;
+            }
+        } else {
+            out.push(chars[i]);
+            i += 1;
+        }
+    }
+    out.push('"');
+    out
+}
+

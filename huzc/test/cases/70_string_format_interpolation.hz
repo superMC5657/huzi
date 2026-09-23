@@ -1,0 +1,46 @@
+# 70_string_format_interpolation.hz —— format内置函数与f"..."字符串插值语法
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    fn new(x: i32, y: i32) -> Point {
+        return Point { x: x, y: y }
+    }
+    fn show(self: Point) -> str {
+        return f"Point({self.x}, {self.y})"
+    }
+}
+
+fn main() -> i32 {
+    # 1. format() 内置函数
+    let id = 101
+    let name = "Alice"
+    let active = true
+    let score = 95
+    let msg1 = format("User: id={}, name={}, active={}, score={}", id, name, active, score)
+    print("msg1:", msg1)
+    # 2. format() 转义 {{ 和 }}
+    let msg2 = format("Escaped: {{}}, value={}", 42)
+    print("msg2:", msg2)
+    # 3. f"..." 变量与表达式插值
+    let a = 10
+    let b = 20
+    let msg3 = f"Math: {a} + {b} = {a + b}"
+    print("msg3:", msg3)
+    # 4. f"..." 结构体与方法调用
+    let p = Point::new(3, 4)
+    let msg4 = f"Origin: {p.show()}"
+    print("msg4:", msg4)
+    # 5. f"..." 转义大括号
+    let msg5 = f"Braces: {{literal}}, val: {a}"
+    print("msg5:", msg5)
+    # 6. format() 无占位符
+    let msg6 = format("Plain literal string")
+    print("msg6:", msg6)
+    # 7. 格式化结果链式方法调用
+    let length = f"Hello, {name}!".len()
+    print("length:", length)
+    return 0
+}

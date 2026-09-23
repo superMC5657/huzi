@@ -100,7 +100,7 @@ impl TraitDesugarer {
         Ok(())
     }
 
-    fn resolve_expr(&self, expr: &mut Expr, env: &HashMap<String, Type>) -> Result<()> {
+    pub(super) fn resolve_expr(&self, expr: &mut Expr, env: &HashMap<String, Type>) -> Result<()> {
         match expr {
             Expr::MethodCall(mc) => {
                 self.resolve_expr(&mut mc.receiver, env)?;
@@ -110,6 +110,12 @@ impl TraitDesugarer {
                 *expr = self.desugar_method_call(mc, env)?;
             }
             Expr::Call(c) => {
+                if let Expr::Ident(name) = &*c.callee {
+                    if name == "format" {
+                        *expr = self.desugar_format_call(c, env)?;
+                        return Ok(());
+                    }
+                }
                 self.resolve_expr(&mut c.callee, env)?;
                 for a in &mut c.arguments {
                     self.resolve_expr(a, env)?;
@@ -151,6 +157,13 @@ impl TraitDesugarer {
                 }
             }
             Expr::Match(m) => self.resolve_match_expr(m, env)?,
+            Expr::FString(fs) => {
+                for a in &mut fs.args {
+                    self.resolve_expr(a, env)?;
+                }
+                *expr = self.desugar_fstring(fs, env)?;
+                return Ok(());
+            }
             _ => {}
         }
         Ok(())
@@ -313,7 +326,7 @@ impl TraitDesugarer {
         }
     }
 
-    fn infer_expr_type(&self, expr: &Expr, env: &HashMap<String, Type>) -> Option<Type> {
+    pub(super) fn infer_expr_type(&self, expr: &Expr, env: &HashMap<String, Type>) -> Option<Type> {
         match expr {
             Expr::Ident(name) => env.get(name).cloned(),
             Expr::Literal(lit) => match lit {
@@ -323,6 +336,7 @@ impl TraitDesugarer {
                 Literal::String(_) => Some(Type::Str),
                 Literal::Char(_) => Some(Type::Char),
             },
+            Expr::FString(_) => Some(Type::Str),
             Expr::StructLiteral(s) => {
                 if !s.type_args.is_empty() {
                     Some(Type::Applied(s.name.clone(), s.type_args.clone()))
