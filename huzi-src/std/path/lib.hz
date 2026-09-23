@@ -1,0 +1,276 @@
+import alloc.stringx
+
+fn is_sep(ch: str) -> bool {
+    return ch == "/" || ch == "\\"
+}
+
+fn path_is_sep(ch: str) -> bool {
+    return is_sep(ch)
+}
+
+fn is_abs(p: str) -> bool {
+    let n = len(p)
+    if n == 0 {
+        return false
+    }
+    let first = substring(p, 0, 1)
+    if is_sep(first) {
+        return true
+    }
+    if n >= 2 {
+        let colon = substring(p, 1, 2)
+        if colon == ":" {
+            let drive = substring(p, 0, 1)
+            let is_upper = drive >= "A" && drive <= "Z"
+            let is_lower = drive >= "a" && drive <= "z"
+            if is_upper || is_lower {
+                return true
+            }
+        }
+    }
+    return false
+}
+
+fn path_is_abs(p: str) -> bool {
+    return is_abs(p)
+}
+
+fn path_join(base: str, sub: str) -> str {
+    if len(base) == 0 {
+        return sub
+    }
+    if len(sub) == 0 {
+        return base
+    }
+    if is_abs(sub) {
+        return sub
+    }
+    let last = substring(base, len(base) - 1, len(base))
+    if is_sep(last) {
+        return concat(base, sub)
+    }
+    return concat(base, "/", sub)
+}
+
+fn combine(base: str, sub: str) -> str {
+    return path_join(base, sub)
+}
+
+fn base(p: str) -> str {
+    let mut n = len(p)
+    if n == 0 {
+        return ""
+    }
+    while n > 1 {
+        let ch = substring(p, n - 1, n)
+        if is_sep(ch) {
+            if n == 3 && substring(p, 1, 2) == ":" {
+                break
+            }
+            n = n - 1
+        } else {
+            break
+        }
+    }
+    let trimmed = substring(p, 0, n)
+    if is_sep(trimmed) {
+        return "/"
+    }
+    let mut last_sep = -1
+    let mut i = 0
+    while i < n {
+        let ch = substring(trimmed, i, i + 1)
+        if is_sep(ch) {
+            last_sep = i
+        }
+        i = i + 1
+    }
+    if last_sep < 0 {
+        return trimmed
+    }
+    return substring(trimmed, last_sep + 1, n)
+}
+
+fn path_base(p: str) -> str {
+    return base(p)
+}
+
+fn dir(p: str) -> str {
+    let mut n = len(p)
+    if n == 0 {
+        return "."
+    }
+    while n > 1 {
+        let ch = substring(p, n - 1, n)
+        if is_sep(ch) {
+            if n == 3 && substring(p, 1, 2) == ":" {
+                break
+            }
+            n = n - 1
+        } else {
+            break
+        }
+    }
+    let trimmed = substring(p, 0, n)
+    if is_sep(trimmed) {
+        return "/"
+    }
+    if n == 3 && substring(trimmed, 1, 2) == ":" && is_sep(substring(trimmed, 2, 3)) {
+        return trimmed
+    }
+    let mut last_sep = -1
+    let mut i = 0
+    while i < n {
+        let ch = substring(trimmed, i, i + 1)
+        if is_sep(ch) {
+            last_sep = i
+        }
+        i = i + 1
+    }
+    if last_sep < 0 {
+        return "."
+    }
+    if last_sep == 0 {
+        return "/"
+    }
+    if last_sep == 2 && substring(trimmed, 1, 2) == ":" {
+        return substring(trimmed, 0, 3)
+    }
+    return substring(trimmed, 0, last_sep)
+}
+
+fn path_dir(p: str) -> str {
+    return dir(p)
+}
+
+fn ext(p: str) -> str {
+    let b = base(p)
+    let n = len(b)
+    if n == 0 {
+        return ""
+    }
+    let mut dot_idx = -1
+    let mut i = 0
+    while i < n {
+        let ch = substring(b, i, i + 1)
+        if ch == "." {
+            dot_idx = i
+        }
+        i = i + 1
+    }
+    if dot_idx <= 0 || dot_idx == n - 1 {
+        return ""
+    }
+    return substring(b, dot_idx + 1, n)
+}
+
+fn path_ext(p: str) -> str {
+    return ext(p)
+}
+
+fn stem(p: str) -> str {
+    let b = base(p)
+    let n = len(b)
+    if n == 0 {
+        return ""
+    }
+    let mut dot_idx = -1
+    let mut i = 0
+    while i < n {
+        let ch = substring(b, i, i + 1)
+        if ch == "." {
+            dot_idx = i
+        }
+        i = i + 1
+    }
+    if dot_idx <= 0 {
+        return b
+    }
+    return substring(b, 0, dot_idx)
+}
+
+fn path_stem(p: str) -> str {
+    return stem(p)
+}
+
+fn to_slash(p: str) -> str {
+    let n = len(p)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        let ch = substring(p, i, i + 1)
+        if ch == "\\" {
+            res = concat(res, "/")
+        } else {
+            res = concat(res, ch)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn normalize(p: str) -> str {
+    let n = len(p)
+    if n == 0 {
+        return ""
+    }
+    let unified = to_slash(p)
+    let mut prefix = ""
+    let mut rest = unified
+    if len(unified) >= 2 && substring(unified, 1, 2) == ":" {
+        let drive = substring(unified, 0, 1)
+        if drive >= "A" && drive <= "Z" || drive >= "a" && drive <= "z" {
+            if len(unified) >= 3 && substring(unified, 2, 3) == "/" {
+                prefix = concat(substring(unified, 0, 2), "/")
+                rest = substring(unified, 3, len(unified))
+            } else {
+                prefix = substring(unified, 0, 2)
+                rest = substring(unified, 2, len(unified))
+            }
+        }
+    } elif stringx::starts_with(unified, "/") {
+        prefix = "/"
+        rest = substring(unified, 1, len(unified))
+    }
+    let parts = split(rest, "/")
+    let mut stack = vec<str>()
+    let total = len(parts)
+    let mut i = 0
+    while i < total {
+        let seg = parts[i]
+        if len(seg) == 0 || seg == "." {
+            i = i + 1
+            continue
+        }
+        if seg == ".." {
+            let stk_len = len(stack)
+            if stk_len > 0 {
+                let top = stack[stk_len - 1]
+                if top != ".." {
+                    pop(stack)
+                    i = i + 1
+                    continue
+                }
+            }
+            if len(prefix) == 0 {
+                push(stack, "..")
+            }
+            i = i + 1
+            continue
+        }
+        push(stack, seg)
+        i = i + 1
+    }
+    let body = stringx::join(stack, "/")
+    if len(prefix) > 0 {
+        return concat(prefix, body)
+    }
+    if len(body) == 0 {
+        return "."
+    }
+    return body
+}
+
+fn path_normalize(p: str) -> str {
+    return normalize(p)
+}

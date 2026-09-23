@@ -1,0 +1,49 @@
+import core.assert
+import std.path
+
+fn main() -> i32 {
+    // 1. is_sep & is_abs
+    assert::assert_true(path::is_sep("/"))
+    assert::assert_true(path::is_sep("\\"))
+    assert::assert_true(!path::is_sep("a"))
+    assert::assert_true(path::is_abs("/usr/bin"))
+    assert::assert_true(path::is_abs("\\Windows"))
+    assert::assert_true(path::is_abs("C:/Program Files"))
+    assert::assert_true(path::is_abs("D:\\data"))
+    assert::assert_true(!path::is_abs("src/main.hz"))
+    assert::assert_true(!path::is_abs("relative"))
+    // 2. join
+    assert::assert_eq_str(path::path_join("a", "b"), "a/b")
+    assert::assert_eq_str(path::path_join("a/", "b"), "a/b")
+    assert::assert_eq_str(path::path_join("a\\", "b"), "a\\b")
+    assert::assert_eq_str(path::path_join("", "b"), "b")
+    assert::assert_eq_str(path::path_join("a", ""), "a")
+    assert::assert_eq_str(path::path_join("a", "/b"), "/b")
+    // 3. base
+    assert::assert_eq_str(path::base("foo/bar.txt"), "bar.txt")
+    assert::assert_eq_str(path::base("foo/bar/"), "bar")
+    assert::assert_eq_str(path::base("bar.txt"), "bar.txt")
+    assert::assert_eq_str(path::base("/bar.txt"), "bar.txt")
+    assert::assert_eq_str(path::base("/"), "/")
+    // 4. dir
+    assert::assert_eq_str(path::dir("foo/bar.txt"), "foo")
+    assert::assert_eq_str(path::dir("foo/bar/"), "foo")
+    assert::assert_eq_str(path::dir("/foo"), "/")
+    assert::assert_eq_str(path::dir("bar.txt"), ".")
+    assert::assert_eq_str(path::dir("C:/foo/bar"), "C:/foo")
+    // 5. ext & stem
+    assert::assert_eq_str(path::ext("foo/bar.txt"), "txt")
+    assert::assert_eq_str(path::ext("archive.tar.gz"), "gz")
+    assert::assert_eq_str(path::ext("no_ext"), "")
+    assert::assert_eq_str(path::ext(".gitignore"), "")
+    assert::assert_eq_str(path::stem("foo/bar.txt"), "bar")
+    assert::assert_eq_str(path::stem("archive.tar.gz"), "archive.tar")
+    assert::assert_eq_str(path::stem("no_ext"), "no_ext")
+    // 6. normalize
+    assert::assert_eq_str(path::normalize("a/b/../c/./d"), "a/c/d")
+    assert::assert_eq_str(path::normalize("foo\\bar\\baz"), "foo/bar/baz")
+    assert::assert_eq_str(path::normalize("/a/b/../c"), "/a/c")
+    assert::assert_eq_str(path::normalize("C:\\foo\\..\\bar"), "C:/bar")
+    print("path_test passed")
+    return 0
+}
