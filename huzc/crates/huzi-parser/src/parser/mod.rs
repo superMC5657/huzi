@@ -3,6 +3,7 @@ mod expr_generic;
 mod expr_if;
 mod pattern;
 mod stmt;
+mod stmt_trait;
 #[cfg(test)]
 mod tests;
 
