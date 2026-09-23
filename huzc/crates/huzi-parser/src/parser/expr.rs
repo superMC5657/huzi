@@ -6,10 +6,26 @@ use huzi_lexer::Token;
 
 impl Parser {
     pub(super) fn parse_expression(&mut self) -> Result<Expr> {
-        // 赋值表达式优先级最低：`x = ...`, `arr[i] = ...`
+        // 赋值表达式优先级最低：`x = ...`, `arr[i] += ...`
         let expr = self.parse_or_expression()?;
 
-        if self.check(&Token::Equal) {
+        let op = if self.check(&Token::Equal) {
+            Some(AssignOp::Assign)
+        } else if self.check(&Token::PlusEq) {
+            Some(AssignOp::AddAssign)
+        } else if self.check(&Token::MinusEq) {
+            Some(AssignOp::SubAssign)
+        } else if self.check(&Token::StarEq) {
+            Some(AssignOp::MulAssign)
+        } else if self.check(&Token::SlashEq) {
+            Some(AssignOp::DivAssign)
+        } else if self.check(&Token::PercentEq) {
+            Some(AssignOp::ModAssign)
+        } else {
+            None
+        };
+
+        if let Some(operator) = op {
             let target = match &expr {
                 Expr::Ident(_) | Expr::ArrayIndex(_) | Expr::FieldAccess(_) => expr,
                 Expr::Unary(u) if u.operator == UnOp::Deref => expr,
@@ -25,6 +41,7 @@ impl Parser {
             let value = self.parse_expression()?;
             return Ok(Expr::Assign(AssignExpr {
                 target: Box::new(target),
+                operator,
                 value: Box::new(value),
             }));
         }

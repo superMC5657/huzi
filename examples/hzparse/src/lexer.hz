@@ -297,7 +297,7 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
             if i + 1 < n {
                 two = substring(src, i, i + 2)
             }
-            if two == "==" || two == "!=" || two == "<=" || two == ">=" || two == "&&" || two == "||" || two == "->" || two == "=>" || two == "::" || two == ".." {
+            if two == "==" || two == "!=" || two == "<=" || two == ">=" || two == "&&" || two == "||" || two == "->" || two == "=>" || two == "::" || two == ".." || two == "+=" || two == "-=" || two == "*=" || two == "/=" || two == "%=" {
                 push(kinds, "punct")
                 push(texts, two)
                 push(lines, line)

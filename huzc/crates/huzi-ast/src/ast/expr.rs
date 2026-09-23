@@ -171,9 +171,44 @@ pub struct CallExpr {
     pub type_args: Vec<Type>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssignOp {
+    Assign,
+    AddAssign,
+    SubAssign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
+}
+
+impl AssignOp {
+    pub fn to_bin_op(self) -> Option<BinOp> {
+        match self {
+            AssignOp::Assign => None,
+            AssignOp::AddAssign => Some(BinOp::Add),
+            AssignOp::SubAssign => Some(BinOp::Sub),
+            AssignOp::MulAssign => Some(BinOp::Mul),
+            AssignOp::DivAssign => Some(BinOp::Div),
+            AssignOp::ModAssign => Some(BinOp::Mod),
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AssignOp::Assign => "=",
+            AssignOp::AddAssign => "+=",
+            AssignOp::SubAssign => "-=",
+            AssignOp::MulAssign => "*=",
+            AssignOp::DivAssign => "/=",
+            AssignOp::ModAssign => "%=",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AssignExpr {
     pub target: Box<Expr>,
+    pub operator: AssignOp,
     pub value: Box<Expr>,
 }
 

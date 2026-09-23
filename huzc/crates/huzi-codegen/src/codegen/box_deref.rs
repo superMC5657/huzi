@@ -55,7 +55,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 操作数编译为 Box 指针(非指针值报内部错,正常不可达)。
-    fn compile_box_ptr(&mut self, operand: &Expr) -> Result<PointerValue<'ctx>> {
+    pub(super) fn compile_box_ptr(&mut self, operand: &Expr) -> Result<PointerValue<'ctx>> {
         match self.compile_expr(operand)? {
             BasicValueEnum::PointerValue(pv) => Ok(pv),
             _ => Err(HuziError::new_global(
@@ -75,7 +75,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 走链:逐层空检查并装载下一层指针,返回末层单元地址与类型。
-    fn walk_box_chain(
+    pub(super) fn walk_box_chain(
         &mut self,
         ptr: PointerValue<'ctx>,
         nest: &BoxNest<'ctx>,

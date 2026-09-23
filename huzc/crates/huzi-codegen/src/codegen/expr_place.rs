@@ -83,6 +83,61 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(value)
     }
 
+    fn compile_compound_assign(
+        &mut self,
+        expr: &AssignExpr,
+        bin_op: BinOp,
+    ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let (ptr, ty) = match &*expr.target {
+            Expr::Ident(name) => {
+                let slot = self
+                    .scope_lookup(name)
+                    .ok_or_else(|| self.unknown_variable_error(name))?;
+                if !slot.mutable {
+                    return Err(HuziError::new_global(format!(
+                        "Cannot assign to immutable variable '{}'; declare it with `let mut`",
+                        name
+                    )));
+                }
+                (slot.ptr, slot.ty)
+            }
+            Expr::ArrayIndex(idx_expr) => {
+                self.ensure_mutable(&expr.target)?;
+                self.compile_array_index_addr(idx_expr, None)?
+            }
+            Expr::FieldAccess(_) => {
+                self.ensure_mutable(&expr.target)?;
+                self.compile_addr(&expr.target)?
+            }
+            Expr::Unary(u) if u.operator == UnOp::Deref => {
+                if Self::is_null_expr(&u.operand) {
+                    return Err(HuziError::new_global(
+                        "Cannot dereference 'null'; assign through a Box<T> variable instead",
+                    ));
+                }
+                let nest = self.box_nest_of_expr(&u.operand).ok_or_else(|| {
+                    HuziError::new_global(
+                        "Dereference '*' requires a Box<T> operand (found a non-Box value)",
+                    )
+                })?;
+                self.ensure_mutable(&u.operand)?;
+                let ptr = self.compile_box_ptr(&u.operand)?;
+                self.walk_box_chain(ptr, &nest)?
+            }
+            _ => return Err(HuziError::new_global("Invalid assignment target")),
+        };
+
+        let cur_val = self.builder.build_load(ty, ptr, "compound_lhs").unwrap();
+        let rhs_val = self.compile_expr(&expr.value)?;
+        let mut left = cur_val;
+        let mut right = rhs_val;
+        self.coerce_binary_operands(&mut left, &mut right);
+        let new_val = self.build_arithmetic(&bin_op, &left, &right)?;
+        let value = self.coerce_value(ty, new_val)?;
+        self.builder.build_store(ptr, value).unwrap();
+        Ok(value)
+    }
+
     pub(super) fn compile_assign(
         &mut self,
         expr: &AssignExpr,
@@ -92,6 +147,9 @@ impl<'ctx> CodeGen<'ctx> {
                 "Function '{}' has no return value and cannot be used as a value; call it as a statement instead",
                 name
             )));
+        }
+        if let Some(bin_op) = expr.operator.to_bin_op() {
+            return self.compile_compound_assign(expr, bin_op);
         }
         let value = self.compile_expr(&expr.value)?;
 

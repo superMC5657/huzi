@@ -289,3 +289,25 @@ fn fstring_parses_to_fstring_expr() {
     let Expr::Ident(name) = &fs.args[1] else { panic!("expected ident name"); };
     assert_eq!(name, "name");
 }
+
+#[test]
+fn compound_assignment_parses() {
+    let program = parse("x += 1; y -= 2; z *= 3; w /= 4; m %= 5");
+    assert_eq!(program.statements.len(), 5);
+    let ops = [
+        AssignOp::AddAssign,
+        AssignOp::SubAssign,
+        AssignOp::MulAssign,
+        AssignOp::DivAssign,
+        AssignOp::ModAssign,
+    ];
+    for (i, expected_op) in ops.iter().enumerate() {
+        let Stmt::Expr(es) = &program.statements[i].node else {
+            panic!("expected expression statement");
+        };
+        let Expr::Assign(a) = &es.expr else {
+            panic!("expected assign expression");
+        };
+        assert_eq!(a.operator, *expected_op);
+    }
+}

@@ -28,7 +28,23 @@ impl Lexer {
     pub(super) fn read_slash(&mut self) -> Result<Token> {
         self.advance();
         // Token 开头的 `//` 单行注释已在 skip_whitespace 中处理。
-        Ok(Token::Slash)
+        if !self.is_at_end() && self.peek() == '=' {
+            self.advance();
+            Ok(Token::SlashEq)
+        } else {
+            Ok(Token::Slash)
+        }
+    }
+
+    pub(super) fn read_plus(&mut self) -> Result<Token> {
+        self.advance();
+
+        if !self.is_at_end() && self.peek() == '=' {
+            self.advance();
+            Ok(Token::PlusEq)
+        } else {
+            Ok(Token::Plus)
+        }
     }
 
     pub(super) fn read_minus(&mut self) -> Result<Token> {
@@ -37,8 +53,33 @@ impl Lexer {
         if !self.is_at_end() && self.peek() == '>' {
             self.advance();
             Ok(Token::Arrow)
+        } else if !self.is_at_end() && self.peek() == '=' {
+            self.advance();
+            Ok(Token::MinusEq)
         } else {
             Ok(Token::Minus)
+        }
+    }
+
+    pub(super) fn read_star(&mut self) -> Result<Token> {
+        self.advance();
+
+        if !self.is_at_end() && self.peek() == '=' {
+            self.advance();
+            Ok(Token::StarEq)
+        } else {
+            Ok(Token::Star)
+        }
+    }
+
+    pub(super) fn read_percent(&mut self) -> Result<Token> {
+        self.advance();
+
+        if !self.is_at_end() && self.peek() == '=' {
+            self.advance();
+            Ok(Token::PercentEq)
+        } else {
+            Ok(Token::Percent)
         }
     }
 

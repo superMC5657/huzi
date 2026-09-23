@@ -7,7 +7,7 @@ pub(super) fn format_expr(expr: &Expr) -> String {
         Expr::Binary(b) => format_binary(b),
         Expr::Unary(u) => format_unary(u),
         Expr::Call(c) => format_call(c),
-        Expr::Assign(a) => format!("{} = {}", format_expr(&a.target), format_expr(&a.value)),
+        Expr::Assign(a) => format!("{} {} {}", format_expr(&a.target), a.operator.as_str(), format_expr(&a.value)),
         Expr::ArrayIndex(a) => format_array_index(a),
         Expr::ArrayLiteral(elems) => format_array_literal(elems),
         Expr::TupleLiteral(elems) => format_tuple_literal(elems),

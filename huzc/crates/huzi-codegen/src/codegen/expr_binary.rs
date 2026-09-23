@@ -69,7 +69,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// 整型与浮点混用：将整型操作数转换为浮点操作数的类型。
     /// 同为整型：将位宽较窄的操作数符号扩展至位宽较宽的类型。
-    fn coerce_binary_operands(
+    pub(super) fn coerce_binary_operands(
         &mut self,
         left: &mut inkwell::values::BasicValueEnum<'ctx>,
         right: &mut inkwell::values::BasicValueEnum<'ctx>,
@@ -111,7 +111,7 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    fn build_arithmetic(
+    pub(super) fn build_arithmetic(
         &mut self,
         op: &BinOp,
         left: &inkwell::values::BasicValueEnum<'ctx>,

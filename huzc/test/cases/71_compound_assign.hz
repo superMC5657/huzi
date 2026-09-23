@@ -1,0 +1,54 @@
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+fn main() -> i32 {
+    // 1. 基本整型复合赋值
+    let mut a = 10
+    a += 5
+    print(a) // 15
+    a -= 3
+    print(a) // 12
+    a *= 4
+    print(a) // 48
+    a /= 3
+    print(a) // 16
+    a %= 7
+    print(a) // 2
+    // 2. 浮点复合赋值
+    let mut f = 2.5
+    f += 1.5
+    print(f) // 4.0
+    f *= 2.0
+    print(f) // 8.0
+    f -= 1.0
+    print(f) // 7.0
+    f /= 2.0
+    print(f) // 3.5
+    // 3. 数组元素复合赋值
+    let mut arr = [10, 20, 30]
+    arr[1] += 5
+    print(arr[1]) // 25
+    arr[1] *= 2
+    print(arr[1]) // 50
+    // 4. 结构体字段复合赋值
+    let mut pt = Point { x: 10, y: 20 }
+    pt.x += 15
+    pt.y *= 3
+    print(pt.x) // 25
+    print(pt.y) // 60
+    // 5. 解引用复合赋值
+    let mut b = box(100)
+    *b += 25
+    print(*b) // 125
+    *b -= 15
+    print(*b) // 110
+    // 6. 循环中累加
+    let mut sum = 0
+    for i in 1..6 {
+        sum += i
+    }
+    print(sum) // 15
+    return 0
+}

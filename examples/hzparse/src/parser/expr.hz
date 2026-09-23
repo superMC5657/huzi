@@ -18,7 +18,7 @@ fn pz_assign(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, st
     if !pz_or(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
         return false
     }
-    if cursor::pz_at(kinds, texts, pos, "=") {
+    if cursor::pz_at(kinds, texts, pos, "=") || cursor::pz_at(kinds, texts, pos, "+=") || cursor::pz_at(kinds, texts, pos, "-=") || cursor::pz_at(kinds, texts, pos, "*=") || cursor::pz_at(kinds, texts, pos, "/=") || cursor::pz_at(kinds, texts, pos, "%=") {
         cursor::pz_next(pos)
         return pz_expr(kinds, texts, pos, errs, stats, dep, maxd, lines, cols)
     }
