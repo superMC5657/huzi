@@ -42,7 +42,8 @@
 - [x] 子进程与管道：内置原语 `process_run(cmd) -> (i32, str)` 与标准库 `std.process`（`Command` builder 模式、`Output` 解析，用例 `72_process_run`，标准库自测 `process_test`）
 - [x] 跨平台路径处理：自举标准库 `std.path`（`is_sep`, `is_abs`, `path_join`, `base`, `dir`, `ext`, `stem`, `normalize`，全面兼容 Windows 与 POSIX 风格路径，标准库自测 `path_test`）
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
-- [x] 内存：`free_str/free_vec/free_box/ref_count`（浅释放语义、二次 `free` 为 no-op；`ref_count` 快照做环泄漏报告，未打破经 `panic` 运行时告警，正例 `40_rc` 环 2-2 → 打破 2-1，负例 `rc_cycle_leak`；类型不匹配编译期拒绝，负例 `free_str_non_str`）
+- [x] 自动内存管理 (RAII Drop)：`vec<T>` 与 `Box<T>` 出作用域、循环迭代、函数返回或 `?` 报错短路时确定性全自动释放堆内存，底层统一 8 字节 RC 头部布局零 GC 停顿；兼容显式 `free_vec/free_box`（正例 `73_auto_drop_vec`）
+- [x] 内存原语：`free_str/free_vec/free_box/ref_count`（浅释放语义、二次 `free` 为 no-op；`ref_count` 快照做环泄漏报告，未打破经 `panic` 运行时告警，正例 `40_rc` 环 2-2 → 打破 2-1，负例 `rc_cycle_leak`；类型不匹配编译期拒绝，负例 `free_str_non_str`）
 - [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len/map_keys`
 - [x] TCP：`tcp_connect/send/recv/close/listen/accept`（实参个数/类型不匹配编译期拒绝，负例 `tcp_send_arity`）
 - [x] 线程：`spawn/join`（句柄类型不匹配编译期拒绝，负例 `join_bad_type`）

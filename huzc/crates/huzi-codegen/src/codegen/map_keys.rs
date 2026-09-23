@@ -28,6 +28,7 @@ impl<'ctx> CodeGen<'ctx> {
         let (vec_val, key_ty) = self.compile_map_keys_typed(arguments)?;
         let vec_ty = vec_val.get_type();
         let alloca = self.build_alloca(vec_ty, &stmt.name)?;
+        self.register_droppable(alloca, vec_ty, super::drop::DropKind::Vec);
         self.builder.build_store(alloca, vec_val).unwrap();
         self.scope_insert(
             stmt.name.clone(),
@@ -94,10 +95,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_unconditional_branch(done_bb).unwrap();
 
         self.builder.position_at_end(fill_bb);
-        let data = self
-            .builder
-            .build_array_malloc(key_ty, count, "mk_data")
-            .map_err(|_| HuziError::new_global("Failed to allocate map_keys storage"))?;
+        let data = self.alloc_vec_buffer(key_ty, count, "mk_data")?;
 
         self.emit_map_keys_loop(parts.data, parts.cap, data, count, kind, done_bb, res_vec_ptr)?;
 

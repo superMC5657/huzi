@@ -359,10 +359,7 @@ impl<'ctx> CodeGen<'ctx> {
         let i32_type = self.context.i32_type();
         let one = i32_type.const_int(1, false);
         let whole = self.str_copy_range(s, i32_type.const_int(0, false), s_len)?;
-        let data = self
-            .builder
-            .build_array_malloc(str_ty, one, "split_one_data")
-            .map_err(|_| HuziError::new_global("Failed to allocate split storage"))?;
+        let data = self.alloc_vec_buffer(str_ty, one, "split_one_data")?;
         let slot = unsafe {
             self.builder
                 .build_gep(str_ty, data, &[i32_type.const_int(0, false)], "split_one_slot")
@@ -387,10 +384,7 @@ impl<'ctx> CodeGen<'ctx> {
         done_bb: inkwell::basic_block::BasicBlock<'ctx>,
     ) -> Result<()> {
         let count = self.split_count_segments(s, d, s_len, d_len)?;
-        let data = self
-            .builder
-            .build_array_malloc(str_ty, count, "split_data")
-            .map_err(|_| HuziError::new_global("Failed to allocate split storage"))?;
+        let data = self.alloc_vec_buffer(str_ty, count, "split_data")?;
         self.split_fill_segments(data, s, d, s_len, d_len)?;
         let vec_val = self.assemble_str_vec(data, count)?;
         self.builder.build_store(result, vec_val).unwrap();

@@ -1,0 +1,10 @@
+inner len sum =4
+returned vec len =4
+returned vec[3] =40
+pair flag =true
+pair vec[0] =hello
+pair vec[1] =world
+v1[0] =100
+v2[1] =200
+loop ok =true
+manual free ok

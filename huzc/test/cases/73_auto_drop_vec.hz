@@ -1,0 +1,47 @@
+fn make_sub_vec() -> vec<i32> {
+    let mut v = vec(10, 20, 30)
+    push(v, 40)
+    return v
+}
+
+fn make_pair_vec() -> (bool, vec<str>) {
+    let mut v = vec("hello", "world")
+    return (true, v)
+}
+
+fn test_loop_alloc() -> i32 {
+    let mut count = 0
+    for i in 0..1000 {
+        let mut temp = vec(i, i + 1, i + 2)
+        count = count + temp[1]
+    }
+    return count
+}
+
+fn main() -> i32 {
+    let mut sum = 0
+    {
+        let mut inner = vec(1, 2, 3)
+        push(inner, 4)
+        sum = sum + len(inner)
+    }
+    print("inner len sum =", sum)
+    let v_ret = make_sub_vec()
+    print("returned vec len =", len(v_ret))
+    print("returned vec[3] =", v_ret[3])
+    let pair = make_pair_vec()
+    print("pair flag =", pair.0)
+    let s_vec: vec<str> = pair.1
+    print("pair vec[0] =", s_vec[0])
+    print("pair vec[1] =", s_vec[1])
+    let v1 = vec(100, 200)
+    let v2 = v1
+    print("v1[0] =", v1[0])
+    print("v2[1] =", v2[1])
+    let loop_res = test_loop_alloc()
+    print("loop ok =", loop_res > 0)
+    let mut manual_v = vec(9, 8, 7)
+    free_vec(manual_v)
+    print("manual free ok")
+    return 0
+}

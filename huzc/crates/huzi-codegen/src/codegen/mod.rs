@@ -47,6 +47,7 @@ mod map_rehash;
 mod map_ops;
 mod map_keys;
 mod match_expr;
+mod drop;
 mod mem_free;
 mod runtime;
 mod stmt;
@@ -150,8 +151,8 @@ pub struct CodeGen<'ctx> {
     /// 局部变量名 → 已知的 AST 类型(由 let 的值静态推导),
     /// 供 `r.1` 这类元组字段访问推断元素类型。
     local_ast: HashMap<String, Type>,
-    /// 当前函数中分配的 Box 局部变量槽 (alloca_ptr, llvm_ty),统一在函数退出时 release。
-    box_slots: Vec<(inkwell::values::PointerValue<'ctx>, inkwell::types::BasicTypeEnum<'ctx>)>,
+    /// 作用域层级可析构槽位栈，内层块退出时自动调用析构。
+    pub(super) droppable_scopes: Vec<Vec<drop::DroppableSlot<'ctx>>>,
     /// 无返回值函数表(限定名 -> 是否省略返回类型):`fn foo() {...}` 仍按
     /// i32 隐式 `return 0` 生成代码,但其调用值不可用于变量赋值等值位置。
     fn_no_return: HashMap<String, bool>,
@@ -202,7 +203,7 @@ impl<'ctx> CodeGen<'ctx> {
             fn_param_ast: HashMap::new(),
             fn_return_ast: HashMap::new(),
             local_ast: HashMap::new(),
-            box_slots: Vec::new(),
+            droppable_scopes: vec![Vec::new()],
             fn_no_return: HashMap::new(),
             current_return_ast: None,
             loop_stack: Vec::new(),
@@ -303,10 +304,12 @@ impl<'ctx> CodeGen<'ctx> {
 
     fn push_scope(&mut self) {
         self.scopes.push(HashMap::new());
+        self.droppable_scopes.push(Vec::new());
     }
 
     fn pop_scope(&mut self) {
         self.scopes.pop();
+        self.droppable_scopes.pop();
     }
 
     fn scope_insert(&mut self, name: String, slot: VarSlot<'ctx>) {

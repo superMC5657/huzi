@@ -320,25 +320,11 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(phi.as_basic_value())
     }
 
-    /// 统一退出点:释放当前函数中除 `skip_ptr` 外的所有局部 Box 变量。
+    /// 统一退出点:释放当前函数中除 `skip_ptrs` 外的所有可析构变量（Box/vec）。
     pub(super) fn emit_release_active_boxes(
         &mut self,
-        skip_ptr: Option<PointerValue<'ctx>>,
+        skip_ptrs: &[PointerValue<'ctx>],
     ) -> Result<()> {
-        let slots = self.box_slots.clone();
-        for (ptr, ty) in slots {
-            if let Some(skip) = skip_ptr {
-                if ptr == skip {
-                    continue;
-                }
-            }
-            let cur = self
-                .builder
-                .build_load(ty, ptr, "rc_cleanup")
-                .unwrap()
-                .into_pointer_value();
-            self.emit_release_box(cur)?;
-        }
-        Ok(())
+        self.emit_drop_all_scopes(skip_ptrs)
     }
 }

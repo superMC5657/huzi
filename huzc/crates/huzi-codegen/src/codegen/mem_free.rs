@@ -118,8 +118,7 @@ impl<'ctx> CodeGen<'ctx> {
             ));
         }
         let parts = self.load_vec_parts(&slot)?;
-        let free_fn = self.module.get_function("free").expect("free in prelude");
-        self.builder.build_call(free_fn, &[parts.data.into()], "free_vec_call").unwrap();
+        self.emit_release_box(parts.data)?;
         let vec_ty = self.vec_struct_type();
         let null_data = self.context.ptr_type(AddressSpace::default()).const_null();
         let zero = self.context.i32_type().const_int(0, false);

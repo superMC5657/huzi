@@ -6,6 +6,7 @@ mod let_;
 use super::{CodeGen, VarSlot};
 use super::qname;
 use std::collections::HashMap;
+use inkwell::values::PointerValue;
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 
@@ -69,8 +70,8 @@ impl<'ctx> CodeGen<'ctx> {
         self.current_return_type = Some(return_type);
         self.current_return_ast = stmt.return_type.clone();
         self.scopes = vec![HashMap::new()];
+        self.droppable_scopes = vec![Vec::new()];
         self.defer_stack.clear();
-        self.box_slots.clear();
         self.local_ast.clear();
 
         for (i, param) in stmt.params.iter().enumerate() {
@@ -82,7 +83,7 @@ impl<'ctx> CodeGen<'ctx> {
                 (arg.into_pointer_value(), self.vec_struct_type().into())
             } else if box_inner.is_some() {
                 let a = self.build_box_alloca(arg_type, &param.name)?;
-                self.box_slots.push((a, arg_type));
+                self.register_droppable(a, arg_type, super::drop::DropKind::Box);
                 if arg.is_pointer_value() {
                     self.emit_retain_box(arg.into_pointer_value())?;
                 }
@@ -132,7 +133,7 @@ impl<'ctx> CodeGen<'ctx> {
         // 没有显式 return 的函数在末尾 fallthrough 返回所声明返回类型的零值。
         if self.at_open_end() {
             self.emit_defers()?;
-            self.emit_release_active_boxes(None)?;
+            self.emit_release_active_boxes(&[])?;
             self.builder
                 .build_return(Some(&return_type.const_zero()))
                 .unwrap();
@@ -159,30 +160,13 @@ impl<'ctx> CodeGen<'ctx> {
                 let value = self.coerce_value(ret_type, value)?;
                 self.emit_defers()?;
 
-                let is_ret_box = self
-                    .current_return_ast
-                    .as_ref()
-                    .map(Self::is_box_ast)
-                    .unwrap_or(false);
-                let ret_slot_ptr = if is_ret_box {
-                    if let Expr::Ident(name) = value_expr {
-                        self.scope_lookup(name).map(|s| s.ptr)
-                    } else {
-                        if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
-                            && value.is_pointer_value() {
-                                self.emit_retain_box(value.into_pointer_value())?;
-                            }
-                        None
-                    }
-                } else {
-                    None
-                };
-                self.emit_release_active_boxes(ret_slot_ptr)?;
+                let skip_ptrs = self.resolve_return_droppables(value_expr, value)?;
+                self.emit_release_active_boxes(&skip_ptrs)?;
                 self.builder.build_return(Some(&value)).unwrap();
             }
             None => {
                 self.emit_defers()?;
-                self.emit_release_active_boxes(None)?;
+                self.emit_release_active_boxes(&[])?;
                 self.builder
                     .build_return(Some(&ret_type.const_zero()))
                     .unwrap();
@@ -191,10 +175,117 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
+    fn resolve_return_droppables(
+        &mut self,
+        value_expr: &Expr,
+        value: inkwell::values::BasicValueEnum<'ctx>,
+    ) -> Result<Vec<PointerValue<'ctx>>> {
+        let mut skip_ptrs = Vec::new();
+        let ret_ast = self.current_return_ast.clone();
+
+        match value_expr {
+            Expr::Ident(name) => {
+                let slot_ptr = self.scope_lookup(name).map(|s| s.ptr);
+                let is_local = slot_ptr.map_or(false, |p| {
+                    self.droppable_scopes.iter().any(|sc| sc.iter().any(|s| s.ptr == p))
+                });
+                if is_local {
+                    if let Some(p) = slot_ptr {
+                        skip_ptrs.push(p);
+                    }
+                } else {
+                    let is_ret_box = ret_ast.as_ref().map(Self::is_box_ast).unwrap_or(false);
+                    let is_ret_vec = ret_ast.as_ref().map(Self::is_vec_ast).unwrap_or(false);
+                    if is_ret_box && value.is_pointer_value() {
+                        self.emit_retain_box(value.into_pointer_value())?;
+                    } else if is_ret_vec && value.is_struct_value() {
+                        let data = self
+                            .builder
+                            .build_extract_value(value.into_struct_value(), 0, "ret_vec_data")
+                            .unwrap()
+                            .into_pointer_value();
+                        self.emit_retain_box(data)?;
+                    }
+                }
+            }
+            Expr::TupleLiteral(elements) => {
+                let elem_types = match &ret_ast {
+                    Some(Type::Tuple(ts)) => ts.clone(),
+                    _ => Vec::new(),
+                };
+                for (i, elem_expr) in elements.iter().enumerate() {
+                    let ast_ty = elem_types.get(i);
+                    let is_box = ast_ty.map(Self::is_box_ast).unwrap_or(false);
+                    let is_vec = ast_ty.map(Self::is_vec_ast).unwrap_or(false);
+                    if !is_box && !is_vec {
+                        continue;
+                    }
+                    if let Expr::Ident(name) = elem_expr {
+                        let slot_ptr = self.scope_lookup(name).map(|s| s.ptr);
+                        let is_local = slot_ptr.map_or(false, |p| {
+                            self.droppable_scopes.iter().any(|sc| sc.iter().any(|s| s.ptr == p))
+                        });
+                        if is_local {
+                            if let Some(p) = slot_ptr {
+                                skip_ptrs.push(p);
+                            }
+                            continue;
+                        }
+                    }
+                    if !matches!(elem_expr, Expr::Call(_) | Expr::VecEmpty(_) | Expr::BoxAlloc(_) | Expr::Null)
+                        && value.is_struct_value()
+                    {
+                        let fld = self
+                            .builder
+                            .build_extract_value(value.into_struct_value(), i as u32, "tup_elem")
+                            .unwrap();
+                        if is_box && fld.is_pointer_value() {
+                            self.emit_retain_box(fld.into_pointer_value())?;
+                        } else if is_vec && fld.is_struct_value() {
+                            let data = self
+                                .builder
+                                .build_extract_value(fld.into_struct_value(), 0, "tup_vec_data")
+                                .unwrap()
+                                .into_pointer_value();
+                            self.emit_retain_box(data)?;
+                        }
+                    }
+                }
+            }
+            _ => {
+                let is_ret_box = ret_ast.as_ref().map(Self::is_box_ast).unwrap_or(false);
+                let is_ret_vec = ret_ast.as_ref().map(Self::is_vec_ast).unwrap_or(false);
+                if is_ret_box {
+                    if !matches!(value_expr, Expr::BoxAlloc(_) | Expr::Call(_) | Expr::Null)
+                        && value.is_pointer_value()
+                    {
+                        self.emit_retain_box(value.into_pointer_value())?;
+                    }
+                } else if is_ret_vec {
+                    if !matches!(value_expr, Expr::Call(_) | Expr::VecEmpty(_))
+                        && value.is_struct_value()
+                    {
+                        let data = self
+                            .builder
+                            .build_extract_value(value.into_struct_value(), 0, "ret_vec_data")
+                            .unwrap()
+                            .into_pointer_value();
+                        self.emit_retain_box(data)?;
+                    }
+                }
+            }
+        }
+
+        Ok(skip_ptrs)
+    }
+
     pub(super) fn compile_block(&mut self, block: &Block) -> Result<()> {
         self.push_scope();
         for stmt in &block.statements {
             self.compile_stmt(&stmt.node, stmt.span)?;
+        }
+        if self.at_open_end() {
+            self.emit_drop_current_scope()?;
         }
         self.pop_scope();
         Ok(())

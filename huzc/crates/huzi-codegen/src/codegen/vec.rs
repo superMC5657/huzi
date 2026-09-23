@@ -162,10 +162,7 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> Result<BasicValueEnum<'ctx>> {
         let i32_type = self.context.i32_type();
         let len_val = i32_type.const_int(coerced.len() as u64, false);
-        let data = self
-            .builder
-            .build_array_malloc(elem_type, len_val, "vec_data")
-            .map_err(|_| HuziError::new_global("Failed to allocate vec storage"))?;
+        let data = self.alloc_vec_buffer(elem_type, len_val, "vec_data")?;
         for (i, val) in coerced.into_iter().enumerate() {
             let idx = i32_type.const_int(i as u64, false);
             let elem_ptr = unsafe {
@@ -253,6 +250,7 @@ impl<'ctx> CodeGen<'ctx> {
         let vec_val = self.vec_assemble_empty(elem_type)?;
         let vec_ty = vec_val.get_type();
         let alloca = self.build_alloca(vec_ty, &stmt.name)?;
+        self.register_droppable(alloca, vec_ty, super::drop::DropKind::Vec);
         self.builder.build_store(alloca, vec_val).unwrap();
         self.scope_insert(
             stmt.name.clone(),
@@ -297,6 +295,7 @@ impl<'ctx> CodeGen<'ctx> {
         let vec_val = self.vec_assemble(coerced, elem_type)?;
         let vec_ty = vec_val.get_type();
         let alloca = self.build_alloca(vec_ty, &stmt.name)?;
+        self.register_droppable(alloca, vec_ty, super::drop::DropKind::Vec);
         self.builder.build_store(alloca, vec_val).unwrap();
         self.scope_insert(
             stmt.name.clone(),
@@ -379,14 +378,7 @@ impl<'ctx> CodeGen<'ctx> {
             .builder
             .build_int_mul(new_cap, elem_bytes, "vec_new_bytes")
             .unwrap();
-        let realloc_fn = self.module.get_function("realloc").expect("realloc in prelude");
-        let new_data = self
-            .builder
-            .build_call(realloc_fn, &[parts.data.into(), new_bytes.into()], "vec_realloc")
-            .unwrap()
-            .try_as_basic_value()
-            .unwrap_left()
-            .into_pointer_value();
+        let new_data = self.realloc_vec_buffer(parts.data, is_empty, new_bytes);
         self.store_vec_parts(&slot, vec_ty, &VecParts {
             data: new_data,
             len: parts.len,

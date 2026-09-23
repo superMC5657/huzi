@@ -73,7 +73,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.builder.position_at_end(err_bb);
         self.emit_defers()?;
-        self.emit_release_active_boxes(None)?;
+        self.emit_release_active_boxes(&[])?;
         self.builder.build_return(Some(&result_val)).unwrap();
 
         self.builder.position_at_end(cont_bb);

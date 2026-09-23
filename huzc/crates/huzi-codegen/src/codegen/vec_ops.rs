@@ -77,14 +77,7 @@ impl<'ctx> CodeGen<'ctx> {
             .builder
             .build_int_mul(new_cap, elem_bytes, "vec_new_bytes")
             .unwrap();
-        let realloc_fn = self.module.get_function("realloc").expect("realloc in prelude");
-        let new_data = self
-            .builder
-            .build_call(realloc_fn, &[parts.data.into(), new_bytes.into()], "vec_realloc")
-            .unwrap()
-            .try_as_basic_value()
-            .unwrap_left()
-            .into_pointer_value();
+        let new_data = self.realloc_vec_buffer(parts.data, is_empty, new_bytes);
         self.store_vec_parts(slot, vec_ty, &VecParts {
             data: new_data,
             len: parts.len,

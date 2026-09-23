@@ -3,6 +3,7 @@
 
 use super::{CodeGen, VarSlot};
 use super::qname;
+use crate::codegen::drop::DropKind;
 use inkwell::AddressSpace;
 use inkwell::types::BasicType;
 use huzi_ast::*;
@@ -136,6 +137,17 @@ impl<'ctx> CodeGen<'ctx> {
                 map_kind,
             },
         );
+        if elem.is_some() && var_type.is_struct_type() {
+            self.register_droppable(alloca, var_type, DropKind::Vec);
+            if !matches!(value_expr, Expr::Call(_) | Expr::VecEmpty(_)) && value.is_struct_value() {
+                let data = self
+                    .builder
+                    .build_extract_value(value.into_struct_value(), 0, "vec_data_retain")
+                    .unwrap()
+                    .into_pointer_value();
+                self.emit_retain_box(data)?;
+            }
+        }
         self.declare_local(&stmt.name, alloca, var_type, span);
         Ok(())
     }
@@ -165,7 +177,7 @@ impl<'ctx> CodeGen<'ctx> {
     ) -> Result<inkwell::values::PointerValue<'ctx>> {
         let alloca = if is_box {
             let a = self.build_box_alloca(var_type, &stmt.name)?;
-            self.box_slots.push((a, var_type));
+            self.register_droppable(a, var_type, DropKind::Box);
             a
         } else {
             self.build_alloca(var_type, &stmt.name)?
@@ -274,7 +286,7 @@ impl<'ctx> CodeGen<'ctx> {
 
         let alloca = if box_inner.is_some() {
             let a = self.build_box_alloca(ty, &stmt.name)?;
-            self.box_slots.push((a, ty));
+            self.register_droppable(a, ty, DropKind::Box);
             a
         } else {
             self.build_alloca(ty, &stmt.name)?

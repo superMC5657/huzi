@@ -452,6 +452,11 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    /// 判定 AST 类型是否为 `vec<T>`
+    pub(super) fn is_vec_ast(ty: &Type) -> bool {
+        matches!(ty, Type::Applied(n, _) if n == "vec")
+    }
+
     /// `Box` 标量究极类型判定:整数/浮点直接放行;指针仅当 AST 为
     /// `str` 时放行(数组等其它指针 composites 仍拒绝)。
     pub(super) fn is_box_scalar(

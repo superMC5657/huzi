@@ -276,6 +276,7 @@ impl<'ctx> CodeGen<'ctx> {
         let vec_val = self.compile_split(arguments)?;
         let vec_ty = vec_val.get_type();
         let alloca = self.build_alloca(vec_ty, &stmt.name)?;
+        self.register_droppable(alloca, vec_ty, super::drop::DropKind::Vec);
         self.builder.build_store(alloca, vec_val).unwrap();
         let str_ty = self.context.ptr_type(AddressSpace::default()).into();
         self.scope_insert(

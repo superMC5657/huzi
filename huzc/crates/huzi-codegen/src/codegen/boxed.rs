@@ -343,7 +343,7 @@ impl<'ctx> CodeGen<'ctx> {
         let ptr_ty = self.type_to_llvm(ann)?;
         let box_inner = self.box_nest_of_ast(ann)?;
         let alloca = self.build_box_alloca(ptr_ty, &stmt.name)?;
-        self.box_slots.push((alloca, ptr_ty));
+        self.register_droppable(alloca, ptr_ty, super::drop::DropKind::Box);
         self.builder.build_store(alloca, ptr_ty.const_zero()).unwrap();
         self.scope_insert(
             stmt.name.clone(),
@@ -388,7 +388,7 @@ impl<'ctx> CodeGen<'ctx> {
         span: Span,
     ) -> Result<()> {
         let alloca = self.build_box_alloca(slot_ty, name)?;
-        self.box_slots.push((alloca, slot_ty));
+        self.register_droppable(alloca, slot_ty, super::drop::DropKind::Box);
         self.builder.build_store(alloca, val).unwrap();
         self.scope_insert(
             name.to_string(),
