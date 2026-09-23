@@ -1,0 +1,42 @@
+# 64_closures.hz —— 匿名函数、环境捕获、一等函数类型与高阶调用
+fn inc(n: i32) -> i32 {
+    return n + 1
+}
+
+fn apply_twice(f: fn(i32) -> i32, x: i32) -> i32 {
+    return f(f(x))
+}
+
+fn my_apply<T, U>(x: T, f: fn(T) -> U) -> U {
+    return f(x)
+}
+
+fn main() -> i32 {
+    # 1. 匿名函数与多参数闭包
+    let add = |a: i32, b: i32| a + b
+    let res1 = add(3, 4)
+    print("res1:", res1)
+    # 2. 无参闭包
+    let get_magic = || 42
+    print("magic:", get_magic())
+    # 3. 环境变量按值捕获
+    let base = 100
+    let add_base = |x: i32| x + base
+    print("add_base:", add_base(25))
+    # 4. 多环境变量捕获
+    let p = 10
+    let q = 20
+    let sum_pq = |z: i32| p + q + z
+    print("sum_pq:", sum_pq(5))
+    # 5. 高阶函数接收闭包
+    let double = |n: i32| n * 2
+    let twice = apply_twice(double, 3)
+    print("twice:", twice)
+    # 6. 命名顶层函数升格为闭包传入高阶函数
+    let promoted = apply_twice(inc, 10)
+    print("promoted:", promoted)
+    # 7. 泛型高阶函数与自动类型推导
+    let gen_res = my_apply(7, |v: i32| v * 3)
+    print("gen_res:", gen_res)
+    return 0
+}

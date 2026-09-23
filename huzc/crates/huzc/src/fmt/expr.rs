@@ -21,6 +21,7 @@ pub(super) fn format_expr(expr: &Expr) -> String {
         Expr::Match(m) => format_match_expr(m),
         Expr::MethodCall(m) => format_method_call(m),
         Expr::Try(t) => format_try(t),
+        Expr::Closure(c) => format_closure(c),
     }
 }
 
@@ -350,4 +351,39 @@ fn format_method_call(m: &MethodCallExpr) -> String {
     let receiver = format_expr(&m.receiver);
     let args: Vec<_> = m.arguments.iter().map(format_expr).collect();
     format!("{}.{}({})", receiver, m.method, args.join(", "))
+}
+
+fn format_closure(c: &ClosureExpr) -> String {
+    let params: Vec<String> = c
+        .params
+        .iter()
+        .map(|p| {
+            if let Some(t) = &p.param_type {
+                format!("{}: {}", p.name, t)
+            } else {
+                p.name.clone()
+            }
+        })
+        .collect();
+    let pipe_part = if params.is_empty() {
+        "||".to_string()
+    } else {
+        format!("|{}|", params.join(", "))
+    };
+    let ret_part = if let Some(ret) = &c.return_type {
+        format!(" -> {}", ret)
+    } else {
+        String::new()
+    };
+    match &c.body {
+        ClosureBody::Expr(e) => format!("{}{} {}", pipe_part, ret_part, format_expr(e)),
+        ClosureBody::Block(b) => {
+            let inner = format_inline_block(b);
+            if inner.is_empty() {
+                format!("{}{} {{}}", pipe_part, ret_part)
+            } else {
+                format!("{}{} {{ {} }}", pipe_part, ret_part, inner)
+            }
+        }
+    }
 }

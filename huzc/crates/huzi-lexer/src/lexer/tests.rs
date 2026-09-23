@@ -65,3 +65,15 @@ fn illegal_character_reports_position() {
         .expect_err("'@' must be rejected");
     assert_eq!((err.line(), err.column()), (1, 9));
 }
+
+#[test]
+fn pipe_and_barbar_tokens() {
+    let tokens = tokenize("| || |x| ||");
+    assert_eq!(tokens[0].token, Token::Pipe);
+    assert_eq!(tokens[1].token, Token::BarBar);
+    assert_eq!(tokens[2].token, Token::Pipe);
+    assert_eq!(tokens[3].token, Token::Ident("x".to_string()));
+    assert_eq!(tokens[4].token, Token::Pipe);
+    assert_eq!(tokens[5].token, Token::BarBar);
+}
+

@@ -110,6 +110,12 @@ impl Monomorphizer {
                     self.monomorphize_type(elem)?;
                 }
             }
+            Type::Fn(params, ret) => {
+                for p in params {
+                    self.monomorphize_type(p)?;
+                }
+                self.monomorphize_type(ret)?;
+            }
             _ => {}
         }
         Ok(())
@@ -287,7 +293,36 @@ impl Monomorphizer {
         if !self.instantiated_fns.contains_key(&mangled) {
             self.instantiate_fn(&template, span, type_args, &mangled)?;
         }
+        Self::propagate_closure_types(&template, type_args, arguments);
         Ok(Some(mangled))
+    }
+
+    fn propagate_closure_types(
+        template: &FnStmt,
+        type_args: &[Type],
+        arguments: &mut [Expr],
+    ) {
+        let mapping: HashMap<String, Type> = template
+            .type_params
+            .iter()
+            .cloned()
+            .zip(type_args.iter().cloned())
+            .collect();
+        for (param, arg) in template.params.iter().zip(arguments.iter_mut()) {
+            if let Expr::Closure(closure) = arg {
+                let inst_ty = substitute_type(&param.param_type, &mapping);
+                if let Type::Fn(param_tys, ret_ty) = inst_ty {
+                    for (cp, pt) in closure.params.iter_mut().zip(param_tys.into_iter()) {
+                        if cp.param_type.is_none() {
+                            cp.param_type = Some(pt);
+                        }
+                    }
+                    if closure.return_type.is_none() {
+                        closure.return_type = Some(*ret_ty);
+                    }
+                }
+            }
+        }
     }
 
     /// 实例化泛型函数模板:按实参映射替换签名与函数体,登记单态化

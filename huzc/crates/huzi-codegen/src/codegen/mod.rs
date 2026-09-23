@@ -18,6 +18,7 @@ mod exports;
 mod args;
 mod args_utf8;
 mod box_nest;
+mod closure;
 mod box_deref;
 mod box_print;
 mod boxed;
@@ -181,6 +182,10 @@ pub struct CodeGen<'ctx> {
     current_subprogram: Option<inkwell::debug_info::DISubprogram<'ctx>>,
     /// 当前函数延迟执行栈。
     defer_stack: Vec<defer::DeferEntry<'ctx>>,
+    /// 闭包唯一命名计数器。
+    pub(super) closure_counter: usize,
+    /// 顶层命名函数升格闭包时的 thunk 缓存。
+    pub(super) thunk_cache: HashMap<String, FunctionValue<'ctx>>,
 }
 impl<'ctx> CodeGen<'ctx> {
     pub fn new(context: &'ctx Context, name: &str) -> Self {
@@ -209,6 +214,8 @@ impl<'ctx> CodeGen<'ctx> {
             debug: None,
             current_subprogram: None,
             defer_stack: Vec::new(),
+            closure_counter: 0,
+            thunk_cache: HashMap::new(),
         }
     }
 

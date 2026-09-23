@@ -71,8 +71,32 @@ impl Monomorphizer {
                     self.monomorphize_expr(a)?;
                 }
             }
+            Expr::Closure(c) => self.monomorphize_closure_expr(c)?,
             _ => {}
         }
+        Ok(())
+    }
+
+    fn monomorphize_closure_expr(&mut self, c: &mut ClosureExpr) -> Result<()> {
+        for p in &mut c.params {
+            if let Some(ty) = &mut p.param_type {
+                self.monomorphize_type(ty)?;
+            }
+        }
+        if let Some(ret) = &mut c.return_type {
+            self.monomorphize_type(ret)?;
+        }
+        self.inferrer.enter_scope();
+        for p in &c.params {
+            if let Some(ty) = &p.param_type {
+                self.inferrer.insert_var(&p.name, ty.clone());
+            }
+        }
+        match &mut c.body {
+            ClosureBody::Expr(e) => self.monomorphize_expr(e)?,
+            ClosureBody::Block(b) => self.monomorphize_block(b)?,
+        }
+        self.inferrer.leave_scope();
         Ok(())
     }
 
@@ -95,6 +119,11 @@ impl Monomorphizer {
         {
             c.callee = Box::new(Expr::Ident(mangled));
             c.type_args.clear();
+            for arg in &mut c.arguments {
+                if let Expr::Closure(closure) = arg {
+                    self.monomorphize_closure_expr(closure)?;
+                }
+            }
         }
         Ok(())
     }

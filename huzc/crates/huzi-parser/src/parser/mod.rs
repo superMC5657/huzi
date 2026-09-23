@@ -1,4 +1,5 @@
 mod expr;
+mod expr_closure;
 mod expr_generic;
 mod expr_if;
 mod pattern;
@@ -175,33 +176,66 @@ impl Parser {
     }
 
     fn parse_type(&mut self) -> Result<Type> {
-        // 检查数组类型: [T; N]
         if self.check(&Token::LBracket) {
-            self.advance(); // consume '['
-            let elem_type = self.parse_type()?;
-            self.expect(&Token::Semi, "Expected ';' in array type")?;
-            let size = self.expect_integer("Expected array size")? as usize;
-            self.expect(&Token::RBracket, "Expected ']' in array type")?;
-            return Ok(Type::Array(Box::new(elem_type), size));
+            return self.parse_array_type();
         }
-
-        // 元组类型：() 为单元类型 unit，(T1, T2, ...) 为元组。
         if self.check(&Token::LParen) {
-            self.advance(); // consume '('
-            if self.check(&Token::RParen) {
-                self.advance();
-                return Ok(Type::Unit);
-            }
-            let mut elems = vec![self.parse_type()?];
+            return self.parse_tuple_type();
+        }
+        if self.check(&Token::Fn) {
+            return self.parse_fn_type();
+        }
+        self.parse_named_or_generic_type()
+    }
+
+    fn parse_array_type(&mut self) -> Result<Type> {
+        self.advance(); // consume '['
+        let elem_type = self.parse_type()?;
+        self.expect(&Token::Semi, "Expected ';' in array type")?;
+        let size = self.expect_integer("Expected array size")? as usize;
+        self.expect(&Token::RBracket, "Expected ']' in array type")?;
+        Ok(Type::Array(Box::new(elem_type), size))
+    }
+
+    fn parse_tuple_type(&mut self) -> Result<Type> {
+        self.advance(); // consume '('
+        if self.check(&Token::RParen) {
+            self.advance();
+            return Ok(Type::Unit);
+        }
+        let mut elems = vec![self.parse_type()?];
+        while self.check(&Token::Comma) {
+            self.advance();
+            elems.push(self.parse_type()?);
+        }
+        self.expect(&Token::RParen, "Expected ')' in tuple type")?;
+        Ok(Type::Tuple(elems))
+    }
+
+    /// 解析函数/闭包类型：`fn(T1, T2) -> Ret`
+    fn parse_fn_type(&mut self) -> Result<Type> {
+        self.advance(); // consume 'fn'
+        self.expect(&Token::LParen, "Expected '(' after 'fn' in function type")?;
+        let mut param_types = Vec::new();
+        if !self.check(&Token::RParen) {
+            param_types.push(self.parse_type()?);
             while self.check(&Token::Comma) {
                 self.advance();
-                elems.push(self.parse_type()?);
+                param_types.push(self.parse_type()?);
             }
-            self.expect(&Token::RParen, "Expected ')' in tuple type")?;
-            return Ok(Type::Tuple(elems));
         }
+        self.expect(&Token::RParen, "Expected ')' in function type")?;
+        let return_type = if self.check(&Token::Arrow) {
+            self.advance();
+            self.parse_type()?
+        } else {
+            Type::Unit
+        };
+        Ok(Type::Fn(param_types, Box::new(return_type)))
+    }
 
-        let ty = match self.peek() {
+    fn parse_named_or_generic_type(&mut self) -> Result<Type> {
+        match self.peek() {
             Token::Ident(name) => {
                 let mut name = name.clone();
                 self.advance();
@@ -217,20 +251,17 @@ impl Parser {
                     return self.parse_applied_type(name);
                 }
                 if self.is_type_param(&name) {
-                    Type::Generic(name)
+                    Ok(Type::Generic(name))
                 } else {
-                    Type::Named(name)
+                    Ok(Type::Named(name))
                 }
             }
-            _ => {
-                return Err(HuziError::new(
-                    "Expected type",
-                    self.current_line(),
-                    self.current_col(),
-                ))
-            }
-        };
-        Ok(ty)
+            _ => Err(HuziError::new(
+                "Expected type",
+                self.current_line(),
+                self.current_col(),
+            )),
+        }
     }
 
     /// 解析 `Box` 后的 `<T>`(调用时 `<` 尚未消费)。`T` 为具名
@@ -293,6 +324,8 @@ impl Parser {
                 | Token::Bang
                 | Token::Minus
                 | Token::Star
+                | Token::Pipe
+                | Token::BarBar
         )
     }
 

@@ -22,6 +22,10 @@ pub fn substitute_type(ty: &Type, mapping: &HashMap<String, Type>) -> Type {
         Type::Tuple(elems) => {
             Type::Tuple(elems.iter().map(|e| substitute_type(e, mapping)).collect())
         }
+        Type::Fn(params, ret) => Type::Fn(
+            params.iter().map(|p| substitute_type(p, mapping)).collect(),
+            Box::new(substitute_type(ret, mapping)),
+        ),
         other => other.clone(),
     }
 }
@@ -89,6 +93,20 @@ pub fn substitute_expr(expr: &mut Expr, mapping: &HashMap<String, Type>) {
             substitute_expr(&mut m.receiver, mapping);
             for arg in &mut m.arguments {
                 substitute_expr(arg, mapping);
+            }
+        }
+        Expr::Closure(c) => {
+            for p in &mut c.params {
+                if let Some(t) = &mut p.param_type {
+                    *t = substitute_type(t, mapping);
+                }
+            }
+            if let Some(r) = &mut c.return_type {
+                *r = substitute_type(r, mapping);
+            }
+            match &mut c.body {
+                ClosureBody::Expr(e) => substitute_expr(e, mapping),
+                ClosureBody::Block(b) => substitute_block(b, mapping),
             }
         }
     }

@@ -24,6 +24,10 @@ pub fn mangle_type(ty: &Type) -> String {
             let mangled_elems: Vec<_> = elems.iter().map(mangle_type).collect();
             format!("tuple__{}", mangled_elems.join("_"))
         }
+        Type::Fn(params, ret) => {
+            let mangled_params: Vec<_> = params.iter().map(mangle_type).collect();
+            format!("fn__{}__to__{}", mangled_params.join("_"), mangle_type(ret))
+        }
     }
 }
 

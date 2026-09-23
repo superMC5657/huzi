@@ -6,6 +6,7 @@ use huzi_error::{HuziError, Result};
 use std::collections::HashMap;
 
 /// 类型推导器：跟踪局部变量类型与已知函数/结构体签名，完成实参类型推导。
+#[derive(Clone)]
 pub(super) struct TypeInferrer {
     var_scopes: Vec<HashMap<String, Type>>,
     pub(super) fn_signatures: HashMap<String, (Vec<Type>, Option<Type>)>,
@@ -62,7 +63,12 @@ impl TypeInferrer {
                 Literal::Char(_) => Some(Type::Named("char".to_string())),
                 Literal::Bool(_) => Some(Type::Named("bool".to_string())),
             },
-            Expr::Ident(name) => self.lookup_var(name).cloned(),
+            Expr::Ident(name) => self.lookup_var(name).cloned().or_else(|| {
+                self.fn_signatures.get(name).map(|(params, ret)| {
+                    let ret_ty = ret.clone().unwrap_or_else(|| Type::Named("void".to_string()));
+                    Type::Fn(params.clone(), Box::new(ret_ty))
+                })
+            }),
             Expr::BoxAlloc(inner) => {
                 let inner_ty = self.infer_expr_type(inner)?;
                 Some(Type::Box(Box::new(inner_ty)))
@@ -84,6 +90,7 @@ impl TypeInferrer {
                 Some(Type::Array(Box::new(elem_ty), elems.len()))
             }
             Expr::Call(c) => self.infer_call_expr_type(c),
+            Expr::Closure(c) => self.infer_closure_type(c, None),
             Expr::EnumConstruct(ec) => self.infer_enum_construct_type(ec),
             Expr::If(i) => self.infer_block_type(&i.then_branch),
             Expr::Assign(a) => self.infer_expr_type(&a.value),
@@ -203,6 +210,9 @@ impl TypeInferrer {
     }
 
     fn infer_call_expr_type(&self, c: &CallExpr) -> Option<Type> {
+        if let Some(Type::Fn(_, ret)) = self.infer_expr_type(&c.callee) {
+            return Some(*ret);
+        }
         let name = match &*c.callee {
             Expr::Ident(n) => n,
             _ => return None,
@@ -236,6 +246,48 @@ impl TypeInferrer {
         }
     }
 
+    pub(super) fn infer_closure_type(
+        &self,
+        c: &ClosureExpr,
+        expected: Option<&Type>,
+    ) -> Option<Type> {
+        let (expected_params, expected_ret) = match expected {
+            Some(Type::Fn(params, ret)) => (Some(params), Some(ret.as_ref())),
+            _ => (None, None),
+        };
+        let mut param_types = Vec::with_capacity(c.params.len());
+        for (i, p) in c.params.iter().enumerate() {
+            if let Some(t) = &p.param_type {
+                param_types.push(t.clone());
+            } else if let Some(exp_p) = expected_params.and_then(|ps| ps.get(i)) {
+                param_types.push(exp_p.clone());
+            } else {
+                return None;
+            }
+        }
+        let ret_type = if let Some(r) = &c.return_type {
+            r.clone()
+        } else {
+            let mut sub_infer = self.clone();
+            sub_infer.enter_scope();
+            for (p, t) in c.params.iter().zip(param_types.iter()) {
+                sub_infer.insert_var(&p.name, t.clone());
+            }
+            let body_ty = match &c.body {
+                ClosureBody::Expr(e) => sub_infer.infer_expr_type(e),
+                ClosureBody::Block(b) => sub_infer.infer_block_type(b),
+            };
+            if let Some(bt) = body_ty {
+                bt
+            } else if let Some(exp_r) = expected_ret {
+                exp_r.clone()
+            } else {
+                return None;
+            }
+        };
+        Some(Type::Fn(param_types, Box::new(ret_type)))
+    }
+
     /// 在泛型调用点根据形参列表和实参列表推导具体类型实参。
     pub(super) fn infer_call_type_args(
         &self,
@@ -253,8 +305,24 @@ impl TypeInferrer {
         }
 
         let mut inferred: HashMap<String, Type> = HashMap::new();
+        for (param, arg) in template.params.iter().zip(args.iter()) {
+            if !matches!(arg, Expr::Closure(_)) {
+                if let Some(arg_ty) = self.infer_expr_type(arg) {
+                    let _ = self.unify_type(
+                        &param.param_type,
+                        &arg_ty,
+                        &template.type_params,
+                        &mut inferred,
+                    );
+                }
+            }
+        }
         for (idx, (param, arg)) in template.params.iter().zip(args.iter()).enumerate() {
-            let arg_ty = self.infer_expr_type(arg).ok_or_else(|| {
+            let expected_ty = crate::codegen::generic::subst::substitute_type(&param.param_type, &inferred);
+            let arg_ty = match arg {
+                Expr::Closure(c) => self.infer_closure_type(c, Some(&expected_ty)),
+                _ => self.infer_expr_type(arg),
+            }.ok_or_else(|| {
                 HuziError::new_global(format!(
                     "泛型函数 '{}' 第 {} 个实参类型无法推导:形参为 '{}: {}',请显式指定类型实参,如 `{}<{}>(...)`",
                     callee_name,
@@ -346,6 +414,16 @@ impl TypeInferrer {
                         for (pe, ae) in p_elems.iter().zip(a_elems) {
                             self.unify_type(pe, ae, type_params, inferred)?;
                         }
+                    }
+                }
+            }
+            Type::Fn(p_params, p_ret) => {
+                if let Type::Fn(a_params, a_ret) = arg_ty {
+                    if p_params.len() == a_params.len() {
+                        for (pp, ap) in p_params.iter().zip(a_params) {
+                            self.unify_type(pp, ap, type_params, inferred)?;
+                        }
+                        self.unify_type(p_ret, a_ret, type_params, inferred)?;
                     }
                 }
             }

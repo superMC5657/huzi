@@ -109,3 +109,17 @@ fn test_fmt_if_expr() {
     let formatted_again = format_source(&formatted).expect("second format should succeed");
     assert_eq!(formatted, formatted_again);
 }
+
+#[test]
+fn test_fmt_closure() {
+    let src = r#"fn main() -> i32 {
+    let add = |x: i32, y: i32| -> i32 { x + y }
+    let mul = |a, b| a * b
+    let zero = || 0
+    return add(mul(2, 3), zero())
+}
+"#;
+    let formatted = format_source(src).expect("format should succeed");
+    let formatted_again = format_source(&formatted).expect("second format should succeed");
+    assert_eq!(formatted, formatted_again);
+}

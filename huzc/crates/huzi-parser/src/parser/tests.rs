@@ -212,3 +212,40 @@ fn same_line_star_is_still_mul() {
     };
     assert_eq!(b.operator, BinOp::Mul);
 }
+
+#[test]
+fn closure_expression_parses() {
+    let program = parse("fn main() -> i32 {\n let f = |x, y| x + y\n let g = || 42\n let h = |x: i32| -> i32 { return x + 1 }\n return 0\n}");
+    let Stmt::Fn(main_fn) = &program.statements[0].node else { panic!("expected fn"); };
+    let Stmt::Let(l0) = &main_fn.body.statements[0].node else { panic!("expected let"); };
+    let Some(Expr::Closure(c0)) = &l0.value else { panic!("expected closure"); };
+    assert_eq!(c0.params.len(), 2);
+    assert_eq!(c0.params[0].name, "x");
+    assert_eq!(c0.params[1].name, "y");
+    assert!(matches!(&c0.body, ClosureBody::Expr(_)));
+
+    let Stmt::Let(l1) = &main_fn.body.statements[1].node else { panic!("expected let"); };
+    let Some(Expr::Closure(c1)) = &l1.value else { panic!("expected closure"); };
+    assert_eq!(c1.params.len(), 0);
+
+    let Stmt::Let(l2) = &main_fn.body.statements[2].node else { panic!("expected let"); };
+    let Some(Expr::Closure(c2)) = &l2.value else { panic!("expected closure"); };
+    assert_eq!(c2.params.len(), 1);
+    assert_eq!(c2.params[0].param_type, Some(Type::Named("i32".to_string())));
+    assert_eq!(c2.return_type, Some(Type::Named("i32".to_string())));
+    assert!(matches!(&c2.body, ClosureBody::Block(_)));
+}
+
+#[test]
+fn fn_type_parses() {
+    let program = parse("fn apply(f: fn(i32, str) -> bool) -> bool { return false }");
+    let Stmt::Fn(f) = &program.statements[0].node else { panic!("expected fn"); };
+    assert_eq!(
+        f.params[0].param_type,
+        Type::Fn(
+            vec![Type::Named("i32".to_string()), Type::Named("str".to_string())],
+            Box::new(Type::Named("bool".to_string()))
+        )
+    );
+}
+

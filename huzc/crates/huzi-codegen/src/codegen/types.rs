@@ -259,6 +259,7 @@ impl<'ctx> CodeGen<'ctx> {
             Type::Char => Ok(self.context.i8_type().into()),
             Type::Str => Ok(self.context.ptr_type(AddressSpace::default()).into()),
             Type::Unit => Ok(self.context.i32_type().into()),
+            Type::Fn(_, _) => Ok(self.closure_struct_type().into()),
             // 数组退化为指针（LLVM 不透明指针使两者等价）；元素类型在 VarSlot 中跟踪。
             Type::Array(_, _) => Ok(self.context.ptr_type(AddressSpace::default()).into()),
             // `Box<T>` 降阶为指向 T 的 LLVM 存储的裸指针；因此持有 Box 字段的结构体
@@ -465,5 +466,11 @@ impl<'ctx> CodeGen<'ctx> {
             }
             _ => false,
         }
+    }
+
+    /// 闭包底层胖指针类型：{ fn_ptr, env_ptr }
+    pub(super) fn closure_struct_type(&self) -> inkwell::types::StructType<'ctx> {
+        let ptr_ty = self.context.ptr_type(inkwell::AddressSpace::default()).into();
+        self.context.struct_type(&[ptr_ty, ptr_ty], false)
     }
 }

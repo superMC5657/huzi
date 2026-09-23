@@ -111,11 +111,7 @@ impl Lexer {
             self.advance();
             Ok(Token::BarBar)
         } else {
-            Err(HuziError::new(
-                "Unexpected character '|' (did you mean '||'?)",
-                self.line,
-                self.column,
-            ))
+            Ok(Token::Pipe)
         }
     }
 }

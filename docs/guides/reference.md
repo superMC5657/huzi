@@ -46,6 +46,7 @@
 | `Map<str, str>` | 键值映射表（`str->str`） | `{ ptr, i32, i32 }` | 值字段为 `ptr`；`map_get` 返回 `(bool, str)` |
 | `Map<i32, i32>` | 键值映射表（`i32->i32`） | `{ ptr, i32, i32 }` | 键哈希直接用键值；`map_keys` 返回 `vec<i32>` |
 | `Box<T>` | 堆指针泛型 | `ptr` | 堆分配，`T` 为具名结构体或标量（`i32`/`i64`/`f64`/`bool`/`str`）；结构体字段点号自动解引用，标量经前缀 `*b` 显式解引用（直达最内层，逐层空检查），引用计数 (RC) 追踪 |
+| `fn(T1, T2) -> Ret` | 一等函数与闭包类型 | `{ ptr, ptr }` | 胖指针（函数指针与环境上下文指针），统一支持闭包与顶层函数升格 |
 
 ---
 
@@ -155,6 +156,12 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 - `http_request(method: str, host: str, port: i32, path: str, headers: str, body: str) -> Result<str>`：发起任意方法请求（`headers`/`body` 可为空串），返回完整 body（2xx）或错误信息；自定义头经此传入。
 - `http_post(host: str, port: i32, path: str, body: str) -> Result<str>`：发起 POST 请求（固定 `Content-Type: text/plain`），返回完整 body（2xx）或错误信息。
 - 限制：仅文本响应（NUL 字节会截断）、无 chunked、无 keep-alive、无 TLS；错误类型固定为 `Result<str>`。
+
+### 4.12 高阶迭代与闭包原语 (自举标准库 `alloc.vec_algo`)
+
+- `vec_map<T, U>(v: vec<T>, f: fn(T) -> U) -> vec<U>`: 对动态数组中每个元素应用函数/闭包 `f`，收集并返回新的映射数组。
+- `vec_filter<T>(v: vec<T>, pred: fn(T) -> bool) -> vec<T>`: 过滤动态数组，仅保留使谓词 `pred` 返回 `true` 的元素。
+- `vec_fold<T, Acc>(v: vec<T>, init: Acc, f: fn(Acc, T) -> Acc) -> Acc`: 从初始累加值 `init` 开始，依次结合元素应用折叠函数 `f`，返回最终累积结果。
 
 ---
 

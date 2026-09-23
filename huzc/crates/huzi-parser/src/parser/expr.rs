@@ -390,6 +390,8 @@ impl Parser {
             }
             Token::If => self.parse_if_expression(),
             Token::Match => self.parse_match_expression(),
+            Token::BarBar => self.parse_closure_zero_args(),
+            Token::Pipe => self.parse_closure(),
             _ => Err(HuziError::new(
                 format!("Unexpected token: {}", token),
                 self.current_line(),

@@ -14,7 +14,14 @@ impl<'ctx> CodeGen<'ctx> {
                         .unwrap();
                     Ok(loaded)
                 }
-                None => Err(self.unknown_variable_error(name)),
+                None => {
+                    let qname = self.qualify_name(name);
+                    if self.functions.contains_key(&qname) {
+                        self.get_named_function_closure(name)
+                    } else {
+                        Err(self.unknown_variable_error(name))
+                    }
+                }
             },
             Expr::Binary(bin_expr) => self.compile_binary(bin_expr),
             Expr::Unary(unary_expr) => self.compile_unary(unary_expr),
@@ -36,6 +43,7 @@ impl<'ctx> CodeGen<'ctx> {
                 mc.method
             ))),
             Expr::Try(t) => self.compile_try(t),
+            Expr::Closure(c) => self.compile_closure(c),
         }
     }
 
@@ -151,80 +159,17 @@ impl<'ctx> CodeGen<'ctx> {
         expr: &CallExpr,
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         let callee_name = match &*expr.callee {
-            Expr::Ident(name) => name.clone(),
-            _ => return Err(HuziError::new_global("Expected function name")),
+            Expr::Ident(name) => {
+                if self.scope_lookup(name).is_some() {
+                    return self.compile_closure_call(&expr.callee, &expr.arguments);
+                }
+                name.clone()
+            }
+            _ => return self.compile_closure_call(&expr.callee, &expr.arguments),
         };
 
-        // 内置函数
-        match callee_name.as_str() {
-            "print" => return self.compile_print(&expr.arguments),
-            "read_line" => return self.compile_read_line(),
-            "read_int" => return self.compile_read_int(),
-            "read_float" => return self.compile_read_float(),
-            "len" => return self.compile_len(&expr.arguments),
-            "abs" => return self.compile_abs(&expr.arguments),
-            "sqrt" => return self.compile_libm_unary("sqrt", &expr.arguments),
-            "pow" => return self.compile_pow(&expr.arguments),
-            "sin" => return self.compile_libm_unary("sin", &expr.arguments),
-            "cos" => return self.compile_libm_unary("cos", &expr.arguments),
-            "tan" => return self.compile_libm_unary("tan", &expr.arguments),
-            "floor" => return self.compile_libm_unary("floor", &expr.arguments),
-            "ceil" => return self.compile_libm_unary("ceil", &expr.arguments),
-            "round" => return self.compile_libm_unary("round", &expr.arguments),
-            "concat" => return self.compile_concat(&expr.arguments),
-            "split" => return self.compile_split(&expr.arguments),
-            "substring" => return self.compile_substring(&expr.arguments),
-            "trim" => return self.compile_trim(&expr.arguments),
-            "contains" => return self.compile_contains(&expr.arguments),
-            "to_string" => return self.compile_to_string(&expr.arguments),
-            "parse_int" => return self.compile_parse_int(&expr.arguments),
-            "parse_float" => return self.compile_parse_float(&expr.arguments),
-            "arg_count" => return self.compile_arg_count(),
-            "arg" => return self.compile_arg(&expr.arguments),
-            "arg_ok" => return self.compile_arg_ok(&expr.arguments),
-            "env_get" => return self.compile_env_get(&expr.arguments),
-            "is_eof" => return self.compile_is_eof(),
-            "rand" => return self.compile_rand(),
-            "srand" => return self.compile_srand(&expr.arguments),
-            "time" => return self.compile_time(),
-            "localtime" => return self.compile_localtime(&expr.arguments),
-            "exit" => return self.compile_exit(&expr.arguments),
-            "panic" => return self.compile_panic(&expr.arguments),
-            "sleep_ms" => return self.compile_sleep_ms(&expr.arguments),
-            "read_file" => return self.compile_read_file(&expr.arguments),
-            "read_file_ok" => return self.compile_read_file_ok(&expr.arguments),
-            "read_file_err" => return self.compile_read_file_err(&expr.arguments),
-            "write_file" => return self.compile_write_file(&expr.arguments),
-            "vec" => return self.compile_vec_ctor(&expr.arguments),
-            "map_new" => return self.compile_map_new(&expr.arguments),
-            "map_put" => return self.compile_map_put(&expr.arguments),
-            "map_get" => return self.compile_map_get(&expr.arguments),
-            "map_has" => return self.compile_map_has(&expr.arguments),
-            "map_remove" => return self.compile_map_remove(&expr.arguments),
-            "map_len" => return self.compile_map_len(&expr.arguments),
-            "map_keys" => return self.compile_map_keys(&expr.arguments),
-            "push" => return self.compile_vec_push(&expr.arguments),
-            "pop" => return self.compile_vec_pop(&expr.arguments),
-            "remove" => return self.compile_vec_remove(&expr.arguments),
-            "insert" => return self.compile_vec_insert(&expr.arguments),
-            "clear" => return self.compile_vec_clear(&expr.arguments),
-            "free_str" => return self.compile_free_str(&expr.arguments),
-            "free_vec" => return self.compile_free_vec(&expr.arguments),
-            "free_box" => return self.compile_free_box(&expr.arguments),
-            "ref_count" => return self.compile_ref_count(&expr.arguments),
-            "tcp_connect" => return self.compile_tcp_connect(&expr.arguments),
-            "tcp_send" => return self.compile_tcp_send(&expr.arguments),
-            "tcp_recv" => return self.compile_tcp_recv(&expr.arguments),
-            "tcp_close" => return self.compile_tcp_close(&expr.arguments),
-            "tcp_listen" => return self.compile_tcp_listen(&expr.arguments),
-            "tcp_accept" => return self.compile_tcp_accept(&expr.arguments),
-            "spawn" | "thread_spawn" => return self.compile_spawn(&expr.arguments),
-            "join" | "thread_join" => return self.compile_join(&expr.arguments),
-            "chan_new" => return self.compile_chan_new(&expr.arguments),
-            "chan_send" => return self.compile_chan_send(&expr.arguments),
-            "chan_recv" => return self.compile_chan_recv(&expr.arguments),
-            "str_from_bytes" => return self.compile_str_from_bytes(&expr.arguments),
-            _ => {}
+        if let Some(res) = self.compile_builtin_call(&callee_name, &expr.arguments) {
+            return res;
         }
 
         // 模块内调用同模块函数时按 `模块::名` 查找;主程序中限定名
@@ -360,6 +305,84 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder.build_store(tmp, val).unwrap();
                 Ok(tmp)
             }
+        }
+    }
+
+    /// 内置函数调用分派。如果匹配到内置函数则返回 Some(Result)，否则返回 None。
+    fn compile_builtin_call(
+        &mut self,
+        name: &str,
+        arguments: &[Expr],
+    ) -> Option<Result<inkwell::values::BasicValueEnum<'ctx>>> {
+        match name {
+            "print" => Some(self.compile_print(arguments)),
+            "read_line" => Some(self.compile_read_line()),
+            "read_int" => Some(self.compile_read_int()),
+            "read_float" => Some(self.compile_read_float()),
+            "len" => Some(self.compile_len(arguments)),
+            "abs" => Some(self.compile_abs(arguments)),
+            "sqrt" => Some(self.compile_libm_unary("sqrt", arguments)),
+            "pow" => Some(self.compile_pow(arguments)),
+            "sin" => Some(self.compile_libm_unary("sin", arguments)),
+            "cos" => Some(self.compile_libm_unary("cos", arguments)),
+            "tan" => Some(self.compile_libm_unary("tan", arguments)),
+            "floor" => Some(self.compile_libm_unary("floor", arguments)),
+            "ceil" => Some(self.compile_libm_unary("ceil", arguments)),
+            "round" => Some(self.compile_libm_unary("round", arguments)),
+            "concat" => Some(self.compile_concat(arguments)),
+            "split" => Some(self.compile_split(arguments)),
+            "substring" => Some(self.compile_substring(arguments)),
+            "trim" => Some(self.compile_trim(arguments)),
+            "contains" => Some(self.compile_contains(arguments)),
+            "to_string" => Some(self.compile_to_string(arguments)),
+            "parse_int" => Some(self.compile_parse_int(arguments)),
+            "parse_float" => Some(self.compile_parse_float(arguments)),
+            "arg_count" => Some(self.compile_arg_count()),
+            "arg" => Some(self.compile_arg(arguments)),
+            "arg_ok" => Some(self.compile_arg_ok(arguments)),
+            "env_get" => Some(self.compile_env_get(arguments)),
+            "is_eof" => Some(self.compile_is_eof()),
+            "rand" => Some(self.compile_rand()),
+            "srand" => Some(self.compile_srand(arguments)),
+            "time" => Some(self.compile_time()),
+            "localtime" => Some(self.compile_localtime(arguments)),
+            "exit" => Some(self.compile_exit(arguments)),
+            "panic" => Some(self.compile_panic(arguments)),
+            "sleep_ms" => Some(self.compile_sleep_ms(arguments)),
+            "read_file" => Some(self.compile_read_file(arguments)),
+            "read_file_ok" => Some(self.compile_read_file_ok(arguments)),
+            "read_file_err" => Some(self.compile_read_file_err(arguments)),
+            "write_file" => Some(self.compile_write_file(arguments)),
+            "vec" => Some(self.compile_vec_ctor(arguments)),
+            "map_new" => Some(self.compile_map_new(arguments)),
+            "map_put" => Some(self.compile_map_put(arguments)),
+            "map_get" => Some(self.compile_map_get(arguments)),
+            "map_has" => Some(self.compile_map_has(arguments)),
+            "map_remove" => Some(self.compile_map_remove(arguments)),
+            "map_len" => Some(self.compile_map_len(arguments)),
+            "map_keys" => Some(self.compile_map_keys(arguments)),
+            "push" => Some(self.compile_vec_push(arguments)),
+            "pop" => Some(self.compile_vec_pop(arguments)),
+            "remove" => Some(self.compile_vec_remove(arguments)),
+            "insert" => Some(self.compile_vec_insert(arguments)),
+            "clear" => Some(self.compile_vec_clear(arguments)),
+            "free_str" => Some(self.compile_free_str(arguments)),
+            "free_vec" => Some(self.compile_free_vec(arguments)),
+            "free_box" => Some(self.compile_free_box(arguments)),
+            "ref_count" => Some(self.compile_ref_count(arguments)),
+            "tcp_connect" => Some(self.compile_tcp_connect(arguments)),
+            "tcp_send" => Some(self.compile_tcp_send(arguments)),
+            "tcp_recv" => Some(self.compile_tcp_recv(arguments)),
+            "tcp_close" => Some(self.compile_tcp_close(arguments)),
+            "tcp_listen" => Some(self.compile_tcp_listen(arguments)),
+            "tcp_accept" => Some(self.compile_tcp_accept(arguments)),
+            "spawn" | "thread_spawn" => Some(self.compile_spawn(arguments)),
+            "join" | "thread_join" => Some(self.compile_join(arguments)),
+            "chan_new" => Some(self.compile_chan_new(arguments)),
+            "chan_send" => Some(self.compile_chan_send(arguments)),
+            "chan_recv" => Some(self.compile_chan_recv(arguments)),
+            "str_from_bytes" => Some(self.compile_str_from_bytes(arguments)),
+            _ => None,
         }
     }
 }

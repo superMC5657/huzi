@@ -121,3 +121,30 @@ fn vec_dedup_i32(v: vec<i32>) -> i32 {
     }
     return 0
 }
+
+fn vec_map<T, U>(v: vec<T>, f: fn(T) -> U) -> vec<U> {
+    let mut res = vec<U>()
+    for x in v {
+        push(res, f(x))
+    }
+    return res
+}
+
+fn vec_filter<T>(v: vec<T>, pred: fn(T) -> bool) -> vec<T> {
+    let mut res = vec<T>()
+    for x in v {
+        if pred(x) {
+            push(res, x)
+        }
+    }
+    return res
+}
+
+fn vec_fold<T, Acc>(v: vec<T>, init: Acc, f: fn(Acc, T) -> Acc) -> Acc {
+    let mut acc = init
+    for x in v {
+        acc = f(acc, x)
+    }
+    return acc
+}
+

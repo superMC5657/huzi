@@ -71,6 +71,7 @@ impl<'ctx> CodeGen<'ctx> {
         self.scopes = vec![HashMap::new()];
         self.defer_stack.clear();
         self.box_slots.clear();
+        self.local_ast.clear();
 
         for (i, param) in stmt.params.iter().enumerate() {
             let arg = function.get_nth_param(i as u32).unwrap();
@@ -123,6 +124,7 @@ impl<'ctx> CodeGen<'ctx> {
                     map_kind: super::MapKind::from_ast(&param.param_type),
                 },
             );
+            self.local_ast.insert(param.name.clone(), param.param_type.clone());
         }
 
         self.compile_block(&stmt.body)?;
@@ -247,6 +249,14 @@ impl<'ctx> CodeGen<'ctx> {
             Expr::EnumConstruct(ec) => {
                 let key = qname::qualified(&ec.enum_name, &ec.variant);
                 self.fn_return_ast.get(&key).cloned()
+            }
+            Expr::Closure(c) => {
+                let mut param_types = Vec::new();
+                for p in &c.params {
+                    param_types.push(p.param_type.clone().unwrap_or(Type::Named("i32".to_string())));
+                }
+                let ret = c.return_type.clone().unwrap_or(Type::Named("i32".to_string()));
+                Some(Type::Fn(param_types, Box::new(ret)))
             }
             _ => None,
         }

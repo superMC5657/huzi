@@ -49,6 +49,7 @@ pub enum Token {
     GreaterEqual,
     AmpAmp,
     BarBar,
+    Pipe,
     Question,
 
     // Delimiters
@@ -89,6 +90,7 @@ impl fmt::Display for Token {
             Token::Char(c) => write!(f, "'{}'", c),
             Token::Eof => write!(f, "EOF"),
             Token::Question => write!(f, "?"),
+            Token::Pipe => write!(f, "|"),
             _ => write!(f, "{:?}", self),
         }
     }

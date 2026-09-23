@@ -43,6 +43,16 @@ fn main() -> i32 {
     assert::assert_eq_i32(dup_v[2], 3)
     assert::assert_eq_i32(dup_v[3], 4)
     assert::assert_eq_i32(dup_v[4], 5)
+    let mapped = vec_algo::vec_map(v, |x: i32| x * 10)
+    assert::assert_eq_i32(mapped[0], 50)
+    assert::assert_eq_i32(mapped[4], 10)
+    let filtered = vec_algo::vec_filter(v, |x: i32| x % 2 == 1)
+    assert::assert_eq_i32(len(filtered), 3)
+    assert::assert_eq_i32(filtered[0], 5)
+    assert::assert_eq_i32(filtered[1], 3)
+    assert::assert_eq_i32(filtered[2], 1)
+    let folded = vec_algo::vec_fold(v, 0, |acc: i32, x: i32| acc + x)
+    assert::assert_eq_i32(folded, 15)
     print("vec_algo_test passed")
     return 0
 }

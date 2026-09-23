@@ -22,6 +22,7 @@
 - [x] Trait + impl（静态分发与签名类型完备性校验）
 - [x] 错误处理：泛型 `Result<T>`（自举标准库 `core.result`）+ 后缀 `?` 运算符（成功解包 value、失败提前返回整个 Result，defer 照常执行；规则见 `rfc/rfc_result_question.md`）
 - [x] 模块内泛型可用：库模块可定义泛型结构体/函数，用户代码经 `mod::gen_fn(...)` 限定调用自动单态化（修复模板泄漏/签名注册顺序/限定调用单态化三处缺口）
+- [x] 闭包与高阶函数：匿名函数语法（`|x, y| expr` / `|x| { ... }` / `|| expr`）、按值环境捕获、一等函数类型（`fn(T1, T2) -> Ret`）、命名函数自动升格为闭包 thunk、标准库高阶原语 `vec_map` / `vec_filter` / `vec_fold`（用例 `64_closures`，负例 `closure_arity_mismatch`）
 
 ### 标准库内置
 
