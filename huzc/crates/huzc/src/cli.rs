@@ -39,10 +39,35 @@ pub enum Command {
     Fmt(FmtArgs),
     /// 使用 huzi.toml 清单构建项目
     Build(BuildArgs),
+    /// 编译并立即运行可执行文件
+    Run(RunArgs),
     /// 向 huzi.toml 添加依赖
     Add(AddArgs),
     /// 获取并本地缓存依赖包
     Fetch(FetchArgs),
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct RunArgs {
+    /// 输入源码文件 (.hz) 或包含 huzi.toml 的工程目录
+    #[arg(default_value = ".")]
+    pub target: String,
+
+    /// 显式指定包含 huzi.toml 的工程目录
+    #[arg(short, long)]
+    pub path: Option<String>,
+
+    /// 使用的链接器
+    #[arg(short, long, value_enum, default_value_t = LinkerKind::platform_default())]
+    pub linker: LinkerKind,
+
+    /// 发布模式运行
+    #[arg(short = 'r', long)]
+    pub release: bool,
+
+    /// 传递给被执行程序的参数
+    #[arg(last = true)]
+    pub args: Vec<String>,
 }
 
 #[derive(clap::Args, Clone, Debug)]

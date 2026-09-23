@@ -46,6 +46,10 @@ fn main() {
                 huzc::pkg::run_build(&build_args);
                 return;
             }
+            cli::Command::Run(run_args) => {
+                run_target(&run_args);
+                return;
+            }
             cli::Command::Add(add_args) => {
                 huzc::pkg::run_add(&add_args);
                 return;
@@ -57,10 +61,15 @@ fn main() {
         }
     }
 
+    let _ = compile_source_file(&args);
+}
+
+/// 编译单个 Huzi 源码文件并生成可执行文件。
+fn compile_source_file(args: &Args) -> OutputPaths {
     let input = match &args.input {
         Some(i) => i,
         None => {
-            eprintln!("error: either a subcommand (e.g. 'fmt') or '--input <file.hz>' is required");
+            eprintln!("error: either a subcommand (e.g. 'run', 'fmt') or '--input <file.hz>' is required");
             std::process::exit(1);
         }
     };
@@ -108,12 +117,24 @@ fn main() {
         die(huzi_error::render(&e, &source, "Compile error"));
     }
 
+    let paths = OutputPaths::new(&args.effective_output());
+    emit_and_link(&paths, &codegen, args, quiet);
+
+    if !quiet {
+        // 纯 ASCII 前缀:避免 Windows 控制台 GBK/CP936 代码页下 `✓` 显示为乱码。
+        println!("[ok] {} generated successfully!", paths.exe_path.display());
+    }
+
+    paths
+}
+
+/// 执行校验、优化、目标文件生成与链接流程。
+fn emit_and_link(paths: &OutputPaths, codegen: &CodeGen, args: &Args, quiet: bool) {
     // [4/5] Verifying
     if !quiet {
         println!("[4/5] Verifying...");
     }
-    let paths = OutputPaths::new(&args.effective_output());
-    write_ir(&codegen, &paths.ll_path);
+    write_ir(codegen, &paths.ll_path);
     if let Err(e) = codegen.verify_detailed() {
         die(format!("Error: LLVM module verification failed (this is a compiler bug)\n{}", e));
     }
@@ -122,27 +143,68 @@ fn main() {
     // 级别 0（开发模式）直接将原始 inkwell IR 传入 llc。
     let opt_level = args.effective_opt_level();
     if opt_level > 0 {
-        optimize_ir(&paths, opt_level, quiet);
+        optimize_ir(paths, opt_level, quiet);
     }
 
     // 阶段 5/5: 生成可执行文件
     if !quiet {
         println!("[5/5] Generating executable...");
     }
-    compile_ir_to_object(&paths, args.debug);
+    compile_ir_to_object(paths, args.debug);
     if !quiet {
         println!("  Linking to executable...");
     }
-    link(&paths, args.linker, args.debug, quiet);
+    link(paths, args.linker, args.debug, quiet);
 
     // 清理中间产物文件
     let _ = fs::remove_file(&paths.ll_path);
     let _ = fs::remove_file(&paths.obj_path);
+}
 
-    if !quiet {
-        // 纯 ASCII 前缀:避免 Windows 控制台 GBK/CP936 代码页下 `✓` 显示为乱码。
-        println!("[ok] {} generated successfully!", paths.exe_path.display());
-    }
+/// 编排编译并直接运行目标程序。
+fn run_target(run_args: &cli::RunArgs) {
+    let target_path = Path::new(&run_args.target);
+    let is_package = run_args.path.is_some()
+        || target_path.join("huzi.toml").is_file()
+        || (!target_path.is_file() && !run_args.target.ends_with(".hz"));
+
+    let exe_path = if is_package {
+        let proj_path = run_args
+            .path
+            .clone()
+            .unwrap_or_else(|| run_args.target.clone());
+        let build_args = cli::BuildArgs {
+            path: proj_path,
+            output: None,
+            linker: run_args.linker,
+            release: run_args.release,
+        };
+        huzc::pkg::build_and_get_output(&build_args)
+    } else {
+        let args = Args {
+            command: None,
+            input: Some(run_args.target.clone()),
+            output: None,
+            linker: run_args.linker,
+            release: run_args.release,
+            opt_level: None,
+            debug: false,
+        };
+        compile_source_file(&args).exe_path
+    };
+
+    let run_cmd_path = if exe_path.is_relative() && exe_path.parent() == Some(Path::new("")) {
+        Path::new(".").join(&exe_path)
+    } else {
+        exe_path
+    };
+
+    let status = std::process::Command::new(&run_cmd_path)
+        .args(&run_args.args)
+        .status()
+        .unwrap_or_else(|e| die(format!("Failed to run {}: {}", run_cmd_path.display(), e)));
+
+    std::process::exit(status.code().unwrap_or(1));
 }
 
 /// 读取待编译的 Huzi 源码文件。

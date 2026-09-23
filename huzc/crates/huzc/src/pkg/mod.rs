@@ -14,7 +14,7 @@ mod resolve;
 mod solve;
 mod version;
 
-pub use cmd::{run_add, run_build, run_fetch};
+pub use cmd::{build_and_get_output, run_add, run_build, run_fetch};
 pub use lock::{HuziLock, LockEntry, format_lock, lock_path_for, parse_lock, read_lock_file, write_lock_file};
 pub use manifest::{Dependency, Manifest, format_manifest, parse_manifest};
 pub use resolve::{copy_dir_all, find_manifest_file, resolve_package_module};

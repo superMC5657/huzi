@@ -58,7 +58,8 @@
 - [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
 - [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接），`fmt --check test/cases`（cwd=`huzc`；仓库根请用 `fmt --check huzc/test/cases`）门禁恢复可用
 - [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）+ `VersionReq` 范围解析（`^`/`~`/`>=`范围/`*`）与最高满足求解 + 传递依赖合并（冲突直接报错，不做自动升级）+ `huzi.lock` 精确锁定与一致性校验
-- [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲
+- [x] 一键运行：`huzc run` 一键编译并立即执行单源文件或工程目录，无缝透传命令行参数
+- [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲/文档格式化（`textDocument/formatting` 接入 AST 幂等美化器）
 - [x] 跨平台：Windows(`lld-link/msvc/mingw`)、Linux/macOS(`clang`)——按编译器宿主平台选择运行时 API 与链接器，支持各平台本机编译，暂不支持交叉编译
 
 ### 测试与质量

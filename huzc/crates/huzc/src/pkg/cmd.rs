@@ -185,7 +185,7 @@ fn report_lock_mismatch(pkg: &str, path_arg: &str) -> ! {
     std::process::exit(1);
 }
 
-pub fn run_build(args: &BuildArgs) {
+pub fn build_and_get_output(args: &BuildArgs) -> PathBuf {
     let (manifest, proj_dir) = load_project_manifest(&args.path);
     let closure = must_resolve_closure(&manifest, &proj_dir);
     ensure_vendored(&closure, &proj_dir, &args.path);
@@ -229,4 +229,14 @@ pub fn run_build(args: &BuildArgs) {
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
     }
+
+    let mut exe_path = PathBuf::from(&output);
+    if cfg!(target_os = "windows") && !exe_path.extension().map(|e| e == "exe").unwrap_or(false) {
+        exe_path.set_extension("exe");
+    }
+    exe_path
+}
+
+pub fn run_build(args: &BuildArgs) {
+    let _ = build_and_get_output(args);
 }

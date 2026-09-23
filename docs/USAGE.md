@@ -34,7 +34,23 @@ cargo build --release
 ./target/debug/huzc --input test/cases/01_variables_ops.hz -o test/out/01_variables_ops
 ```
 
-### 3.3 运行程序
+### 3.3 一键编译并运行 (huzc run)
+
+Huzc 支持通过 `run` 子命令一键编译并立即启动可执行文件（支持单源文件或工程目录，`--` 后的参数将透明透传给程序）：
+
+```bash
+# 直接运行单源文件（cwd=huzc）
+huzc run test/cases/01_variables_ops.hz
+
+# 运行工程目录并透传参数
+huzc run examples/task_engine
+huzc run --path examples/task_engine -- --verbose
+
+# 发布模式优化运行
+huzc run -r test/cases/01_variables_ops.hz
+```
+
+### 3.4 独立运行可执行程序
 
 ```bash
 # Windows（cwd=huzc；仓库根请用 huzc/test/out/01_variables_ops.exe）
@@ -131,6 +147,7 @@ version = "1.2.0"
 `build` 校验：锁存在时必须与本次求解精确一致（版本漂移、缺失、多余条目均直接报错并提示重 `fetch`）；无锁文件时仅做闭包与 `vendor` 检查，兼容旧工程。
 
 ### 命令说明
+- `huzc run [<target>] [--path <dir>] [-- <args>...]`: 编译并立即执行单源文件或包含 `huzi.toml` 的项目工程，透明透传命令行参数。
 - `huzc build [--path <dir>]`: 依据 `huzi.toml` 编排编译项目并生成可执行文件。
 - `huzc add <package> [version] [--path <local_path>]`: 添加依赖并自动同步至本地 `vendor/`。
 - `huzc fetch [--path <dir>]`: 拉取/同步所有依赖至本地 `vendor/<pkg>/<version>/` 目录。

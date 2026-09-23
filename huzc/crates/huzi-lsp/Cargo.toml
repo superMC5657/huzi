@@ -25,3 +25,4 @@ huzi-lexer = { path = "../huzi-lexer" }
 huzi-parser = { path = "../huzi-parser" }
 huzi-ast = { path = "../huzi-ast" }
 huzi-error = { path = "../huzi-error" }
+huzc = { path = "../huzc" }

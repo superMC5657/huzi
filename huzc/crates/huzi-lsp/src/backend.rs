@@ -175,9 +175,17 @@ impl LanguageServer for Backend {
         );
         Ok(Some(CompletionResponse::Array(completion_for_text(&text, pos))))
     }
+
+    async fn formatting(
+        &self,
+        params: DocumentFormattingParams,
+    ) -> tower_lsp_server::jsonrpc::Result<Option<Vec<TextEdit>>> {
+        let text = self.snapshot(&params.text_document.uri);
+        Ok(format_for_text(&text))
+    }
 }
 
-/// 首版能力:FULL 全量同步 + 推送诊断 + hover/定义/Outline(同文件符号)。
+/// 首版能力:FULL 全量同步 + 推送诊断 + hover/定义/Outline(同文件符号) + 文档格式化。
 /// 注:只走 push publishDiagnostics，不开 pull diagnostic，避免 VSCode 发
 /// textDocument/diagnostic 拉取造成 Method not found。
 fn server_capabilities() -> ServerCapabilities {
@@ -189,6 +197,7 @@ fn server_capabilities() -> ServerCapabilities {
         definition_provider: Some(OneOf::Left(true)),
         references_provider: Some(OneOf::Left(true)),
         document_symbol_provider: Some(OneOf::Left(true)),
+        document_formatting_provider: Some(OneOf::Left(true)),
         semantic_tokens_provider: Some(
             SemanticTokensServerCapabilities::SemanticTokensOptions(
                 SemanticTokensOptions {
@@ -277,6 +286,25 @@ fn symbols_for_text(text: &str) -> Vec<DocumentSymbol> {
         .iter()
         .filter_map(|sym| to_document_symbol(&rope, sym))
         .collect()
+}
+
+/// 全文 -> 格式化 [`TextEdit`] 列表（单项全量替换）。格式化失败返回 `None`。
+fn format_for_text(text: &str) -> Option<Vec<TextEdit>> {
+    let new_text = huzc::fmt::format_source(text).ok()?;
+    let rope = Rope::from_str(text);
+    let last_line = rope.len_lines().saturating_sub(1);
+    let last_col = rope.line(last_line).len_chars();
+    let full_range = Range {
+        start: Position { line: 0, character: 0 },
+        end: Position {
+            line: last_line as u32,
+            character: last_col as u32,
+        },
+    };
+    Some(vec![TextEdit {
+        range: full_range,
+        new_text,
+    }])
 }
 
 /// 单个 Huzi 符号 -> LSP [`DocumentSymbol`](`range` 与 `selectionRange` 同取语句区间)。
@@ -449,5 +477,13 @@ mod tests {
             }
             other => panic!("expected markup, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn formatting_returns_full_document_edit() {
+        let text = "fn main()->i32{return 1}\n";
+        let edits = format_for_text(text).expect("formatting succeeds");
+        assert_eq!(edits.len(), 1);
+        assert!(edits[0].new_text.contains("fn main() -> i32 {\n    return 1\n}"));
     }
 }

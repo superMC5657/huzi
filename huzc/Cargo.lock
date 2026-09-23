@@ -347,6 +347,7 @@ name = "huzi-lsp"
 version = "0.1.0"
 dependencies = [
  "dashmap",
+ "huzc",
  "huzi-ast",
  "huzi-error",
  "huzi-lexer",
