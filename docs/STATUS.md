@@ -23,6 +23,7 @@
 - [x] 错误处理：泛型 `Result<T>`（自举标准库 `core.result`）+ 后缀 `?` 运算符（成功解包 value、失败提前返回整个 Result，defer 照常执行；规则见 `rfc/rfc_result_question.md`）
 - [x] 模块内泛型可用：库模块可定义泛型结构体/函数，用户代码经 `mod::gen_fn(...)` 限定调用自动单态化（修复模板泄漏/签名注册顺序/限定调用单态化三处缺口）
 - [x] 闭包与高阶函数：匿名函数语法（`|x, y| expr` / `|x| { ... }` / `|| expr`）、按值环境捕获、一等函数类型（`fn(T1, T2) -> Ret`）、命名函数自动升格为闭包 thunk、标准库高阶原语 `vec_map` / `vec_filter` / `vec_fold`（用例 `64_closures`，负例 `closure_arity_mismatch`）
+- [x] 固有方法块（Inherent `impl` blocks）与 UFCS（统一函数调用语法糖）：结构体可直接声明固有方法块 `impl TypeName { ... }` 而无需预先声明 Trait；支持 `receiver.method(...)` 多阶分派至固有方法、向量专有前缀（如 `vec_map`）、内置操作（`len`, `trim`, `contains`, `push`, `pop` 等）及任意同名顶层自由函数；原生支持流畅链式调用（用例 `65_inherent_impl_ufcs`，负例 `inherent_conflict`, `inherent_no_such_method`）
 
 ### 标准库内置
 

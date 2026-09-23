@@ -192,3 +192,35 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 - `reference.md` 补签名：按第 4 节分组追加 `签名 + 语义 + 返回约定`。
 - `STATUS.md` 打勾：在"标准库内置"清单对应分组同步勾选。
 - `test/cases/` 补示例：正例可运行、非法输入不 abort（配负例）。
+
+---
+
+## 8. 方法调用、固有实现块与 UFCS (统一函数调用)
+
+### 8.1 固有实现块 (Inherent `impl`)
+无需声明 `trait`，即可直接为具名结构体定义专属固有方法：
+```huzi
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    fn length_sq(self) -> i32 {
+        return self.x * self.x + self.y * self.y
+    }
+    fn scale(self, factor: i32) -> Point {
+        return Point { x: self.x * factor, y: self.y * factor }
+    }
+}
+```
+- `self` 形参：首参数可简写为 `self`（编译器自动赋予目标结构体类型）或显式标注 `self: Point`。
+- 命名规整：内部脱糖为 `Point__length_sq(self)` 等顶层静态函数，零额外运行时抽象开销。
+
+### 8.2 UFCS (Uniform Function Call Syntax) 统一函数调用
+Huzi 支持点号方法调用语法 `receiver.method(args...)` 的多阶分派：
+1. **固有 / Trait 方法**：优先查找接收者类型上的固有方法或已实现的 Trait 方法，重写为 `Type__method(receiver, args...)`。
+2. **向量专属前缀降解**：当接收者推导为 `vec` 且存在 `vec_{method}`（如 `vec_map`, `vec_filter`, `vec_fold`）时，自动降解为 `vec_{method}(receiver, args...)`。
+3. **顶层/内置函数降解**：查找同名自由函数或内置操作（如 `v.len()`, `v.push(x)`, `v.pop()`, `s.trim()`, `s.contains(...)`，以及用户自定义 `fn double(x: i32) -> i32` 后的 `5.double()`），重写为 `func(receiver, args...)`。
+4. **自然链式调用**：支持流畅的链式方法级联，如 `p.scale(2).length_sq()` 或 `v.map(|x| x * 2).filter(|x| x > 5)`。
+

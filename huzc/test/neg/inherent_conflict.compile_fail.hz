@@ -1,0 +1,16 @@
+struct Point {
+    x: i32,
+}
+
+impl Point {
+    fn foo(self) -> i32 {
+        return 1
+    }
+    fn foo(self) -> i32 {
+        return 2
+    }
+}
+
+fn main() -> i32 {
+    return 0
+}

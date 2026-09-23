@@ -50,8 +50,8 @@ impl Lexer {
                     self.advance();
                 }
                 '.' if !has_dot => {
-                    // 不消费范围表达式的点号：1..5
-                    if self.pos + 1 < self.source.len() && self.source[self.pos + 1] == '.' {
+                    // 仅当点号后紧随数字时才识别为浮点数,避免误吞方法调用点号(如 `10.foo()`)或范围 `1..5`。
+                    if self.pos + 1 >= self.source.len() || !self.source[self.pos + 1].is_ascii_digit() {
                         break;
                     }
                     // 点号后的数字为元组索引：`t.1.2` 必须分词为

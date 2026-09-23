@@ -1,6 +1,6 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::Result;
+use huzi_error::{HuziError, Result};
 use huzi_lexer::Token;
 
 impl Parser {
@@ -79,9 +79,23 @@ impl Parser {
 
     pub(super) fn parse_impl_statement(&mut self) -> Result<Stmt> {
         self.advance();
-        let trait_name = self.expect_ident("Expected trait name after 'impl'")?;
-        self.expect(&Token::For, "Expected 'for' after trait name in impl")?;
-        let target_type = self.expect_ident("Expected target type after 'for'")?;
+        let first_ident = self.expect_ident("Expected trait or type name after 'impl'")?;
+        let (trait_name, target_type) = if self.check(&Token::For) {
+            self.advance();
+            let target = self.expect_ident("Expected target type after 'for'")?;
+            (Some(first_ident), target)
+        } else if self.check(&Token::LBrace) {
+            (None, first_ident)
+        } else {
+            return Err(HuziError::new(
+                format!(
+                    "Expected 'for' or '{{' after '{}' in impl block",
+                    first_ident
+                ),
+                self.current_line(),
+                self.current_col(),
+            ));
+        };
         self.expect(&Token::LBrace, "Expected '{' after target type in impl")?;
 
         let mut methods = Vec::new();

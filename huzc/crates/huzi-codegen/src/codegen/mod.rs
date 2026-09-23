@@ -244,9 +244,9 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub fn compile(&mut self, program: &Program) -> Result<()> {
-        let monomorphized = generic::monomorphize_all(program, &mut self.modules)?;
-        let desugared = trait_::desugar_traits(&monomorphized, &mut self.modules)?;
-        let program = &desugared;
+        let desugared = trait_::desugar_traits(program, &mut self.modules)?;
+        let monomorphized = generic::monomorphize_all(&desugared, &mut self.modules)?;
+        let program = &monomorphized;
 
         self.prelude()?;
 

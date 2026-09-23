@@ -91,7 +91,11 @@ impl Formatter {
     }
 
     pub(super) fn format_impl(&mut self, i: &ImplBlock, line: usize, end: usize) {
-        self.line_at(&format!("impl {} for {} {{", i.trait_name, i.target_type), line);
+        let header = match &i.trait_name {
+            Some(t) => format!("impl {} for {} {{", t, i.target_type),
+            None => format!("impl {} {{", i.target_type),
+        };
+        self.line_at(&header, line);
         self.indent += 1;
         for m in &i.methods {
             // FnStmt 不携带 span,方法头行号不可知:取首条 body 语句

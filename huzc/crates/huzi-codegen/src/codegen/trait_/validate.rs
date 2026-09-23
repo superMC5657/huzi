@@ -100,39 +100,68 @@ impl TraitDesugarer {
 
     fn validate_impl(&mut self, i: &ImplBlock, span: Span) -> Result<()> {
         let at = |message: String| HuziError::new(message, span.line, span.column);
-        let trait_def = self
-            .traits
-            .get(&i.trait_name)
-            .cloned()
-            .ok_or_else(|| {
-                let hint = did_you_mean(
-                    &i.trait_name,
-                    self.traits.keys().map(|k| k.as_str()),
-                );
-                let mut message = format!(
-                    "未知 trait '{}':期望已定义的 trait,实际未找到",
-                    i.trait_name
-                );
-                if let Some(h) = hint {
-                    message.push_str(&format!(";帮助:{}", h));
-                }
-                at(message)
-            })?;
-
         if !self.known_types.contains(&i.target_type) {
             let hint = did_you_mean(
                 &i.target_type,
                 self.known_types.iter().map(|k| k.as_str()),
             );
+            let desc = match &i.trait_name {
+                Some(t) => format!("impl '{}' for '{}'", t, i.target_type),
+                None => format!("impl '{}'", i.target_type),
+            };
             let mut message = format!(
-                "impl '{}' for '{}' 的目标类型 '{}' 未知:期望已定义的结构体/枚举,实际未找到",
-                i.trait_name, i.target_type, i.target_type
+                "{} 的目标类型 '{}' 未知:期望已定义的结构体/枚举,实际未找到",
+                desc, i.target_type
             );
             if let Some(h) = hint {
                 message.push_str(&format!(";帮助:{}", h));
             }
             return Err(at(message));
         }
+
+        match &i.trait_name {
+            Some(trait_name) => self.validate_trait_impl(i, trait_name, span),
+            None => self.validate_inherent_impl(i, span),
+        }
+    }
+
+    fn validate_inherent_impl(&mut self, i: &ImplBlock, span: Span) -> Result<()> {
+        let at = |message: String| HuziError::new(message, span.line, span.column);
+        for m in &i.methods {
+            if !m.params.is_empty() && m.params[0].name == "self" {
+                let expected_self_type = Type::Named(i.target_type.clone());
+                if m.params[0].param_type != expected_self_type {
+                    return Err(at(format!(
+                        "方法 '{}' 的 'self' 类型与固有实现目标不一致:期望 '{}',实际 '{}'",
+                        m.name, expected_self_type, m.params[0].param_type
+                    )));
+                }
+            }
+            self.record_impl_method(&i.target_type, "<inherent>", m, span)?;
+        }
+        Ok(())
+    }
+
+    fn validate_trait_impl(&mut self, i: &ImplBlock, trait_name: &str, span: Span) -> Result<()> {
+        let at = |message: String| HuziError::new(message, span.line, span.column);
+        let trait_def = self
+            .traits
+            .get(trait_name)
+            .cloned()
+            .ok_or_else(|| {
+                let hint = did_you_mean(
+                    trait_name,
+                    self.traits.keys().map(|k| k.as_str()),
+                );
+                let mut message = format!(
+                    "未知 trait '{}':期望已定义的 trait,实际未找到",
+                    trait_name
+                );
+                if let Some(h) = hint {
+                    message.push_str(&format!(";帮助:{}", h));
+                }
+                at(message)
+            })?;
 
         // 检查缺漏方法
         for tm in &trait_def.methods {
@@ -166,8 +195,7 @@ impl TraitDesugarer {
                         .iter()
                         .map(|tm| tm.name.as_str())
                         .collect();
-                    let hint =
-                        did_you_mean(&m.name, members.iter().copied());
+                    let hint = did_you_mean(&m.name, members.iter().copied());
                     let mut message = format!(
                         "方法 '{}' 不是 trait '{}' 的成员:期望为 [{}] 之一,实际多出",
                         m.name,
@@ -181,7 +209,7 @@ impl TraitDesugarer {
                 })?;
 
             self.validate_method_signature(m, tm, &trait_def.name, &i.target_type, span)?;
-            self.record_impl_method(&i.target_type, &i.trait_name, m, span)?;
+            self.record_impl_method(&i.target_type, trait_name, m, span)?;
         }
 
         Ok(())
@@ -263,10 +291,20 @@ impl TraitDesugarer {
             .entry(target_type.to_string())
             .or_default();
         if let Some(existing_trait) = type_methods.get(&m.name) {
+            let prev_desc = if existing_trait == "<inherent>" {
+                "固有方法".to_string()
+            } else {
+                format!("trait '{}'", existing_trait)
+            };
+            let curr_desc = if trait_name == "<inherent>" {
+                "固有方法".to_string()
+            } else {
+                format!("trait '{}'", trait_name)
+            };
             return Err(HuziError::new(
                 format!(
-                    "类型 '{}' 的方法 '{}' 冲突:已由 trait '{}' 实现,当前 trait '{}' 再次实现;期望每个方法只由一个 trait 提供,实际出现多次;帮助:改名其中一个方法,或通过 impl 归属区分调用",
-                    target_type, m.name, existing_trait, trait_name
+                    "类型 '{}' 的方法 '{}' 冲突:已由 {} 提供,当前 {} 再次定义;期望每个方法只定义一次,实际出现多次;帮助:改名其中一个方法",
+                    target_type, m.name, prev_desc, curr_desc
                 ),
                 span.line,
                 span.column,

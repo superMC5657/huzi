@@ -1,0 +1,15 @@
+p.length_sq:25
+p.scale.show:Point(6, 8)
+p.scale.length_sq:100
+n.double:10
+n.double.double:20
+10.add(20):30
+v.len:3
+v.pop:30
+v.len_after_pop:2
+s.trim:huzi ufcs
+s.contains:true
+processed.len:3
+elem:6
+elem:8
+elem:10

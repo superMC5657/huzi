@@ -148,3 +148,16 @@ fn vec_fold<T, Acc>(v: vec<T>, init: Acc, f: fn(Acc, T) -> Acc) -> Acc {
     return acc
 }
 
+fn map<T, U>(v: vec<T>, f: fn(T) -> U) -> vec<U> {
+    return vec_map(v, f)
+}
+
+fn filter<T>(v: vec<T>, pred: fn(T) -> bool) -> vec<T> {
+    return vec_filter(v, pred)
+}
+
+fn fold<T, Acc>(v: vec<T>, init: Acc, f: fn(Acc, T) -> Acc) -> Acc {
+    return vec_fold(v, init, f)
+}
+
+

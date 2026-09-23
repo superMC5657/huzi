@@ -109,7 +109,7 @@ pub struct TraitMethodDef {
 
 #[derive(Debug, Clone)]
 pub struct ImplBlock {
-    pub trait_name: String,
+    pub trait_name: Option<String>,
     pub target_type: String,
     pub methods: Vec<FnStmt>,
 }

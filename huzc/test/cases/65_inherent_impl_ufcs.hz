@@ -1,0 +1,80 @@
+# 65_inherent_impl_ufcs.hz —— 固有方法块(Inherent impl)、UFCS统一函数调用与链式调用
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    fn length_sq(self: Point) -> i32 {
+        return self.x * self.x + self.y * self.y
+    }
+    fn scale(self: Point, factor: i32) -> Point {
+        return Point { x: self.x * factor, y: self.y * factor }
+    }
+    fn show(self: Point) -> str {
+        return concat("Point(", concat(to_string(self.x), concat(", ", concat(to_string(self.y), ")"))))
+    }
+}
+
+fn double_val(x: i32) -> i32 {
+    return x * 2
+}
+
+fn add_vals(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+fn my_map<T, U>(v: vec<T>, f: fn(T) -> U) -> vec<U> {
+    let mut res = vec<U>()
+    for x in v {
+        push(res, f(x))
+    }
+    return res
+}
+
+fn my_filter<T>(v: vec<T>, pred: fn(T) -> bool) -> vec<T> {
+    let mut res = vec<T>()
+    for x in v {
+        if pred(x) {
+            push(res, x)
+        }
+    }
+    return res
+}
+
+fn main() -> i32 {
+    # 1. 结构体固有方法调用与链式调用
+    let p = Point { x: 3, y: 4 }
+    print("p.length_sq:", p.length_sq())
+    print("p.scale.show:", p.scale(2).show())
+    print("p.scale.length_sq:", p.scale(2).length_sq())
+    # 2. 普通自由函数的 UFCS 语法糖与连续调用
+    let n = 5
+    print("n.double:", n.double_val())
+    print("n.double.double:", n.double_val().double_val())
+    print("10.add(20):", 10.add_vals(20))
+    # 3. 内置类型/函数 UFCS 语法糖
+    let mut v = vec<i32>()
+    v.push(10)
+    v.push(20)
+    v.push(30)
+    print("v.len:", v.len())
+    print("v.pop:", v.pop())
+    print("v.len_after_pop:", v.len())
+    let s = "  huzi ufcs  "
+    print("s.trim:", s.trim())
+    print("s.contains:", s.trim().contains("ufcs"))
+    # 4. 高阶函数链式调用
+    let mut nums = vec<i32>()
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    let processed = nums.my_map(|x: i32| x * 2).my_filter(|x: i32| x > 5)
+    print("processed.len:", processed.len())
+    for x in processed {
+        print("elem:", x)
+    }
+    return 0
+}

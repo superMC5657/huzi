@@ -89,6 +89,59 @@ pub(super) struct TraitDesugarer {
     fn_return_types: HashMap<String, Option<Type>>,
 }
 
+fn builtin_fn_return_types() -> HashMap<String, Option<Type>> {
+    let mut map = HashMap::new();
+    let i32_fns = [
+        "len", "push", "clear", "remove", "insert", "abs", "read_int", "write_file",
+        "parse_int", "time", "arg_count", "exit", "sleep_ms", "map_len",
+    ];
+    for f in i32_fns {
+        map.insert(f.to_string(), Some(Type::I32));
+    }
+    let str_fns = [
+        "to_string", "concat", "trim", "substring", "read_line", "read_file", "arg",
+    ];
+    for f in str_fns {
+        map.insert(f.to_string(), Some(Type::Str));
+    }
+    let bool_fns = ["contains", "arg_ok", "is_eof", "map_has"];
+    for f in bool_fns {
+        map.insert(f.to_string(), Some(Type::Bool));
+    }
+    let f64_fns = [
+        "sqrt", "sin", "cos", "tan", "floor", "ceil", "round", "pow", "read_float", "parse_float",
+    ];
+    for f in f64_fns {
+        map.insert(f.to_string(), Some(Type::F64));
+    }
+    map.insert(
+        "split".to_string(),
+        Some(Type::Applied("vec".to_string(), vec![Type::Str])),
+    );
+    map.insert(
+        "vec_map".to_string(),
+        Some(Type::Applied("vec".to_string(), vec![])),
+    );
+    map.insert(
+        "vec_filter".to_string(),
+        Some(Type::Applied("vec".to_string(), vec![])),
+    );
+    map.insert(
+        "map".to_string(),
+        Some(Type::Applied("vec".to_string(), vec![])),
+    );
+    map.insert(
+        "filter".to_string(),
+        Some(Type::Applied("vec".to_string(), vec![])),
+    );
+    for f in [
+        "pop", "print", "println", "eprint", "eprintln", "panic", "assert", "vec_fold", "fold",
+    ] {
+        map.insert(f.to_string(), None);
+    }
+    map
+}
+
 impl TraitDesugarer {
     pub(super) fn new() -> Self {
         let mut known_types = HashSet::new();
@@ -97,18 +150,13 @@ impl TraitDesugarer {
         ] {
             known_types.insert(s.to_string());
         }
-        let mut fn_return_types = HashMap::new();
-        fn_return_types.insert("len".to_string(), Some(Type::I32));
-        fn_return_types.insert("to_string".to_string(), Some(Type::Str));
-        fn_return_types.insert("concat".to_string(), Some(Type::Str));
-        fn_return_types.insert("abs".to_string(), Some(Type::I32));
         Self {
             traits: HashMap::new(),
             known_types,
             struct_fields: HashMap::new(),
             implemented_methods: HashMap::new(),
             method_return_types: HashMap::new(),
-            fn_return_types,
+            fn_return_types: builtin_fn_return_types(),
         }
     }
 

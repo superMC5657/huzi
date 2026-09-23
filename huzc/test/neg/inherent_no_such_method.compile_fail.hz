@@ -1,0 +1,15 @@
+struct Point {
+    x: i32,
+}
+
+impl Point {
+    fn show(self) -> str {
+        return "pt"
+    }
+}
+
+fn main() -> i32 {
+    let p = Point { x: 1 }
+    p.non_existent()
+    return 0
+}
