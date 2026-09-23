@@ -1,7 +1,7 @@
 # Huzi 项目完成状态（STATUS）
 
 > 只回答“做完什么、没做什么”。实现细节见 `USAGE.md`（用户手册）与 `dev/开发文档.md`（技术架构）。
-> 更新日期：2026-09-22，分支 `master`。
+> 更新日期：2026-09-23，分支 `master`。
 
 ## 1. 总体结论
 
@@ -75,7 +75,7 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 原生测试套件：`huzc test` 一键全绿覆盖 150 个用例与负例，支持名称过滤与子集执行
+- [x] 原生测试套件：`huzc test` 一键全绿覆盖 151 个用例与负例，支持名称过滤与子集执行
 - [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；全量示例与负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/4] 抽查
 - [x] 构建产物：Release 产物三平台自动化归档上传
@@ -83,7 +83,7 @@
 
 ## 3. 明确不做（非缺失，是取舍）
 
-* 无精确 GC（不做 tracing 收集）：Box 走引用计数（RC），str/vec 为手动 free + 进程退出 OS 回收；RC 循环引用需手动 free_box 打破（`ref_count` 快照诊断 + `panic` 告警，正例 `40_rc`，负例 `rc_cycle_leak`）
+* 无精确 GC（不做 tracing 收集器）：采用确定性作用域析构（RAII Drop）与引用计数统一模型；`vec` 与 `Box` 出作用域自动确定性释放堆内存，别名赋值自动 retain 引用计数，零 GC 暂停开销；RC 循环引用需手动打破（`ref_count` 快照诊断 + `panic` 告警，正例 `40_rc`，负例 `rc_cycle_leak`）
 * 泛型无 `where` 约束、无特化
 * 包管理无中心仓库、无下载校验和、无 semver 自动升级（求解只选最高满足版，不改写清单）
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`

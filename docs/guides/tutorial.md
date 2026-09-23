@@ -14,9 +14,10 @@ Huzi 采用强类型系统，支持局部变量类型自动推导与显式类型
 # 不可变变量（类型自动推导为 i32）
 let x = 10
 
-# 可变变量
+# 可变变量与复合赋值
 let mut y = 20
-y = y + 5
+y += 5 # y 变为 25
+y *= 2 # y 变为 50
 
 # 显式类型注解
 let z: i64 = 100
@@ -100,15 +101,30 @@ let pair = (1, "apple")
 print(pair.0, pair.1)
 ```
 
-### 动态数组 (vec)
-`vec` 是堆分配的动态增长数组，支持作为函数形参和结构体字段：
+### 动态数组 (vec) 与确定性自动内存回收 (RAII Drop)
+`vec<T>` 是堆分配的动态增长数组，支持作为函数形参、返回值和结构体字段：
 
 ```huzi
+# 构造包含初始元素的动态数组
 let mut v = vec(1, 2, 3)
-v.push(4)
-print(v[0], len(v)) # 1 4
-print(v) # [1, 2, 3, 4]
+push(v, 4)
+v[0] = 100
+print(v[0], len(v)) # 100 4
+
+# 构造显式类型的空数组
+let mut names = vec<str>()
+push(names, "Alice")
+push(names, "Bob")
+for n in names {
+    print(n)
+}
 ```
+
+> **确定性自动内存管理 (RAII Drop)**：
+> Huzi 采用类似 Swift / Nim 的确定性作用域析构机制。
+> - **自动释放**：局部创建的 `vec<T>` 在离开其声明的作用域块（无论普通代码块、函数末尾、还是 `for`/`while` 的单次循环迭代）时，编译器会自动在退出点逆序析构，即时回收底层堆内存。**开发者无需也极不推荐手动调用 `free_vec`**！
+> - **安全别名共享**：执行 `let v2 = v1` 时，底层自动递增引用计数；当两个变量分别离开作用域时各自安全递减计数，计数归零时自动释放底层缓冲区，彻底杜绝野指针与双重释放 (double-free)。
+> - **跨函数所有权转移**：函数通过 `return v` 或在元组中 `return (true, v)` 返回动态数组时，所有权将无缝转移给主调方，安全可靠。
 
 ### 结构体 (struct)
 结构体按值传递，赋值与传参时逐字段拷贝：
@@ -289,3 +305,65 @@ fn main() -> i32 {
     return 0
 }
 ```
+
+---
+
+## 9. 现代语法糖与流式调用
+
+### 固有方法与链式调用 (UFCS)
+结构体可直接声明固有方法块 `impl TypeName { ... }`，配合 UFCS 享受流畅的点号链式调用：
+
+```huzi
+struct Counter {
+    val: i32,
+}
+
+impl Counter {
+    fn new(v: i32) -> Self {
+        return Counter { val: v }
+    }
+
+    fn add(self, delta: i32) -> Self {
+        return Counter { val: self.val + delta }
+    }
+}
+
+let c = Counter::new(10).add(5).add(20)
+print(c.val) # 35
+```
+
+### 字符串插值 (f-string)
+在字符串前加 `f` 前缀，花括号内即可直接嵌入任意表达式：
+
+```huzi
+let name = "Huzi"
+let score = 99
+let msg = f"User {name} scored {score + 1} points!"
+print(msg)
+```
+
+---
+
+## 10. 错误处理与标准库生态
+
+### 优雅的 `?` 错误解包
+结合自举标准库 `core.result` 中的 `Result<T>`，使用后缀 `?` 运算符可实现优雅的错误传播：
+
+```huzi
+import core.result
+
+fn parse_config(raw: str) -> Result<i32> {
+    # 失败时 ? 会直接携带错误提前从当前函数返回
+    let val = compute_step(raw)?
+    return Result::ok(val)
+}
+```
+
+### 系统级标准库开箱即用
+官方标准库自带跨平台系统调用能力：
+- `std.process`：进程创建与命令行启动（如 `let out = process::run("git", ["status"])`）。
+- `std.path`：跨平台路径拼接、规范化与后缀提取（全面支持 Windows 反斜杠与 Unix 正斜杠）。
+- `std.fsx`：便捷文件读写、按行切分与存在性探测。
+- `std.http`：基于 TCP 的原生产业级 HTTP 客户端。
+- `std.json` / `std.jsonq`：高性能 JSON 解析与流式查询。
+

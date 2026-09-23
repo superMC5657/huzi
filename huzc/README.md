@@ -23,14 +23,13 @@ huzc/
 进入 `huzc/` 目录执行：
 
 ```bash
-cargo build --workspace                            # 构建
-bash test.sh                                       # 回归测试
-./target/debug/huzc fmt --check test/cases         # 格式检查
+cargo build --workspace                            # 构建编译器
+./target/debug/huzc run test/cases/01_variables_ops.hz # 一键编译并运行单源文件
+./target/debug/huzc test test/cases                # 原生跨平台测试运行器
+./target/debug/huzc fmt --check test/cases         # 语法树格式化门禁检查
 ```
 
-提交前在仓库根跑 `bash check.sh`，一次过全部门禁。
-
-> Windows 用户请在 Git Bash / MSYS2 / WSL 中运行，并确保 LLVM 的 `llc` / `opt` 已在 `PATH` 中。
+提交前在仓库根跑 `bash check.sh`（或 `SKIP_BENCH=1 bash check.sh`），一次跑完四阶段门禁。
 
 ## 文档
 

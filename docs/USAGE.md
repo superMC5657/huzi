@@ -211,9 +211,9 @@ RUN_BENCH=1 bash huzc/test.sh
 ---
 
 ## 9. 文档导航与指引
-- **新手与语言教程**：请参阅 [`guides/tutorial.md`](guides/tutorial.md)，涵盖变量、控制流、函数、结构体、枚举匹配、堆指针 Box、泛型及 Trait 接口。
-- **全量规范与标准库参考**：请参阅 [`guides/reference.md`](guides/reference.md)，涵盖类型系统、关键字、运算符及全量内置函数（I/O、字符串、数学、文件、网络、多线程并发等）。
-- **技术架构与编译器实现**：请参阅 [`dev/开发文档.md`](dev/开发文档.md)，涵盖 LLVM CodeGen、AST、词法语法设计与链接编排。
+- **新手与语言教程**：请参阅 [`guides/tutorial.md`](guides/tutorial.md)，涵盖变量、控制流、函数、动态数组 `vec<T>`、确定性自动 Drop 内存管理、结构体、枚举匹配、堆指针 Box、泛型及 Trait 接口。
+- **全量规范与标准库参考**：请参阅 [`guides/reference.md`](guides/reference.md)，涵盖类型系统、关键字、运算符、固有方法/UFCS、复合赋值、字符串插值及全量标准库（I/O、字符串、数学、文件、网络、多线程、子进程 `std.process`、路径 `std.path` 等）。
+- **技术架构与编译器实现**：请参阅 [`dev/开发文档.md`](dev/开发文档.md)，涵盖 LLVM CodeGen、RAII Drop 析构引擎、AST、词法语法设计与链接编排。
 - **项目状态快照**：请参阅同目录 [`STATUS.md`](STATUS.md)。
 
 ---
