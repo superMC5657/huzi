@@ -1,0 +1,43 @@
+# 69_static_methods.hz —— 固有块静态方法(Type::new)与Self类型别名
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    # 静态构造函数: 返回类型标注为 Self
+    fn new(x: i32, y: i32) -> Point {
+        return Point { x: x, y: y }
+    }
+    # 静态工厂方法: 使用 Self { ... } 构造
+    fn origin() -> Point {
+        return Self { x: 0, y: 0 }
+    }
+    # 实例方法: 参数标注 other: Self，返回类型 Self
+    fn add(self: Point, other: Point) -> Point {
+        return Self { x: self.x + other.x, y: self.y + other.y }
+    }
+    fn length_sq(self: Point) -> i32 {
+        return self.x * self.x + self.y * self.y
+    }
+    fn scale(self: Point, factor: i32) -> Point {
+        return Self { x: self.x * factor, y: self.y * factor }
+    }
+}
+
+fn main() -> i32 {
+    let p1 = Point::new(3, 4)
+    print("p1.x:", p1.x)
+    print("p1.y:", p1.y)
+    print("p1.length_sq:", p1.length_sq())
+    let p0 = Point::origin
+    print("p0.x:", p0.x)
+    print("p0.y:", p0.y)
+    let p2 = p1.add(Point::new(1, 2))
+    print("p2.x:", p2.x)
+    print("p2.y:", p2.y)
+    let p3 = Point::new(2, 3).scale(2)
+    print("p3.x:", p3.x)
+    print("p3.y:", p3.y)
+    return 0
+}

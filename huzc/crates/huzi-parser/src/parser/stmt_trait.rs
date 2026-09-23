@@ -128,7 +128,7 @@ impl Parser {
                 self.advance();
                 let self_type = if self.check(&Token::Colon) {
                     self.advance();
-                    self.parse_type()?
+                    self.parse_type()?.substitute_self(target_type)
                 } else {
                     Type::Named(target_type.to_string())
                 };
@@ -144,7 +144,7 @@ impl Parser {
             while !self.check(&Token::RParen) && !self.is_at_end() {
                 let pname = self.expect_ident("Expected parameter name")?;
                 self.expect(&Token::Colon, "Expected ':' after parameter name")?;
-                let ptype = self.parse_type()?;
+                let ptype = self.parse_type()?.substitute_self(target_type);
                 params.push(FnParam {
                     name: pname,
                     param_type: ptype,
@@ -160,7 +160,7 @@ impl Parser {
 
         let return_type = if self.check(&Token::Arrow) {
             self.advance();
-            Some(self.parse_type()?)
+            Some(self.parse_type()?.substitute_self(target_type))
         } else {
             None
         };

@@ -88,6 +88,15 @@ impl<'ctx> CodeGen<'ctx> {
             });
         }
 
+        let mangled = format!("{}__{}", expr.enum_name, expr.variant);
+        if self.functions.contains_key(&mangled) {
+            return self.compile_call(&CallExpr {
+                callee: Box::new(Expr::Ident(mangled)),
+                arguments: expr.args.clone(),
+                type_args: expr.type_args.clone(),
+            });
+        }
+
         let (info, vinfo) = self.resolve_enum_variant(expr)?;
 
         let enum_st = match info.llvm {
@@ -120,7 +129,16 @@ impl<'ctx> CodeGen<'ctx> {
             .enums
             .get(&expr.enum_name)
             .cloned()
-            .ok_or_else(|| HuziError::new_global(format!("Unknown enum: {}", expr.enum_name)))?;
+            .ok_or_else(|| {
+                if self.structs.contains_key(&expr.enum_name) {
+                    HuziError::new_global(format!(
+                        "Type '{}' has no static method or variant '{}'",
+                        expr.enum_name, expr.variant
+                    ))
+                } else {
+                    HuziError::new_global(format!("Unknown enum: {}", expr.enum_name))
+                }
+            })?;
         let vinfo = info
             .variants
             .iter()

@@ -219,8 +219,8 @@ Huzi 采用分层内存模型：`str` / `vec` 无 GC 无 RC，靠手动 `free_*`
 
 ## 8. 方法调用、固有实现块与 UFCS (统一函数调用)
 
-### 8.1 固有实现块 (Inherent `impl`)
-无需声明 `trait`，即可直接为具名结构体定义专属固有方法：
+### 8.1 固有实现块 (Inherent `impl`) 与关联静态方法
+无需声明 `trait`，即可直接为具名结构体定义专属固有方法与关联静态函数：
 ```huzi
 struct Point {
     x: i32,
@@ -228,16 +228,30 @@ struct Point {
 }
 
 impl Point {
-    fn length_sq(self) -> i32 {
-        return self.x * self.x + self.y * self.y
+    # 静态构造函数: 首参数无需 self，返回类型支持标注 Self
+    fn new(x: i32, y: i32) -> Self {
+        return Point { x: x, y: y }
     }
-    fn scale(self, factor: i32) -> Point {
-        return Point { x: self.x * factor, y: self.y * factor }
+
+    # 静态工厂方法: 方法体内支持使用 Self { ... } 构造
+    fn origin() -> Self {
+        return Self { x: 0, y: 0 }
+    }
+
+    # 实例方法: 首参数为 self，参数与返回类型均支持 Self 别名
+    fn add(self: Point, other: Self) -> Self {
+        return Self { x: self.x + other.x, y: self.y + other.y }
+    }
+
+    fn scale(self, factor: i32) -> Self {
+        return Self { x: self.x * factor, y: self.y * factor }
     }
 }
 ```
-- `self` 形参：首参数可简写为 `self`（编译器自动赋予目标结构体类型）或显式标注 `self: Point`。
-- 命名规整：内部脱糖为 `Point__length_sq(self)` 等顶层静态函数，零额外运行时抽象开销。
+- **静态方法调用**：通过 `Type::method(args...)`（如 `Point::new(3, 4)`、`Point::origin`）直接调用关联静态方法；返回值无缝支持后续实例链式调用（如 `Point::new(1, 2).scale(3)`）。
+- **`Self` 类型别名**：在 `impl TargetType` 块的方法参数、返回类型（`-> Self`）以及方法体内部字面量构造（`Self { ... }`）中，`Self` 均作为目标类型的规范别名，编译期自动映射。
+- **`self` 形参**：实例方法首参数可简写为 `self`（编译器自动赋予目标结构体类型）或显式标注 `self: Point`。
+- **命名规整**：内部脱糖为 `Point__new(x, y)` 与 `Point__scale(self, factor)` 等顶层静态函数，零额外运行时抽象开销。
 
 ### 8.2 UFCS (Uniform Function Call Syntax) 统一函数调用
 Huzi 支持点号方法调用语法 `receiver.method(args...)` 的多阶分派：
@@ -269,4 +283,11 @@ Huzi 提供了强大的模式匹配能力，支持对枚举、标量值（整数
    - 标量值（取值空间无限）匹配强制要求包含无守卫的 `_` 或变量兜底分支。
    - 布尔类型匹配要求同时包含无守卫的 `true` 与 `false` 分支，或提供通配符兜底。
    - 守卫表达式必须求值为 `bool` 类型，模式与待匹配项类型必须严格兼容。
+
+### 8.4 元组解构变量绑定
+支持在 `let` 语句中对元组进行直接解构绑定：
+- **基础与独立可变性**：`let (a, b) = expr`，支持元素级声明 `mut`，如 `let (mut a, b) = (1, 2)`。
+- **整组继承修饰**：`let mut (a, b) = expr`，整组所有解构出的变量均为可变。
+- **嵌套与通配忽略**：支持多层嵌套解构 `let (a, (b, c)) = expr` 与使用 `_` 忽略不需要的字段 `let (x, _) = expr`。
+
 

@@ -77,6 +77,33 @@ impl fmt::Display for Type {
     }
 }
 
+impl Type {
+    /// 将类型树中出现的 `Self` 替换为具体的类型名。
+    pub fn substitute_self(&self, target: &str) -> Type {
+        match self {
+            Type::Named(name) if name == "Self" => Type::Named(target.to_string()),
+            Type::Box(inner) => Type::Box(Box::new(inner.substitute_self(target))),
+            Type::Array(elem, len) => Type::Array(Box::new(elem.substitute_self(target)), *len),
+            Type::Tuple(elems) => {
+                Type::Tuple(elems.iter().map(|e| e.substitute_self(target)).collect())
+            }
+            Type::Applied(name, args) => {
+                let n = if name == "Self" {
+                    target.to_string()
+                } else {
+                    name.clone()
+                };
+                Type::Applied(n, args.iter().map(|a| a.substitute_self(target)).collect())
+            }
+            Type::Fn(params, ret) => Type::Fn(
+                params.iter().map(|p| p.substitute_self(target)).collect(),
+                Box::new(ret.substitute_self(target)),
+            ),
+            other => other.clone(),
+        }
+    }
+}
+
 /// 源码位置:起止区间(1-based 行列号),与 lexer 的 `SpannedToken` 对齐。
 /// `line`/`column` 为起始位置(保留旧单点构造兼容),
 /// `end_line`/`end_column` 为结束位置(词法上取末 token 列 +1,无精确

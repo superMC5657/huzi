@@ -81,6 +81,7 @@ fn corpus_files(root: str) -> vec<str> {
     push(out, with_root(root, "huzc/test/cases/66_fluent_option_result_vec.hz"))
     push(out, with_root(root, "huzc/test/cases/67_match_guards_literals.hz"))
     push(out, with_root(root, "huzc/test/cases/68_tuple_destructuring.hz"))
+    push(out, with_root(root, "huzc/test/cases/69_static_methods.hz"))
     push(out, with_root(root, "huzc/test/cases/mods/calc_core.hz"))
     push(out, with_root(root, "huzc/test/cases/mods/calc_input.hz"))
     push(out, with_root(root, "huzc/test/cases/mods/helpers.hz"))
