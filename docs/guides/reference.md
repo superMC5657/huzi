@@ -95,6 +95,7 @@
 - `abs(x)`, `sqrt(x)`, `pow(x, y)`, `sin(x)`, `cos(x)`, `tan(x)`, `floor(x)`, `ceil(x)`, `round(x)`。
 
 ### 4.5 系统与进程
+- `process_run(cmd: str) -> (i32, str)`: 执行系统 shell 命令行并阻塞捕获其退出码与标准输出。
 - `time() -> i64`: 当前 Unix 时间戳（秒）。
 - `localtime(ts: i64) -> str`: 将时间戳格式化为 `YYYY-MM-DD hh:mm:ss` 本地时间字符串。
 - `env_get(key: str) -> (bool, str)`: 读取环境变量，不存在返回 `(false, "")`。

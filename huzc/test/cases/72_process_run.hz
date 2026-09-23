@@ -1,0 +1,8 @@
+fn main() -> i32 {
+    let res = process_run("echo hello_process")
+    let status = res.0
+    let out = trim(res.1)
+    print("status: ", status)
+    print("out: ", out)
+    return 0
+}

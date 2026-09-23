@@ -38,7 +38,8 @@
 - [x] CLI 参数：`arg_count/arg/arg_ok`
 - [x] 字符串：`format/len/concat/to_string/split/substring/trim/contains/parse_int/parse_float` + 下标 + 字典序比较
 - [x] 数学：`abs/sqrt/pow/sin/cos/tan/floor/ceil/round`（含 `math::` 前缀）
-- [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms`
+- [x] 系统：`rand/srand/time/localtime/env_get/exit/panic/sleep_ms/process_run`
+- [x] 子进程与管道：内置原语 `process_run(cmd) -> (i32, str)` 与标准库 `std.process`（`Command` builder 模式、`Output` 解析，用例 `72_process_run`，标准库自测 `process_test`）
 - [x] 文件：`read_file/read_file_ok/read_file_err/write_file`
 - [x] 内存：`free_str/free_vec/free_box/ref_count`（浅释放语义、二次 `free` 为 no-op；`ref_count` 快照做环泄漏报告，未打破经 `panic` 运行时告警，正例 `40_rc` 环 2-2 → 打破 2-1，负例 `rc_cycle_leak`；类型不匹配编译期拒绝，负例 `free_str_non_str`）
 - [x] HashMap：`map_new/map_put/map_get/map_has/map_remove/map_len/map_keys`

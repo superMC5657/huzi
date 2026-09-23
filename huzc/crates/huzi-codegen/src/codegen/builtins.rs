@@ -232,6 +232,26 @@ impl<'ctx> CodeGen<'ctx> {
         );
         self.module.add_function("ftell", ftell_fn, None);
 
+        // 用于子进程管道的 popen 与 pclose
+        let popen_fn_ty = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false,
+        );
+        let pclose_fn_ty = self.context.i32_type().fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        if cfg!(windows) {
+            self.module.add_function("_popen", popen_fn_ty, None);
+            self.module.add_function("_pclose", pclose_fn_ty, None);
+        } else {
+            self.module.add_function("popen", popen_fn_ty, None);
+            self.module.add_function("pclose", pclose_fn_ty, None);
+        }
+
         // 用于字符串拷贝的 strcpy
         let strcpy_fn = self.context.i32_type().fn_type(
             &[

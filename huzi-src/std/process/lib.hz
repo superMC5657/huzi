@@ -1,0 +1,47 @@
+// std.process — 子进程执行与命令构建模块
+struct Output {
+    status: i32,
+    stdout: str,
+}
+
+fn output_is_success(out: Output) -> bool {
+    return out.status == 0
+}
+
+fn output_exit_code(out: Output) -> i32 {
+    return out.status
+}
+
+fn output_stdout(out: Output) -> str {
+    return out.stdout
+}
+
+struct Command {
+    program: str,
+    args: vec<str>,
+}
+
+fn command_new(program: str) -> Command {
+    return Command { program: program, args: vec<str>() }
+}
+
+fn command_arg(self: Command, a: str) -> Command {
+    let mut v = self.args
+    push(v, a)
+    return Command { program: self.program, args: v }
+}
+
+fn command_output(self: Command) -> Output {
+    let mut cmd_str = self.program
+    for a in self.args {
+        cmd_str = concat(cmd_str, " ")
+        cmd_str = concat(cmd_str, a)
+    }
+    let res = process_run(cmd_str)
+    return Output { status: res.0, stdout: res.1 }
+}
+
+fn run(cmd: str) -> Output {
+    let res = process_run(cmd)
+    return Output { status: res.0, stdout: res.1 }
+}

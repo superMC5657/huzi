@@ -219,7 +219,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 编译一个求值为字符串(i8*)的参数。
-    fn compile_str_arg(&mut self, expr: &Expr, name: &str) -> Result<inkwell::values::PointerValue<'ctx>> {
+    pub(super) fn compile_str_arg(&mut self, expr: &Expr, name: &str) -> Result<inkwell::values::PointerValue<'ctx>> {
         let value = self.compile_expr(expr)?;
         match value {
             BasicValueEnum::PointerValue(p) => Ok(p),
@@ -241,7 +241,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 取(或惰性创建)模块级 C 字符串常量。
-    fn cstr_const(&mut self, s: &str) -> inkwell::values::PointerValue<'ctx> {
+    pub(super) fn cstr_const(&mut self, s: &str) -> inkwell::values::PointerValue<'ctx> {
         let global = unsafe { self.builder.build_global_string(s, "huzi_cstr").unwrap() };
         global.as_pointer_value()
     }

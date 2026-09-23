@@ -1,0 +1,17 @@
+import core.assert
+import std.process
+
+fn main() -> i32 {
+    let out = process::run("echo test_process_run")
+    assert::assert_true(process::output_is_success(out))
+    assert::assert_true(process::output_exit_code(out) == 0)
+    assert::assert_true(contains(process::output_stdout(out), "test_process_run"))
+    let cmd = process::command_new("echo")
+    let cmd = process::command_arg(cmd, "builder_arg")
+    let out2 = process::command_output(cmd)
+    assert::assert_true(process::output_is_success(out2))
+    assert::assert_true(process::output_exit_code(out2) == 0)
+    assert::assert_true(contains(process::output_stdout(out2), "builder_arg"))
+    print("process_test passed")
+    return 0
+}

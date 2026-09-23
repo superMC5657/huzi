@@ -198,10 +198,14 @@ impl TypeInferrer {
                 Some(Type::Named("f64".to_string()))
             }
             "to_string" | "concat" | "substring" | "trim" | "read_line" | "read_file"
-            | "arg" => Some(Type::Named("str".to_string())),
+            | "arg" | "format" => Some(Type::Named("str".to_string())),
             "contains" | "is_eof" | "arg_ok" | "read_file_ok" | "map_has" => {
                 Some(Type::Named("bool".to_string()))
             }
+            "process_run" => Some(Type::Tuple(vec![
+                Type::Named("i32".to_string()),
+                Type::Named("str".to_string()),
+            ])),
             "map_keys" => Some(Type::Applied(
                 "vec".to_string(),
                 vec![Type::Named("str".to_string())],

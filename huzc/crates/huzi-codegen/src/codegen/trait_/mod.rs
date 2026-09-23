@@ -119,6 +119,10 @@ fn builtin_fn_return_types() -> HashMap<String, Option<Type>> {
         "split".to_string(),
         Some(Type::Applied("vec".to_string(), vec![Type::Str])),
     );
+    map.insert(
+        "process_run".to_string(),
+        Some(Type::Tuple(vec![Type::I32, Type::Str])),
+    );
     for f in ["vec_map", "vec_filter", "map", "filter", "vec_take", "take", "vec_skip", "skip"] {
         map.insert(
             f.to_string(),

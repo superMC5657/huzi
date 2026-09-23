@@ -350,6 +350,7 @@ impl<'ctx> CodeGen<'ctx> {
             "exit" => Some(self.compile_exit(arguments)),
             "panic" => Some(self.compile_panic(arguments)),
             "sleep_ms" => Some(self.compile_sleep_ms(arguments)),
+            "process_run" => Some(self.compile_process_run(arguments)),
             "read_file" => Some(self.compile_read_file(arguments)),
             "read_file_ok" => Some(self.compile_read_file_ok(arguments)),
             "read_file_err" => Some(self.compile_read_file_err(arguments)),

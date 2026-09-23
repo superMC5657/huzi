@@ -292,7 +292,7 @@ fn fstring_parses_to_fstring_expr() {
 
 #[test]
 fn compound_assignment_parses() {
-    let program = parse("x += 1; y -= 2; z *= 3; w /= 4; m %= 5");
+    let program = parse("x += 1\ny -= 2\nz *= 3\nw /= 4\nm %= 5");
     assert_eq!(program.statements.len(), 5);
     let ops = [
         AssignOp::AddAssign,
