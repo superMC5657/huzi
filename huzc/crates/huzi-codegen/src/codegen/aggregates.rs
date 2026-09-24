@@ -12,7 +12,15 @@ impl<'ctx> CodeGen<'ctx> {
             .structs
             .get(&expr.name)
             .cloned()
-            .ok_or_else(|| HuziError::new_global(format!("Unknown struct: {}", expr.name)))?;
+            .ok_or_else(|| {
+                let mut message = format!("Unknown struct: {}", expr.name);
+                if let Some(hint) =
+                    huzi_error::did_you_mean(&expr.name, self.structs.keys().map(|s| s.as_str()))
+                {
+                    message.push_str(&format!("\n  help: {}", hint));
+                }
+                self.with_current_position(HuziError::new_global(message))
+            })?;
 
         for (i, (name, _)) in expr.fields.iter().enumerate() {
             if expr.fields[..i].iter().any(|(n, _)| n == name) {
@@ -24,10 +32,15 @@ impl<'ctx> CodeGen<'ctx> {
         }
         for (name, _) in &expr.fields {
             if !fields.iter().any(|info| info.name == *name) {
-                return Err(HuziError::new_global(format!(
-                    "Struct '{}' has no field '{}'",
-                    expr.name, name
-                )));
+                let mut message =
+                    format!("Struct '{}' has no field '{}'", expr.name, name);
+                if let Some(hint) = huzi_error::did_you_mean(
+                    name,
+                    fields.iter().map(|info| info.name.as_str()),
+                ) {
+                    message.push_str(&format!("\n  help: {}", hint));
+                }
+                return Err(self.with_current_position(HuziError::new_global(message)));
             }
         }
         for info in &fields {
@@ -137,12 +150,39 @@ impl<'ctx> CodeGen<'ctx> {
             .cloned()
             .ok_or_else(|| {
                 if self.structs.contains_key(&expr.enum_name) {
-                    HuziError::new_global(format!(
+                    let mut message = format!(
                         "Type '{}' has no static method or variant '{}'",
                         expr.enum_name, expr.variant
-                    ))
+                    );
+                    let method_candidates: Vec<&str> = self
+                        .functions
+                        .keys()
+                        .filter_map(|k| {
+                            let (ty, meth) = k.rsplit_once("__")?;
+                            if ty == expr.enum_name
+                                || ty.ends_with(&format!("::{}", expr.enum_name))
+                            {
+                                Some(meth)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    if let Some(hint) =
+                        huzi_error::did_you_mean(&expr.variant, method_candidates)
+                    {
+                        message.push_str(&format!("\n  help: {}", hint));
+                    }
+                    self.with_current_position(HuziError::new_global(message))
                 } else {
-                    HuziError::new_global(format!("Unknown enum: {}", expr.enum_name))
+                    let mut message = format!("Unknown enum: {}", expr.enum_name);
+                    if let Some(hint) = huzi_error::did_you_mean(
+                        &expr.enum_name,
+                        self.enums.keys().map(|s| s.as_str()),
+                    ) {
+                        message.push_str(&format!("\n  help: {}", hint));
+                    }
+                    self.with_current_position(HuziError::new_global(message))
                 }
             })?;
         let vinfo = info
@@ -151,10 +191,17 @@ impl<'ctx> CodeGen<'ctx> {
             .find(|v| v.name == expr.variant)
             .cloned()
             .ok_or_else(|| {
-                HuziError::new_global(format!(
+                let mut message = format!(
                     "Enum '{}' has no variant '{}'",
                     expr.enum_name, expr.variant
-                ))
+                );
+                if let Some(hint) = huzi_error::did_you_mean(
+                    &expr.variant,
+                    info.variants.iter().map(|v| v.name.as_str()),
+                ) {
+                    message.push_str(&format!("\n  help: {}", hint));
+                }
+                self.with_current_position(HuziError::new_global(message))
             })?;
         Ok((info, vinfo))
     }

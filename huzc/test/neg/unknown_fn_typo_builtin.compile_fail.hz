@@ -1,0 +1,6 @@
+# 负例:内置函数拼写错误,编译必须失败并提示 did you mean print。
+# `prnt` 与 `print` 编辑距离 1(阈值内可建议);`pritn` 距离 2 超出当前算法阈值无提示,故用 `prnt` 覆盖 builtin 候选路径。
+fn main() -> i32 {
+    prnt("hi")
+    return 0
+}

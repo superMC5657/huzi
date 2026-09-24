@@ -1,0 +1,10 @@
+# 负例:枚举变体拼写错误,编译必须失败并提示 did you mean Red。
+enum Color {
+    Red,
+    Green,
+    Blue,
+}
+fn main() -> i32 {
+    let c = Color::Redd
+    return 0
+}

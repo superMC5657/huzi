@@ -66,6 +66,21 @@ pub(super) mod generic;
 pub(super) mod trait_;
 
 
+/// 内置函数名只读表:并入 `visible_names` 候选,供未知函数拼写建议使用。
+/// 与 `compile_builtin_call` 的分派名保持一致(只读,不影响语义)。
+const BUILTIN_NAMES: &[&str] = &[
+    "print", "read_line", "read_int", "read_float", "len", "abs", "sqrt", "pow",
+    "sin", "cos", "tan", "floor", "ceil", "round", "concat", "split", "substring",
+    "trim", "contains", "to_string", "parse_int", "parse_float", "arg_count", "arg",
+    "arg_ok", "env_get", "is_eof", "rand", "srand", "time", "localtime", "exit",
+    "panic", "sleep_ms", "process_run", "read_file", "read_file_ok", "read_file_err",
+    "write_file", "vec", "map_new", "map_put", "map_get", "map_has", "map_remove",
+    "map_len", "map_keys", "push", "pop", "remove", "insert", "clear", "free_str",
+    "free_vec", "free_box", "ref_count", "weak_count", "tcp_connect", "tcp_send",
+    "tcp_recv", "tcp_close", "tcp_listen", "tcp_accept", "spawn", "thread_spawn",
+    "join", "thread_join", "chan_new", "chan_send", "chan_recv", "str_from_bytes",
+];
+
 /// Map 键值特化种类:当前支持三种单态化形态。
 /// 复用泛型单态化/修饰名思路,每种对应一套条目布局。
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -188,6 +203,9 @@ pub struct CodeGen<'ctx> {
     pub(super) closure_counter: usize,
     /// 顶层命名函数升格闭包时的 thunk 缓存。
     pub(super) thunk_cache: HashMap<String, FunctionValue<'ctx>>,
+    /// 当前语句位置(由 `set_current_debug_span` 逐语句回填),供名字类
+    /// 诊断 `with_position` 使用;无语句上下文时为 None。
+    current_span: Option<Span>,
 }
 impl<'ctx> CodeGen<'ctx> {
     pub fn new(context: &'ctx Context, name: &str) -> Self {
@@ -218,6 +236,7 @@ impl<'ctx> CodeGen<'ctx> {
             defer_stack: Vec::new(),
             closure_counter: 0,
             thunk_cache: HashMap::new(),
+            current_span: None,
         }
     }
 
@@ -338,7 +357,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     // ==================== Diagnostics ====================
 
-    /// 收集当前可见的全部名字(函数、结构体、枚举、作用域变量),
+    /// 收集当前可见的全部名字(函数、结构体、枚举、作用域变量与内置函数),
     /// 用于未知名字的 "did you mean" 建议。
     fn visible_names(&self) -> Vec<&str> {
         let mut names: Vec<&str> = self.functions.keys().map(|s| s.as_str()).collect();
@@ -347,7 +366,16 @@ impl<'ctx> CodeGen<'ctx> {
         for scope in &self.scopes {
             names.extend(scope.keys().map(|s| s.as_str()));
         }
+        names.extend(BUILTIN_NAMES.iter().copied());
         names
+    }
+
+    /// 将当前语句位置回填到错误(已有位置则保持不变)。
+    pub(super) fn with_current_position(&self, err: HuziError) -> HuziError {
+        match self.current_span {
+            Some(span) => err.with_position(span.line, span.column),
+            None => err,
+        }
     }
 
     /// 构造 "Unknown variable" 错误,附最接近名字的修复建议。
@@ -356,7 +384,7 @@ impl<'ctx> CodeGen<'ctx> {
         if let Some(hint) = huzi_error::did_you_mean(name, self.visible_names()) {
             message.push_str(&format!("\n  help: {}", hint));
         }
-        HuziError::new_global(message)
+        self.with_current_position(HuziError::new_global(message))
     }
 
     /// 构造 "Unknown function" 错误,附最接近名字的修复建议。
@@ -365,7 +393,7 @@ impl<'ctx> CodeGen<'ctx> {
         if let Some(hint) = huzi_error::did_you_mean(name, self.visible_names()) {
             message.push_str(&format!("\n  help: {}", hint));
         }
-        HuziError::new_global(message)
+        self.with_current_position(HuziError::new_global(message))
     }
 
     /// 当当前插入 BasicBlock 尚未包含终结指令（Terminator）时返回 true。
