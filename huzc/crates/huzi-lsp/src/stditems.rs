@@ -11,23 +11,16 @@
 use std::path::{Path, PathBuf};
 
 use huzi_ast::{Program, Stmt, SymbolKind as HuziSymbolKind};
-use tower_lsp_server::ls_types::{
-    CompletionItem, CompletionItemKind, Uri,
-};
+use tower_lsp_server::ls_types::{CompletionItem, CompletionItemKind, Uri};
 
 use crate::analysis::parse_and_collect;
 
 /// `<stem>` 下的入口候选(与 `modules.rs` 顺序一致)。
-const STEM_CANDIDATES: &[&str] =
-    &["src/lib.hz", "lib.hz", "src/mod.hz", "mod.hz"];
+const STEM_CANDIDATES: &[&str] = &["src/lib.hz", "lib.hz", "src/mod.hz", "mod.hz"];
 
 /// `huzi-src` 相对探查后缀(与 `imports.rs` 存量顺序一致)。
-const HUZI_SRC_SUBS: &[&str] = &[
-    "huzi-src",
-    "../huzi-src",
-    "../../huzi-src",
-    "../../../huzi-src",
-];
+const HUZI_SRC_SUBS: &[&str] =
+    &["huzi-src", "../huzi-src", "../../huzi-src", "../../../huzi-src"];
 
 /// 指定根集合内解析模块(供单测注入临时目录,纯磁盘探查)。
 pub(crate) fn resolve_in_roots(
@@ -45,10 +38,7 @@ pub(crate) fn resolve_in_roots(
 }
 
 /// 探查单个根下的模块入口文件(直连 → `huzi.toml lib_entry` → 常规候选)。
-pub(crate) fn probe_entry_file(
-    root: &Path,
-    file: &Path,
-) -> Option<PathBuf> {
+pub(crate) fn probe_entry_file(root: &Path, file: &Path) -> Option<PathBuf> {
     let direct = root.join(file);
     if direct.is_file() {
         return Some(direct);
@@ -77,9 +67,7 @@ pub(crate) fn probe_entry_file(
 }
 
 /// 候选根集合:当前文件目录 → 进程 cwd → 标准库根(环境/可执行文件旁/家目录)。
-pub(crate) fn module_file_roots(
-    current_uri: Option<&Uri>,
-) -> Vec<PathBuf> {
+pub(crate) fn module_file_roots(current_uri: Option<&Uri>) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     if let Some(uri) = current_uri {
         if let Some(path) = uri.to_file_path() {
@@ -102,20 +90,14 @@ pub(crate) fn module_file_roots(
 }
 
 /// `<bind>::` 补全:经 import 表找点分名,读盘解析后转符号项。
-pub(crate) fn bind_items(
-    text: &str,
-    bind: &str,
-    prefix: &str,
-) -> Vec<CompletionItem> {
+pub(crate) fn bind_items(text: &str, bind: &str, prefix: &str) -> Vec<CompletionItem> {
     bind_items_with_roots(text, bind, prefix, &module_file_roots(None))
 }
 
 /// 同上,根集合由调用方注入(供单测,纯磁盘探查)。
+/// 除 fn/类型外追加目标文件内全部 impl 与 trait 方法(深度补齐,失败保空表)。
 pub(crate) fn bind_items_with_roots(
-    text: &str,
-    bind: &str,
-    prefix: &str,
-    roots: &[PathBuf],
+    text: &str, bind: &str, prefix: &str, roots: &[PathBuf],
 ) -> Vec<CompletionItem> {
     let Some(import_name) = crate::imports::find_import_for_bind(text, bind)
     else {
@@ -124,14 +106,48 @@ pub(crate) fn bind_items_with_roots(
     let Some(path) = resolve_in_roots(&import_name, roots) else {
         return Vec::new();
     };
-    file_symbol_items(&path, prefix)
+    let mut out = file_symbol_items(&path, prefix);
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return out;
+    };
+    let (program, _) = parse_and_collect(&content);
+    out.extend(target_method_items(&program, prefix));
+    out
+}
+
+/// 目标文件内全部 impl/trait 方法(前缀匹配,供 `<bind>::` 深度补齐)。
+fn target_method_items(program: &Program, prefix: &str) -> Vec<CompletionItem> {
+    let mut out = Vec::new();
+    for stmt in &program.statements {
+        match &stmt.node {
+            Stmt::Impl(b) => for m in &b.methods {
+                if m.name.starts_with(prefix) {
+                    out.push(method_item(&m.name, &b.target_type));
+                }
+            },
+            Stmt::Trait(d) => for m in &d.methods {
+                if m.name.starts_with(prefix) {
+                    out.push(method_item(&m.name, &d.name));
+                }
+            },
+            _ => {}
+        }
+    }
+    out
+}
+
+/// 方法补全项(供目标文件深度补齐,种类与同文件 impl/trait 对齐)。
+fn method_item(name: &str, owner: &str) -> CompletionItem {
+    CompletionItem {
+        label: name.to_string(),
+        kind: Some(CompletionItemKind::METHOD),
+        detail: Some(format!("{owner}::{name}")),
+        ..Default::default()
+    }
 }
 
 /// 目标模块文件 -> 符号补全项(fn/类型,前缀匹配,读盘失败为空表)。
-pub(crate) fn file_symbol_items(
-    path: &Path,
-    prefix: &str,
-) -> Vec<CompletionItem> {
+pub(crate) fn file_symbol_items(path: &Path, prefix: &str) -> Vec<CompletionItem> {
     let Ok(content) = std::fs::read_to_string(path) else {
         return Vec::new();
     };
@@ -157,10 +173,7 @@ pub(crate) fn std_prefix_items(prefix: &str) -> Vec<CompletionItem> {
 }
 
 /// 同上,lib.hz 路径由调用方注入(供单测)。
-pub(crate) fn std_prefix_items_with_lib(
-    lib: &Path,
-    prefix: &str,
-) -> Vec<CompletionItem> {
+pub(crate) fn std_prefix_items_with_lib(lib: &Path, prefix: &str) -> Vec<CompletionItem> {
     let Ok(content) = std::fs::read_to_string(lib) else {
         return Vec::new();
     };
@@ -177,11 +190,7 @@ pub(crate) fn std_prefix_items_with_lib(
 }
 
 /// 同文件 `impl ... for Target` 的方法补全(前缀匹配,供 `.` 与 `::` 共用)。
-pub(crate) fn impl_method_items(
-    program: &Program,
-    target: &str,
-    prefix: &str,
-) -> Vec<CompletionItem> {
+pub(crate) fn impl_method_items(program: &Program, target: &str, prefix: &str) -> Vec<CompletionItem> {
     let mut out = Vec::new();
     for stmt in &program.statements {
         if let Stmt::Impl(block) = &stmt.node {
@@ -190,15 +199,7 @@ pub(crate) fn impl_method_items(
             }
             for m in &block.methods {
                 if m.name.starts_with(prefix) {
-                    out.push(CompletionItem {
-                        label: m.name.clone(),
-                        kind: Some(CompletionItemKind::METHOD),
-                        detail: Some(format!(
-                            "{}::{}",
-                            target, m.name
-                        )),
-                        ..Default::default()
-                    });
+                    out.push(method_item(&m.name, target));
                 }
             }
         }
@@ -207,11 +208,7 @@ pub(crate) fn impl_method_items(
 }
 
 /// 同文件 `trait Name` 的方法补全(前缀匹配,供 `Trait::` 使用)。
-pub(crate) fn trait_method_items(
-    program: &Program,
-    name: &str,
-    prefix: &str,
-) -> Vec<CompletionItem> {
+pub(crate) fn trait_method_items(program: &Program, name: &str, prefix: &str) -> Vec<CompletionItem> {
     for stmt in &program.statements {
         if let Stmt::Trait(def) = &stmt.node {
             if def.name == name {
@@ -240,20 +237,12 @@ fn std_roots() -> Vec<PathBuf> {
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
-            for sub in [
-                "../huzi-src",
-                "../../huzi-src",
-                "../../../huzi-src",
-                "../lib/huzi-src",
-                "huzi-src",
-            ] {
+            for sub in ["../huzi-src", "../../huzi-src", "../../../huzi-src", "../lib/huzi-src", "huzi-src"] {
                 roots.push(exe_dir.join(sub));
             }
         }
     }
-    if let Ok(home) =
-        std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME"))
-    {
+    if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
         roots.push(PathBuf::from(&home).join(".huzi").join("huzi-src"));
         roots.push(PathBuf::from(&home).join(".huzi").join("std"));
     }
@@ -277,10 +266,7 @@ fn find_std_lib(roots: &[PathBuf]) -> Option<PathBuf> {
 fn parse_lib_entry(content: &str) -> Option<String> {
     for line in content.lines() {
         let line = line.trim();
-        let Some(rest) = line
-            .strip_prefix("lib_entry")
-            .or_else(|| line.strip_prefix("lib"))
-        else {
+        let Some(rest) = line.strip_prefix("lib_entry").or_else(|| line.strip_prefix("lib")) else {
             continue;
         };
         let Some(value) = rest.trim_start().strip_prefix('=') else {
@@ -302,19 +288,12 @@ fn export_module_names(content: &str) -> Vec<String> {
         let Some(rest) = trimmed.strip_prefix("export") else {
             continue;
         };
-        let Some(path) =
-            rest.strip_prefix(|c: char| c.is_whitespace())
-        else {
+        let Some(path) = rest.strip_prefix(|c: char| c.is_whitespace()) else {
             continue;
         };
         let name = path.split_whitespace().next().unwrap_or("");
         let first = name.split("::").next().unwrap_or("");
-        if !first.is_empty()
-            && first
-                .chars()
-                .all(|c| c.is_alphanumeric() || c == '_')
-            && !out.contains(&first.to_string())
-        {
+        if !first.is_empty() && first.chars().all(|c| c.is_alphanumeric() || c == '_') && !out.contains(&first.to_string()) {
             out.push(first.to_string());
         }
     }
@@ -323,13 +302,7 @@ fn export_module_names(content: &str) -> Vec<String> {
 
 /// 跨模块补全只收录可导出符号(函数与具名类型)。
 fn is_exportable(kind: HuziSymbolKind) -> bool {
-    matches!(
-        kind,
-        HuziSymbolKind::Function
-            | HuziSymbolKind::Struct
-            | HuziSymbolKind::Enum
-            | HuziSymbolKind::Trait
-    )
+    matches!(kind, HuziSymbolKind::Function | HuziSymbolKind::Struct | HuziSymbolKind::Enum | HuziSymbolKind::Trait)
 }
 
 /// Huzi 符号种类 -> 补全项种类(与 `completion.rs` 对齐)。
@@ -439,6 +412,22 @@ mod tests {
         // Then: 含 add 与 Point,不含局部变量
         assert!(labels.contains(&"add"), "{labels:?}");
         assert!(labels.contains(&"Point"), "{labels:?}");
+    }
+
+    #[test]
+    fn bind_completion_includes_target_impl() {
+        // Given: import std.json,目标含 Value/parse + 固有 stringify + trait load
+        let dir = unique_dir("bindimpl");
+        std::fs::create_dir_all(dir.join("std")).unwrap();
+        std::fs::write(dir.join("std/json.hz"), "struct Value { x: i32 }\nfn parse(s: str) -> i32 {\n return 1\n}\nimpl Value {\n fn stringify(self: Value) -> str {\n return \"v\"\n }\n}\ntrait Loader {\n fn load(self) -> i32\n}\n").unwrap();
+        // When: 取 json:: 补全(注入临时根)
+        let items = bind_items_with_roots("import std.json\njson::", "json", "", &[dir]);
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Then: fn/类型外另含固有与 trait 方法
+        assert!(labels.contains(&"Value"), "{labels:?}");
+        assert!(labels.contains(&"parse"), "{labels:?}");
+        assert!(labels.contains(&"stringify"), "{labels:?}");
+        assert!(labels.contains(&"load"), "{labels:?}");
     }
 
     #[test]

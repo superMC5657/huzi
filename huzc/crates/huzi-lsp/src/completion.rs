@@ -83,44 +83,63 @@ fn normal_items(
     out
 }
 
-/// `.` 上下文:基名为 struct 补字段 + impl 方法,为 enum 补变体,
-/// 否则补通用成员(字段与方法均做前缀匹配)。
-fn dot_items(
-    text: &str,
-    base: &str,
-    prefix: &str,
-) -> Vec<CompletionItem> {
-    let (program, _symbols) = parse_and_collect(text);
+/// `.` 上下文:类型名/变量名补字段+impl 方法,枚举补变体,否则兜底。
+fn dot_items(text: &str, base: &str, prefix: &str) -> Vec<CompletionItem> {
+    let (program, _) = parse_and_collect(text);
+    if let Some(items) = struct_items(&program, base, prefix) {
+        return items;
+    }
     for stmt in &program.statements {
-        if let huzi_ast::Stmt::Struct(d) = &stmt.node {
-            if d.name == base {
-                let mut items: Vec<CompletionItem> = d
-                    .fields
-                    .iter()
-                    .filter(|f| f.name.starts_with(prefix))
-                    .map(|f| CompletionItem {
-                        label: f.name.clone(),
-                        kind: Some(CompletionItemKind::FIELD),
-                        detail: Some(format!(
-                            "{}::{}: {}",
-                            base, f.name, f.field_type
-                        )),
-                        ..Default::default()
-                    })
-                    .collect();
-                items.extend(crate::stditems::impl_method_items(
-                    &program, base, prefix,
-                ));
-                return items;
-            }
-        }
         if let huzi_ast::Stmt::Enum(d) = &stmt.node {
             if d.name == base {
                 return variant_items(&d.variants, base, prefix);
             }
         }
     }
+    if let Some(ty) = let_ty(&program, base) {
+        if let Some(items) = struct_items(&program, &ty, prefix) {
+            return items;
+        }
+    }
     generic_member_items(prefix)
+}
+/// 结构体字段+同文件 impl 方法(命中才 Some,供类型名/变量类型共用)。
+fn struct_items(p: &huzi_ast::Program, ty: &str, prefix: &str) -> Option<Vec<CompletionItem>> {
+    for stmt in &p.statements {
+        if let huzi_ast::Stmt::Struct(d) = &stmt.node {
+            if d.name == ty {
+                let mut items: Vec<CompletionItem> = d.fields.iter().filter(|f| f.name.starts_with(prefix)).map(|f| CompletionItem { label: f.name.clone(), kind: Some(CompletionItemKind::FIELD), detail: Some(format!("{ty}::{}: {}", f.name, f.field_type)), ..Default::default() }).collect();
+                items.extend(crate::stditems::impl_method_items(p, ty, prefix));
+                return Some(items);
+            }
+        }
+    }
+    None
+}
+/// 变量名->结构体名(`let p: Point`注解优先,`let p = Point{}`按字面量)。
+fn let_ty(p: &huzi_ast::Program, var: &str) -> Option<String> {
+    let_ty_in(&p.statements, var)
+}
+fn let_ty_in(stmts: &[huzi_ast::Spanned<huzi_ast::Stmt>], var: &str) -> Option<String> {
+    let mut hit: Option<String> = None;
+    for s in stmts {
+        match &s.node {
+            huzi_ast::Stmt::Let(l) if l.name == var => {
+                if let Some(huzi_ast::Type::Named(t)) = &l.type_annotation {
+                    hit = Some(t.clone());
+                } else if let Some(huzi_ast::Expr::StructLiteral(sl)) = &l.value {
+                    hit = Some(sl.name.clone());
+                }
+            }
+            huzi_ast::Stmt::Fn(f) => { if let Some(t) = let_ty_in(&f.body.statements, var) { hit = Some(t); } }
+            huzi_ast::Stmt::Block(b) => { if let Some(t) = let_ty_in(&b.statements, var) { hit = Some(t); } }
+            huzi_ast::Stmt::If(v) => { for b in std::iter::once(&v.then_branch).chain(v.elif_branches.iter().map(|(_, b)| b)).chain(v.else_branch.iter()) { if let Some(t) = let_ty_in(&b.statements, var) { hit = Some(t); } } }
+            huzi_ast::Stmt::For(v) => { if let Some(t) = let_ty_in(&v.body.statements, var) { hit = Some(t); } }
+            huzi_ast::Stmt::While(v) => { if let Some(t) = let_ty_in(&v.body.statements, var) { hit = Some(t); } }
+            _ => {}
+        }
+    }
+    hit
 }
 
 /// `::` 上下文:`math` 补数学函数,枚举名补变体,trait 名补 trait 方法,
@@ -465,5 +484,17 @@ mod tests {
         // Then: 含 trait 方法 show
         let got = labels(&items);
         assert!(got.contains(&"show"), "{got:?}");
+    }
+    #[test]
+    fn dot_after_let_typed_returns_fields_and_impl() {
+        for tail in ["let p: Point\np.", "let p: Point = Point { x: 1, y: 2 }\np.", "let p = Point { x: 1, y: 2 }\np."] {
+            let text = format!("struct Point {{ x: i32, y: i32 }}\nimpl Printable for Point {{\n fn show(self: Point) -> str {{\n return \"p\"\n }}\n}}\n{tail}"); let items = completion_for_text(&text, Position { line: 7, character: 2 }); let got = labels(&items);
+            assert!(got.contains(&"x") && got.contains(&"y") && got.contains(&"show"), "{got:?} {tail}");
+        }
+    }
+    #[test]
+    fn dot_after_unknown_var_falls_back_to_generic() {
+        let items = completion_for_text("let q = 1\nq.", Position { line: 1, character: 2 }); let got = labels(&items);
+        assert!(got.contains(&"len"), "{got:?}");
     }
 }
