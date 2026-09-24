@@ -68,6 +68,31 @@ pub fn module_fn_location(
     })
 }
 
+/// `A.b` 同文件 impl 方法跳转:`Point.show` 直取目标类型.
+/// `p.show` 经 `let p: T` / `Point{...}` 推导后落 impl 块区间;失败为 `None`。
+pub fn dot_method_location(text: &str, current_uri: &Uri, pos: Position) -> Option<Location> {
+    let line = line_text(text, pos.line as usize)?;
+    let col = char_col_on_line(&line, pos)?;
+    let (base, method) = dot_at(&line, col)?;
+    let (program, _) = parse_and_collect(text);
+    let target = resolve_dot_target(&program, &base)?;
+    let span = impl_span_for(&program, &target, &method)?;
+    Some(same_file_location(current_uri, text, span))
+}
+
+/// `Trait::m` 同文件跳转:trait 方法优先,类型 `Point::show` 回落 impl 块;失败为 `None`。
+pub fn trait_method_location(text: &str, current_uri: &Uri, pos: Position) -> Option<Location> {
+    let line = line_text(text, pos.line as usize)?;
+    let col = char_col_on_line(&line, pos)?;
+    let (host, method) = double_colon_at(&line, col)?;
+    let (program, _) = parse_and_collect(text);
+    if let Some(span) = trait_span_for(&program, &host, &method) {
+        return Some(same_file_location(current_uri, text, span));
+    }
+    let span = impl_span_for(&program, &host, &method)?;
+    Some(same_file_location(current_uri, text, span))
+}
+
 /// 当前文件 Uri + 点分 import 名 -> 目标文件 Uri。
 ///
 /// 经 [`crate::stditems`] 统一探查:直连 `<root>/<a/b.hz>` →
@@ -210,6 +235,128 @@ fn file_head_location(uri: Uri) -> Location {
             start: point,
             end: point,
         },
+    }
+}
+
+/// 行内 `A.b` 且字符列落其中时返回 `(基, 方法)`(跳过 `..`)。
+fn dot_at(line: &str, char_col: usize) -> Option<(String, String)> {
+    let chars: Vec<char> = line.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '.'
+            && (i == 0 || chars[i - 1] != '.')
+            && (i + 1 >= chars.len() || chars[i + 1] != '.')
+        {
+            let start = word_start_before(&chars, i);
+            let end = word_end_after(&chars, i + 1);
+            if start < i && i + 1 < end && start <= char_col && char_col <= end {
+                return Some((chars[start..i].iter().collect(), chars[i + 1..end].iter().collect()));
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+/// 同文件 Location:沿用语句区间经 UTF-16 换算。
+fn same_file_location(current_uri: &Uri, text: &str, span: huzi_ast::Span) -> Location {
+    let rope = Rope::from_str(text);
+    let range = huzi_range_to_lsp(&rope, span.line, span.column, span.end_line, span.end_column);
+    Location { uri: current_uri.clone(), range }
+}
+
+/// 目标类型含指定方法时返回 impl 块语句区间。
+fn impl_span_for(program: &huzi_ast::Program, target: &str, method: &str) -> Option<huzi_ast::Span> {
+    for stmt in &program.statements {
+        if let huzi_ast::Stmt::Impl(b) = &stmt.node {
+            if b.target_type == target && b.methods.iter().any(|m| m.name == method) {
+                return Some(stmt.span);
+            }
+        }
+    }
+    None
+}
+
+/// trait 含指定方法时返回 trait 语句区间。
+fn trait_span_for(program: &huzi_ast::Program, name: &str, method: &str) -> Option<huzi_ast::Span> {
+    for stmt in &program.statements {
+        if let huzi_ast::Stmt::Trait(d) = &stmt.node {
+            if d.name == name && d.methods.iter().any(|m| m.name == method) {
+                return Some(stmt.span);
+            }
+        }
+    }
+    None
+}
+
+/// 点访问基名 -> impl 目标类型(直命中或经 let 推导)。
+fn resolve_dot_target(program: &huzi_ast::Program, base: &str) -> Option<String> {
+    for stmt in &program.statements {
+        if let huzi_ast::Stmt::Impl(b) = &stmt.node {
+            if b.target_type == base {
+                return Some(base.to_string());
+            }
+        }
+    }
+    find_let_type(program, base)
+}
+
+/// 全程序找 `let 基名` 的类型基名(含 fn 体/块嵌套)。
+fn find_let_type(program: &huzi_ast::Program, name: &str) -> Option<String> {
+    for stmt in &program.statements {
+        if let Some(hit) = let_type_in_stmt(stmt, name) {
+            return Some(hit);
+        }
+    }
+    None
+}
+
+/// 单语句内找 let 类型(递归进块/fn/if/for/while)。
+fn let_type_in_stmt(stmt: &huzi_ast::Spanned<huzi_ast::Stmt>, name: &str) -> Option<String> {
+    match &stmt.node {
+        huzi_ast::Stmt::Let(l) if l.name == name => infer_let_type(l),
+        huzi_ast::Stmt::Fn(f) => scan_block(&f.body, name),
+        huzi_ast::Stmt::Block(b) => scan_block(b, name),
+        huzi_ast::Stmt::For(f) => scan_block(&f.body, name),
+        huzi_ast::Stmt::While(w) => scan_block(&w.body, name),
+        huzi_ast::Stmt::If(v) => {
+            scan_block(&v.then_branch, name)
+                .or_else(|| v.elif_branches.iter().find_map(|(_, b)| scan_block(b, name)))
+                .or_else(|| v.else_branch.as_ref().and_then(|b| scan_block(b, name)))
+        }
+        _ => None,
+    }
+}
+
+/// 块内逐句找 let 类型。
+fn scan_block(block: &huzi_ast::Block, name: &str) -> Option<String> {
+    for stmt in &block.statements {
+        if let Some(hit) = let_type_in_stmt(stmt, name) {
+            return Some(hit);
+        }
+    }
+    None
+}
+
+/// let 右值推导:注解优先,否则结构体字面量名。
+fn infer_let_type(let_stmt: &huzi_ast::LetStmt) -> Option<String> {
+    if let Some(ty) = &let_stmt.type_annotation {
+        return Some(base_type_name(ty));
+    }
+    if let Some(huzi_ast::Expr::StructLiteral(s)) = &let_stmt.value {
+        return Some(s.name.clone());
+    }
+    None
+}
+
+/// 类型基名(去泛型/Box 包装,供 impl 目标匹配)。
+fn base_type_name(ty: &huzi_ast::Type) -> String {
+    match ty {
+        huzi_ast::Type::Named(n) | huzi_ast::Type::Generic(n) => n.clone(),
+        huzi_ast::Type::Applied(n, _) => n.clone(),
+        huzi_ast::Type::Box(inner) | huzi_ast::Type::Weak(inner) => base_type_name(inner),
+        huzi_ast::Type::Array(elem, _) => base_type_name(elem),
+        _ => ty.to_string(),
     }
 }
 

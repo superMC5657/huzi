@@ -281,3 +281,36 @@ fn std_struct_symbol_jump_prefers_type() {
     );
     assert_eq!(loc.range.start.line, 0);
 }
+
+#[test]
+fn dot_method_jump_lands_on_impl() {
+    // Given: 同文件 struct/trait/impl + 类型与变量点调用
+    let dir = unique_dir("dotimpl");
+    let main = dir.join("main.hz");
+    let text = "struct Point { x: i32, y: i32 }\ntrait Printable {\n fn show(self) -> str\n}\nimpl Printable for Point {\n fn show(self: Point) -> str {\n return \"p\"\n }\n}\nlet p: Point = Point { x: 1, y: 2 }\nPoint.show\np.show\n";
+    std::fs::write(&main, text).unwrap();
+    let uri = Uri::from_file_path(&main).expect("file uri");
+    // When: 在 `Point.show`(行 10)与 `p.show`(行 11)的方法名处请求定义
+    let type_loc = dot_method_location(text, &uri, Position { line: 10, character: 8 }).expect("dot on type");
+    let var_loc = dot_method_location(text, &uri, Position { line: 11, character: 3 }).expect("dot on var");
+    // Then: 均落到同文件 impl 块(行 4,0-based),uri 不变
+    assert_eq!(type_loc.uri, uri);
+    assert_eq!(type_loc.range.start.line, 4);
+    assert_eq!(var_loc.uri, uri);
+    assert_eq!(var_loc.range.start.line, 4);
+}
+
+#[test]
+fn trait_method_jump_lands_on_traitdef() {
+    // Given: 同文件 trait 定义与 `Trait::method` 调用
+    let dir = unique_dir("traitdef");
+    let main = dir.join("main.hz");
+    let text = "struct Point { x: i32, y: i32 }\ntrait Printable {\n fn show(self) -> str\n}\nimpl Printable for Point {\n fn show(self: Point) -> str {\n return \"p\"\n }\n}\nPrintable::show\n";
+    std::fs::write(&main, text).unwrap();
+    let uri = Uri::from_file_path(&main).expect("file uri");
+    // When: 在 `Printable::show`(行 9)的方法名处请求定义
+    let loc = trait_method_location(text, &uri, Position { line: 9, character: 14 }).expect("trait jump");
+    // Then: 落到同文件 trait 定义(行 1,0-based),uri 不变
+    assert_eq!(loc.uri, uri);
+    assert_eq!(loc.range.start.line, 1);
+}
