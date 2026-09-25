@@ -21,7 +21,7 @@ huzi/                  # 仓库根（cwd=仓库根执行本文件命令）
 ├── huzi-src/          # 自举标准库（core/alloc/std + test 自测，见 huzi-src/README.md）
 ├── editors/           # 编辑器支持（README.md 矩阵 + vscode/ 官方插件工程）
 ├── examples/          # 自举示例（hzlex/hzparse/task_engine）
-└── .omo/              # 内部计划 plans/ + 会话续跑 run-continuation/，只看不用、勿删
+└── .omo/              # 已退役（2026-09）：未完成项见 docs/undo/BACKLOG.md
 ```
 
 各模块归属文档：编译器工程见 `huzc/README.md`；标准库分层见 `huzi-src/README.md`；编辑器矩阵见 `editors/README.md`；用户手册入口见 `docs/USAGE.md`；状态快照见 `docs/STATUS.md`。

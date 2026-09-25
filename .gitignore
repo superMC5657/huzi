@@ -42,3 +42,6 @@ Thumbs.db
 # 其他
 nul
 .env
+
+# 文档
+docs/undo
