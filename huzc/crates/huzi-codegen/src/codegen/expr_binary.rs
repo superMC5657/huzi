@@ -124,6 +124,17 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    /// 除数是否为编译期已知的非常零整数常量（整数字面量直达
+    /// `const_int`,变量加载值则不是常量）。常量非零时除零检查恒真，
+    /// 直接跳过以免阻断后端优化（如 srem→乘逆）；变量除数与常量零
+    /// 一律返回 false,保留原有检查路径，语义零变化。
+    fn divisor_is_const_nonzero(divisor: inkwell::values::IntValue<'ctx>) -> bool {
+        divisor
+            .get_zero_extended_constant()
+            .map(|c| c != 0)
+            .unwrap_or(false)
+    }
+
     fn build_int_arithmetic(
         &mut self,
         op: &BinOp,
@@ -148,14 +159,18 @@ impl<'ctx> CodeGen<'ctx> {
                 .unwrap()
                 .into(),
             BinOp::Div => {
-                self.emit_div_zero_check(r, false)?;
+                if !Self::divisor_is_const_nonzero(r) {
+                    self.emit_div_zero_check(r, false)?;
+                }
                 self.builder
                     .build_int_signed_div(l, r, "div")
                     .unwrap()
                     .into()
             }
             BinOp::Mod => {
-                self.emit_div_zero_check(r, true)?;
+                if !Self::divisor_is_const_nonzero(r) {
+                    self.emit_div_zero_check(r, true)?;
+                }
                 self.builder
                     .build_int_signed_rem(l, r, "mod")
                     .unwrap()
