@@ -40,7 +40,10 @@ BASELINE_DRIFT_WARN = 0.10
 
 
 def find_compiler():
-    for rel in ("target/release/huzc.exe", "target/release/huzc"):
+    # Windows 上无后缀的 huzc 不是可执行文件（可能是 Unix 产物残留），只认 .exe
+    candidates = ("target/release/huzc.exe",) if os.name == "nt" \
+        else ("target/release/huzc",)
+    for rel in candidates:
         path = os.path.join(ROOT, rel)
         if os.path.exists(path):
             return path
