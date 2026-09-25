@@ -327,6 +327,110 @@ fn int_division_carries_zero_check() {
     );
 }
 
+/// 除数为编译期非常零整数字面量时跳过除零检查（`a / 3` 直接 sdiv）。
+#[test]
+fn const_div_skips_zero_check() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let program = main_program(vec![
+        let_stmt("a", Expr::Literal(Literal::Int(10))),
+        sp(Stmt::Return(ReturnStmt {
+            value: Some(Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Ident("a".to_string())),
+                operator: BinOp::Div,
+                right: Box::new(Expr::Literal(Literal::Int(3))),
+            })),
+        })),
+    ]);
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    assert!(ir.contains("sdiv"), "constant division should emit sdiv");
+    assert!(
+        !ir.contains("rt_fail"),
+        "constant nonzero divisor should skip the zero check block"
+    );
+    assert!(
+        !ir.contains("div_nz"),
+        "constant nonzero divisor should skip the zero compare"
+    );
+}
+
+/// `a % 7` 直接 srem,不带检查块。
+#[test]
+fn const_mod_skips_zero_check() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let program = main_program(vec![
+        let_stmt("a", Expr::Literal(Literal::Int(10))),
+        sp(Stmt::Return(ReturnStmt {
+            value: Some(Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Ident("a".to_string())),
+                operator: BinOp::Mod,
+                right: Box::new(Expr::Literal(Literal::Int(7))),
+            })),
+        })),
+    ]);
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    assert!(ir.contains("srem"), "constant modulo should emit srem");
+    assert!(
+        !ir.contains("rt_fail"),
+        "constant nonzero modulus should skip the zero check block"
+    );
+}
+
+/// 变量作模数时仍保留检查块。
+#[test]
+fn variable_mod_keeps_zero_check() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let program = main_program(vec![
+        let_stmt("a", Expr::Literal(Literal::Int(10))),
+        let_stmt("b", Expr::Literal(Literal::Int(3))),
+        sp(Stmt::Return(ReturnStmt {
+            value: Some(Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Ident("a".to_string())),
+                operator: BinOp::Mod,
+                right: Box::new(Expr::Ident("b".to_string())),
+            })),
+        })),
+    ]);
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    assert!(ir.contains("srem"), "integer modulo should emit srem");
+    assert!(
+        ir.contains("rt_fail"),
+        "variable modulus should carry a zero check block"
+    );
+}
+
+/// 常量零作除数时保留原有检查路径（行为不变）。
+#[test]
+fn zero_literal_div_keeps_zero_check() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let program = main_program(vec![
+        let_stmt("a", Expr::Literal(Literal::Int(10))),
+        sp(Stmt::Return(ReturnStmt {
+            value: Some(Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Ident("a".to_string())),
+                operator: BinOp::Div,
+                right: Box::new(Expr::Literal(Literal::Int(0))),
+            })),
+        })),
+    ]);
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    assert!(
+        ir.contains("rt_fail"),
+        "zero divisor should keep the zero check block"
+    );
+}
+
 /// 数组下标读取应生成越界检查块(rt_fail)。
 #[test]
 fn array_indexing_carries_bounds_check() {
@@ -354,6 +458,91 @@ fn array_indexing_carries_bounds_check() {
     assert!(
         ir.contains("rt_fail"),
         "array indexing should carry a bounds check block"
+    );
+}
+
+/// R3:小叶函数挂 `inlinehint`(仅提示,不强制内联);大函数与 main 不挂。
+#[test]
+fn small_function_gets_inlinehint() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let add = sp(Stmt::Fn(FnStmt {
+        name: "add".to_string(),
+        type_params: vec![],
+        params: vec![
+            FnParam { name: "a".to_string(), param_type: Type::I32 },
+            FnParam { name: "b".to_string(), param_type: Type::I32 },
+        ],
+        return_type: Some(Type::I32),
+        body: Block {
+            statements: vec![sp(Stmt::Return(ReturnStmt {
+                value: Some(Expr::Binary(BinaryExpr {
+                    left: Box::new(Expr::Ident("a".to_string())),
+                    operator: BinOp::Add,
+                    right: Box::new(Expr::Ident("b".to_string())),
+                })),
+            }))],
+        },
+    }));
+    // 10 条顶层语句(>8 阈值):不应挂提示,作负例。
+    let mut big_body: Vec<Spanned<Stmt>> = (0..9)
+        .map(|i| {
+            let_stmt(
+                &format!("t{i}"),
+                Expr::Binary(BinaryExpr {
+                    left: Box::new(Expr::Literal(Literal::Int(i))),
+                    operator: BinOp::Add,
+                    right: Box::new(Expr::Ident("x".to_string())),
+                }),
+            )
+        })
+        .collect();
+    big_body.push(sp(Stmt::Return(ReturnStmt {
+        value: Some(Expr::Ident("x".to_string())),
+    })));
+    let big = sp(Stmt::Fn(FnStmt {
+        name: "big".to_string(),
+        type_params: vec![],
+        params: vec![FnParam { name: "x".to_string(), param_type: Type::I32 }],
+        return_type: Some(Type::I32),
+        body: Block { statements: big_body },
+    }));
+    let main = sp(Stmt::Fn(FnStmt {
+        name: "main".to_string(),
+        type_params: vec![],
+        params: vec![],
+        return_type: Some(Type::I32),
+        body: Block {
+            statements: vec![sp(Stmt::Return(ReturnStmt {
+                value: Some(Expr::Call(CallExpr {
+                    callee: Box::new(Expr::Ident("add".to_string())),
+                    arguments: vec![
+                        Expr::Literal(Literal::Int(1)),
+                        Expr::Literal(Literal::Int(2)),
+                    ],
+                    type_args: vec![],
+                })),
+            }))],
+        },
+    }));
+    let program = Program { statements: vec![add, big, main] };
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    // 仅小函数 `add` 贡献 inlinehint(`big`/main 均不挂):LLVM 打印两处
+    // (`; Function Attrs: inlinehint` 注释行 + `attributes #0 = { inlinehint }`)。
+    assert!(
+        ir.contains("define i32 @add(i32 %0, i32 %1) #0"),
+        "add must carry attr set"
+    );
+    assert!(
+        ir.contains("attributes #0 = { inlinehint }"),
+        "attr set must hold inlinehint"
+    );
+    assert_eq!(
+        ir.matches("inlinehint").count(),
+        2,
+        "only add may be hinted"
     );
 }
 
@@ -459,4 +648,170 @@ fn file_io_builtins_verify() {
     for symbol in ["declare ptr @fopen", "declare i64 @fread", "declare i64 @fwrite"] {
         assert!(ir.contains(symbol), "IR should declare {symbol}");
     }
+}
+
+/// range 循环 `for i in start..end { body }` 的 AST 构造。
+fn range_for(var: &str, start: i64, end: i64, body: Vec<Spanned<Stmt>>) -> Spanned<Stmt> {
+    sp(Stmt::For(ForStmt {
+        var_name: var.to_string(),
+        source: ForSource::Range {
+            start: Expr::Literal(Literal::Int(start)),
+            end: Expr::Literal(Literal::Int(end)),
+        },
+        body: Block { statements: body },
+    }))
+}
+
+/// `name = value` 表达式语句的 AST 构造。
+fn assign_stmt(name: &str, value: Expr) -> Spanned<Stmt> {
+    sp(Stmt::Expr(ExprStmt {
+        expr: Expr::Assign(AssignExpr {
+            target: Box::new(Expr::Ident(name.to_string())),
+            operator: AssignOp::Assign,
+            value: Box::new(value),
+        }),
+    }))
+}
+
+fn count_occurrences(haystack: &str, needle: &str) -> usize {
+    haystack.matches(needle).count()
+}
+
+/// 含双子串的行数(供 `store i32 <val>, ptr %i` 这类带值操作数的计数).
+fn count_lines_with(haystack: &str, a: &str, b: &str) -> usize {
+    haystack.lines().filter(|l| l.contains(a) && l.contains(b)).count()
+}
+
+/// R2:range 循环归纳变量走头部 phi,热循环内 `i` 的 load 计数下降。
+/// 程序:`let mut sum = 0; for i in 0..10 { sum = sum + i }; return sum`(无 continue)
+/// - 改前 O0 IR:`load i32, ptr %i` = 3(条件 1 + 尾部递增 1 + 体内 `+i` 1),
+///   `store i32, ptr %i` = 2(预存 1 + 回存 1)。
+/// - 改后:`load` = 2(尾部 1 + 体内 1;条件走 phi 零 load,无 continue 故无中转块),
+///   `store` = 2 不变。体内变量(sum)的访问形态不动,只动归纳变量 i。
+#[test]
+fn range_loop_induction_uses_phi() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let sum_add = Expr::Binary(BinaryExpr {
+        left: Box::new(Expr::Ident("sum".to_string())),
+        operator: BinOp::Add,
+        right: Box::new(Expr::Ident("i".to_string())),
+    });
+    let program = main_program(vec![
+        sp(Stmt::Let(LetStmt {
+            name: "sum".to_string(),
+            mutable: true,
+            tuple_pattern: None,
+            type_annotation: None,
+            value: Some(Expr::Literal(Literal::Int(0))),
+        })),
+        range_for("i", 0, 10, vec![assign_stmt("sum", sum_add)]),
+        sp(Stmt::Return(ReturnStmt {
+            value: Some(Expr::Ident("sum".to_string())),
+        })),
+    ]);
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    assert!(ir.contains("i_phi"), "header should carry an induction phi, got:\n{ir}");
+    assert!(
+        !ir.contains("for_cont"),
+        "loop without continue should skip the trampoline block, got:\n{ir}"
+    );
+    assert_eq!(
+        count_occurrences(&ir, "load i32, ptr %i,"),
+        2,
+        "induction loads should drop 3 -> 2, got:\n{ir}"
+    );
+    assert_eq!(
+        count_lines_with(&ir, "store i32", "ptr %i,"),
+        2,
+        "induction stores stay 2, got:\n{ir}"
+    );
+}
+
+/// 空循环 `0..0` 与逆序 `5..0` 首轮即出:保持 SLT 条件形态,编译+校验通过。
+#[test]
+fn range_loop_empty_and_reversed_verify() {
+    for (start, end) in [(0_i64, 0_i64), (5, 0)] {
+        let context = Context::create();
+        let mut codegen = CodeGen::new(&context, "test");
+        let program = main_program(vec![
+            range_for("i", start, end, vec![]),
+            sp(Stmt::Return(ReturnStmt {
+                value: Some(Expr::Literal(Literal::Int(0))),
+            })),
+        ]);
+        codegen
+            .compile(&program)
+            .expect("empty/reversed range should compile");
+        assert!(codegen.verify());
+        let ir = codegen.print_llvm_ir();
+        assert!(
+            ir.contains("icmp slt"),
+            "{start}..{end} should keep an SLT exit check, got:\n{ir}"
+        );
+    }
+}
+
+/// break/continue/体内改写/嵌套:中转块与回边补齐后仍可校验。
+/// continue 保持"跳过自增"的既有语义;体内 `i = 5` 改写经 latch 重载
+/// 被下一轮看到;内层循环遮蔽外层同名变量。
+#[test]
+fn range_loop_control_flow_and_nesting_verify() {
+    let context = Context::create();
+    let mut codegen = CodeGen::new(&context, "test");
+    let sum_add_i = || {
+        assign_stmt(
+            "sum",
+            Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Ident("sum".to_string())),
+                operator: BinOp::Add,
+                right: Box::new(Expr::Ident("i".to_string())),
+            }),
+        )
+    };
+    let inner = range_for(
+        "j",
+        1,
+        4,
+        vec![assign_stmt(
+            "sum",
+            Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Ident("sum".to_string())),
+                operator: BinOp::Add,
+                right: Box::new(Expr::Binary(BinaryExpr {
+                    left: Box::new(Expr::Ident("i".to_string())),
+                    operator: BinOp::Mul,
+                    right: Box::new(Expr::Ident("j".to_string())),
+                })),
+            }),
+        )],
+    );
+    let program = main_program(vec![
+        sp(Stmt::Let(LetStmt {
+            name: "sum".to_string(),
+            mutable: true,
+            tuple_pattern: None,
+            type_annotation: None,
+            value: Some(Expr::Literal(Literal::Int(0))),
+        })),
+        range_for("i", 0, 5, vec![sum_add_i(), sp(Stmt::Continue)]),
+        range_for("i", 0, 5, vec![sp(Stmt::Break)]),
+        range_for(
+            "i",
+            0,
+            5,
+            vec![assign_stmt("i", Expr::Literal(Literal::Int(5)))],
+        ),
+        range_for("i", 1, 4, vec![inner]),
+        sp(Stmt::Return(ReturnStmt {
+            value: Some(Expr::Ident("sum".to_string())),
+        })),
+    ]);
+    codegen.compile(&program).expect("compile should succeed");
+    assert!(codegen.verify());
+    let ir = codegen.print_llvm_ir();
+    assert!(ir.contains("i_phi"), "nested loops should carry induction phis, got:\n{ir}");
+    assert!(ir.contains("for_cont"), "the loop with continue should carry a trampoline, got:\n{ir}");
 }
