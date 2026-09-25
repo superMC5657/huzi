@@ -172,6 +172,10 @@ pub struct Args {
     /// 调试模式：嵌入 DWARF 调试信息（编译单元、行号表、局部变量），以便使用 GDB/LLDB 调试可执行文件。由于优化会扰乱行号归属，该选项隐含优化级别 0
     #[arg(short = 'g', long)]
     pub debug: bool,
+
+    /// 以 hzlex 兼容格式逐行打印词法结果（`行:列 类型 文本`）后退出，不做后续编译。
+    #[arg(long)]
+    pub dump_tokens: bool,
 }
 
 impl Args {

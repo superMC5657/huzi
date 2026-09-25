@@ -231,3 +231,51 @@ impl Lexer {
         Ok(Token::Char(c))
     }
 }
+
+/// 转义序列回归测试：`\r` 必须解码为 0x0D（CR），其余常用转义同步锁定。
+/// 背景：`--dump-tokens` 对 `"\r"` 显示空文本曾被怀疑是解码丢失；
+/// 实测解码正确，空显示是因为 dump 直接打印原始 CR 字节导致终端回车覆盖。
+/// 本模块把正确行为锁死，防止未来回归。
+#[cfg(test)]
+mod escape_tests {
+    use super::Lexer;
+    use crate::token::Token;
+
+    fn first_token(src: &str) -> Token {
+        Lexer::new(src.to_string())
+            .tokenize()
+            .expect("escape sample must lex")
+            .into_iter()
+            .next()
+            .expect("at least one token")
+            .token
+    }
+
+    #[test]
+    fn string_cr_escape_is_0x0d() {
+        match first_token("\"\\r\"") {
+            Token::String(s) => {
+                assert_eq!(s, "\r");
+                assert_eq!(s.as_bytes(), &[0x0D]);
+            }
+            other => panic!("expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn string_all_common_escapes() {
+        match first_token("\"\\n\\t\\r\\\\\\\"\\0\"") {
+            Token::String(s) => {
+                assert_eq!(s, "\n\t\r\\\"\0");
+                assert_eq!(s.as_bytes(), &[0x0A, 0x09, 0x0D, 0x5C, 0x22, 0x00]);
+            }
+            other => panic!("expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn fstring_and_char_cr_escape() {
+        assert_eq!(first_token("f\"\\r\""), Token::FString("\r".to_string()));
+        assert_eq!(first_token("'\\r'"), Token::Char('\r'));
+    }
+}
