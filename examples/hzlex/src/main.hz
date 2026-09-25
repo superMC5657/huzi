@@ -1,5 +1,16 @@
 // hzlex 入口:--selftest 跑内置断言;<file.hz> 把词法结果逐行打印为
-// "行:列 类型 文本"。
+// "行:列 类型 文本"(与 `huzc --dump-tokens` 同一冻结格式,见 dump_diff.sh)。
+//
+// 【dump 格式冻结】每 token 一行 `行:列 类型 文本`,字段间单空格分隔;
+//   行列号均从 1 起;含 eof 行(eof 文本为空,故该行行尾带一个空格);行尾 `\n`
+//   (Windows 下 C 运行时实际输出 `\r\n`,对拍脚本用 `--strip-trailing-cr` 归一)。
+//   * 转义规则:文本按解转义后的原始字节直接打印,不转义回显。string 内的换行
+//     (\n 解出的字节 10)、制表、反斜杠、引号均按原字节输出——嵌入换行时一次
+//     dump 的物理行会比 token 数多,这是冻结行为(与 Rust 侧 raw 口径一致),
+//     不是 bug;比较时只做文本对拍,不解析语义。
+//   * 多字节字符列号口径:按 Unicode 标量计(每个字符 col+1,与 Rust 侧
+//     char 口径一致);f-string 的 `f` 前缀占一列(起始列指向 `f`)。
+//   * eof 行:恒有。若词法失败则不打印任何 token,直接报错退出(非零退出码)。
 import lexer
 import core.assert
 
@@ -27,6 +38,41 @@ fn selftest() -> i32 {
     assert::assert_eq_str(texts[21], "..")
     assert::assert_eq_str(texts[22], "2")
     assert::assert_eq_str(kinds[24], "eof")
+    let r2 = lexer::lex("weak t.1.2")
+    assert::assert_true(r2.0)
+    let k2 = r2.1
+    let t2 = r2.2
+    assert::assert_eq_str(k2[0], "kw")
+    assert::assert_eq_str(t2[0], "weak")
+    assert::assert_eq_str(t2[1], "t")
+    assert::assert_eq_str(t2[2], ".")
+    assert::assert_eq_str(k2[3], "int")
+    assert::assert_eq_str(t2[3], "1")
+    assert::assert_eq_str(t2[4], ".")
+    assert::assert_eq_str(t2[5], "2")
+    assert::assert_eq_str(k2[6], "eof")
+    let cjk_src = "print(\"=== 变量测试 ===\")"
+    let r3 = lexer::lex(cjk_src)
+    assert::assert_true(r3.0)
+    let k3 = r3.1
+    let t3 = r3.2
+    let l3 = r3.3
+    let c3 = r3.4
+    assert::assert_eq_str(k3[2], "string")
+    assert::assert_eq_i32(c3[2], 7)
+    assert::assert_eq_str(t3[3], ")")
+    assert::assert_eq_i32(c3[3], 21)
+    assert::assert_eq_i32(l3[3], 1)
+    let f_src = "f\"a\".len()"
+    let r4 = lexer::lex(f_src)
+    assert::assert_true(r4.0)
+    let k4 = r4.1
+    let t4 = r4.2
+    let c4 = r4.4
+    assert::assert_eq_str(k4[0], "string")
+    assert::assert_eq_i32(c4[0], 1)
+    assert::assert_eq_str(t4[1], ".")
+    assert::assert_eq_i32(c4[1], 5)
     print("hzlex selftest passed")
     return 0
 }

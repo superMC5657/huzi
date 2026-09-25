@@ -2,14 +2,34 @@
 //
 // 与 huzc/crates/huzi-lexer 同一前端语义:
 //   * 注释:`//` 与 `#` 到行尾
-//   * 双字符运算符:== != <= >= && || -> => :: ..
-//   * 数字:整数 / 小数(小数点后须有数字;`1..2` 为 int + .. + int)
-//   * 字符串:"...";转义 \n \t \r \" \\ \0,其余转义取该字节本身
+//   * 双字符运算符:== != <= >= && || -> => :: .. += -= *= /= %=
+//   * 数字:整数 / 小数(小数点后须有数字;`1..2` 为 int + .. + int;
+//     点号后的 `数字.数字` 按 Rust 词法器 prev_was_dot 语义切分,
+//     如 `t.1.2` 为 ident + Dot + int + Dot + int,不吞为 float)
+//   * 字符串(含 f"..." ):转义 \n \t \r \" \\ \0,其余转义取该字节本身;
+//     f-string 归入 string(去前缀 f,列号指向 f,与 Rust dump 口径一致)
 //   * 字符:'x' / '\n' 等
 //   * 标识符:[A-Za-z_][A-Za-z0-9_]*(非 ASCII 字节归入标识符,不丢字节)
+//   * 关键字含 weak(与 Rust Token::Weak 对齐;用作类型修饰如 `weak Box<T>`)
+//   * 单 `&` 归入 punct(注意:Rust 词法器视单 `&` 为词法错误;语料无此用例)
 //
 // 输出为平行数组 kinds/texts/lines/cols;kind ∈
 //   种类集合：kw | ident | int | float | string | char | punct | eof
+//
+// 【dump 格式冻结】main.hz 逐 token 打印一行 `行:列 类型 文本`(单空格分隔,
+//   含 eof 行;eof 文本为空故行尾带一个空格;行尾 `\n`,Windows 下 C 运行时
+//   输出为 `\r\n`,对拍时用 `diff --strip-trailing-cr` 归一,见 dump_diff.sh)。
+//   * kw/punct:源码拼写;ident/int/float:源码字节拼写(不做值归一化)。
+//   * string:解转义后的原始字节,打印时不转义回显(嵌入的换行/制表按原字节
+//     输出,物理行会变多;含 `\0` 时 C printf 会截断——语料无此用例,如实记录)。
+//   * char:码点十进制(如 'a' 为 97,与 Rust dump 的 `c as u32` 口径一致)。
+//   * 列号口径:Unicode 标量列(与 Rust 侧 char 口径一致;每消费一个
+//     Unicode 标量 col+1;\t \r 各占一列;\n 换行重置)。
+//     多字节 UTF-8 按前导字节判断序列长度(0xC0-0xDF→2、0xE0-0xEF→3、
+//     0xF0-0xF7→4)整体消费但只占一列;0x80-0xBF 延续字节若出现在 token
+//     起始则防御性按 1 列处理。f-string 的 `f` 前缀占一列(起始列指向 `f`)。
+//   * float 拼写:Rust 侧 dump 当前打印解析值(`0.0`→`0`),与本侧源码拼写
+//     (`0.0`)已知不一致,待 Rust 侧对齐,本侧不改(只冻结记录,见 M1-A)。
 
 fn is_digit(c: i32) -> bool {
     return c >= 48 && c <= 57
@@ -61,6 +81,7 @@ fn is_kw(name: str) -> bool {
     if name == "impl" { return true }
     if name == "true" { return true }
     if name == "false" { return true }
+    if name == "weak" { return true }
     return false
 }
 
@@ -81,6 +102,59 @@ fn escape_byte(e: i32) -> i32 {
     return e
 }
 
+/// UTF-8 首字节对应的序列字节长度(列号只 +1)。
+/// b 为 src[i] 的有符号字节值:0..127→1;-128..-65(0x80..0xBF 延续字节)→1(防御性);
+/// -64..-33(0xC0..0xDF)→2;-32..-17(0xE0..0xEF)→3;-16..-9(0xF0..0xF7)→4;其余→1。
+fn utf8_seq_len(b: i32) -> i32 {
+    if b >= 0 {
+        return 1
+    }
+    if b < -64 {
+        return 1
+    }
+    if b < -32 {
+        return 2
+    }
+    if b < -16 {
+        return 3
+    }
+    if b < -8 {
+        return 4
+    }
+    return 1
+}
+
+/// 无符号字节值(有符号补码还原为 0..255)。
+fn ubyte(b: i32) -> i32 {
+    if b < 0 {
+        return b + 256
+    }
+    return b
+}
+
+/// UTF-8 序列解码为 Unicode 标量值(lex_char 用;调用方保证 step 与剩余长度合法)。
+fn utf8_decode(src: str, i: i32, step: i32) -> i32 {
+    if step <= 1 {
+        return src[i]
+    }
+    if step == 2 {
+        let u0 = ubyte(src[i])
+        let u1 = ubyte(src[i + 1])
+        return (u0 - 192) * 64 + (u1 - 128)
+    }
+    if step == 3 {
+        let u0 = ubyte(src[i])
+        let u1 = ubyte(src[i + 1])
+        let u2 = ubyte(src[i + 2])
+        return (u0 - 224) * 4096 + (u1 - 128) * 64 + (u2 - 128)
+    }
+    let u0 = ubyte(src[i])
+    let u1 = ubyte(src[i + 1])
+    let u2 = ubyte(src[i + 2])
+    let u3 = ubyte(src[i + 3])
+    return (u0 - 240) * 262144 + (u1 - 128) * 4096 + (u2 - 128) * 64 + (u3 - 128)
+}
+
 /// 跳过空白与注释;返回 (i, line, col)。
 fn skip_trivia(src: str, from: i32, from_line: i32, from_col: i32) -> (i32, i32, i32) {
     let n = len(src)
@@ -98,12 +172,20 @@ fn skip_trivia(src: str, from: i32, from_line: i32, from_col: i32) -> (i32, i32,
             col = 1
         } elif c == 47 && i + 1 < n && src[i + 1] == 47 {
             while i < n && src[i] != 10 {
-                i = i + 1
+                let mut step = utf8_seq_len(src[i])
+                if i + step > n {
+                    step = n - i
+                }
+                i = i + step
                 col = col + 1
             }
         } elif c == 35 {
             while i < n && src[i] != 10 {
-                i = i + 1
+                let mut step = utf8_seq_len(src[i])
+                if i + step > n {
+                    step = n - i
+                }
+                i = i + step
                 col = col + 1
             }
         } else {
@@ -137,8 +219,16 @@ fn lex_string(src: str, from: i32, from_line: i32, from_col: i32, kinds: vec<str
             i = i + 2
             col = col + 2
         } else {
-            push(bytes, d)
-            i = i + 1
+            let mut step = utf8_seq_len(d)
+            if i + step > n {
+                step = n - i
+            }
+            let mut k = 0
+            while k < step {
+                push(bytes, src[i + k])
+                k = k + 1
+            }
+            i = i + step
             col = col + 1
         }
     }
@@ -166,8 +256,12 @@ fn lex_char(src: str, from: i32, from_line: i32, from_col: i32, kinds: vec<str>,
         i = i + 2
         col = col + 2
     } else {
-        val = src[i]
-        i = i + 1
+        let mut step = utf8_seq_len(src[i])
+        if i + step > n {
+            step = n - i
+        }
+        val = utf8_decode(src, i, step)
+        i = i + step
         col = col + 1
     }
     if i >= n || src[i] != 39 {
@@ -191,6 +285,9 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
     let mut line = 1
     let mut col = 1
     let mut ok = true
+    /// 上一个产出的 token 是否为单点号 `.`(Rust 词法器 prev_was_dot 语义)。
+    /// 为 true 时数字后的 `.数字` 不吞为 float(如 `t.1.2` 中的 `1.0` 不成 float)。
+    let mut prev_dot = false
     let n = len(src)
     while i < n && ok {
         let t = skip_trivia(src, i, line, col)
@@ -207,11 +304,16 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
             let r = lex_string(src, i + 1, line, start_col, kinds, texts, lines, cols)
             ok = r.0
             i = r.1
-            col = r.3
+            col = r.3 + 1
+            prev_dot = false
         } elif is_ident_start(c) {
             let start = i
             while i < n && is_ident_cont(src[i]) {
-                i = i + 1
+                let mut step = utf8_seq_len(src[i])
+                if i + step > n {
+                    step = n - i
+                }
+                i = i + step
                 col = col + 1
             }
             let name = substring(src, start, i)
@@ -219,6 +321,7 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
             push(texts, name)
             push(lines, line)
             push(cols, start_col)
+            prev_dot = false
         } elif is_digit(c) {
             let start = i
             let mut is_float = false
@@ -226,7 +329,7 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
                 i = i + 1
                 col = col + 1
             }
-            if i + 1 < n && src[i] == 46 && src[i + 1] != 46 && is_digit(src[i + 1]) {
+            if i + 1 < n && !prev_dot && src[i] == 46 && src[i + 1] != 46 && is_digit(src[i + 1]) {
                 is_float = true
                 i = i + 1
                 col = col + 1
@@ -239,16 +342,19 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
             push(texts, substring(src, start, i))
             push(lines, line)
             push(cols, start_col)
+            prev_dot = false
         } elif c == 34 {
             let r = lex_string(src, i, line, col, kinds, texts, lines, cols)
             ok = r.0
             i = r.1
             col = r.3
+            prev_dot = false
         } elif c == 39 {
             let r = lex_char(src, i, line, col, kinds, texts, lines, cols)
             ok = r.0
             i = r.1
             col = r.3
+            prev_dot = false
         } else {
             let mut two = ""
             if i + 1 < n {
@@ -261,6 +367,7 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
                 push(cols, start_col)
                 i = i + 2
                 col = col + 2
+                prev_dot = false
             } elif c == 40 || c == 41 || c == 123 || c == 125 || c == 91 || c == 93 || c == 44 || c == 58 || c == 59 || c == 46 || c == 43 || c == 45 || c == 42 || c == 47 || c == 37 || c == 61 || c == 60 || c == 62 || c == 33 || c == 38 || c == 124 || c == 63 {
                 push(kinds, "punct")
                 push(texts, substring(src, i, i + 1))
@@ -268,6 +375,11 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
                 push(cols, start_col)
                 i = i + 1
                 col = col + 1
+                if c == 46 {
+                    prev_dot = true
+                } else {
+                    prev_dot = false
+                }
             } else {
                 ok = false
             }
