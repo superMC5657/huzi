@@ -16,7 +16,7 @@ impl super::TypeInferrer {
                 if let Some(existing) = inferred.get(name) {
                     if existing != arg_ty {
                         return Err(HuziError::new_global(format!(
-                            "类型形参 '{}' 推导冲突:期望各实参推导结果一致,实际先后为 '{}' 与 '{}';帮助:统一对应实参类型,或显式写出类型实参",
+                            "类型形参 '{}' 推导冲突:期望各实参推导结果一致,实际先后为 '{}' 与 '{}'\n  help: 统一对应实参类型,或显式写出类型实参",
                             name, existing, arg_ty
                         )));
                     }

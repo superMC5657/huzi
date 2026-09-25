@@ -118,7 +118,7 @@ impl TraitDesugarer {
                 desc, i.target_type
             );
             if let Some(h) = hint {
-                message.push_str(&format!(";帮助:{}", h));
+                message.push_str(&format!("\n  help: {}", h));
             }
             return Err(at(message));
         }
@@ -166,7 +166,7 @@ impl TraitDesugarer {
                     trait_name
                 );
                 if let Some(h) = hint {
-                    message.push_str(&format!(";帮助:{}", h));
+                    message.push_str(&format!("\n  help: {}", h));
                 }
                 at(message)
             })?;
@@ -211,7 +211,7 @@ impl TraitDesugarer {
                         members.join(", ")
                     );
                     if let Some(h) = hint {
-                        message.push_str(&format!(";帮助:{}", h));
+                        message.push_str(&format!("\n  help: {}", h));
                     }
                     at(message)
                 })?;
@@ -311,7 +311,7 @@ impl TraitDesugarer {
             };
             return Err(HuziError::new(
                 format!(
-                    "类型 '{}' 的方法 '{}' 冲突:已由 {} 提供,当前 {} 再次定义;期望每个方法只定义一次,实际出现多次;帮助:改名其中一个方法",
+                    "类型 '{}' 的方法 '{}' 冲突:已由 {} 提供,当前 {} 再次定义;期望每个方法只定义一次,实际出现多次\n  help: 改名其中一个方法",
                     target_type, m.name, prev_desc, curr_desc
                 ),
                 span.line,

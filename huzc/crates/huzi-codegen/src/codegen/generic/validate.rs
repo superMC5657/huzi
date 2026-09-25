@@ -128,7 +128,7 @@ impl Monomorphizer {
                         def_name, n, in_scope
                     );
                     if let Some(h) = hint {
-                        msg.push_str(&format!(";帮助:{}", h));
+                        msg.push_str(&format!("\n  help: {}", h));
                     }
                     return Err(HuziError::new_global(msg));
                 }
@@ -163,7 +163,7 @@ impl Monomorphizer {
                         n
                     );
                     if let Some(h) = hint {
-                        msg.push_str(&format!(";帮助:{}", h));
+                        msg.push_str(&format!("\n  help: {}", h));
                     }
                     return Err(self.diag(msg));
                 }

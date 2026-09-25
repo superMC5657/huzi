@@ -158,6 +158,18 @@ mod tests {
     }
 
     #[test]
+    fn pritn_gives_none() {
+        // "pritn"->"print" 距离 2,输入长 5 对应阈值 1,故无建议;
+        // 与 "prnt"->"print"(距离 1,有建议)互补,锁定归一化阈值意图。
+        assert_eq!(levenshtein("pritn", "print"), 2);
+        assert_eq!(did_you_mean("pritn", ["print"]), None);
+        assert_eq!(
+            did_you_mean("prnt", ["print"]),
+            Some("did you mean `print`?".to_string())
+        );
+    }
+
+    #[test]
     fn prefix_bonus() {
         // 距离同为 1 时公共前缀更长者胜出(覆盖字典序)。
         // "abcde" vs "abcXe"(前缀3) vs "abYde"(前缀2):后者字典序更小,但前者胜出。
