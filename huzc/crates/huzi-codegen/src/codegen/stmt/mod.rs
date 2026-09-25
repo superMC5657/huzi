@@ -48,6 +48,17 @@ impl<'ctx> CodeGen<'ctx> {
             .cloned()
             .ok_or_else(|| HuziError::new_global(format!("Unknown function: {}", stmt.name)))?;
 
+        // R3 小叶提示:非 main 且顶层语句少的小函数挂 `inlinehint`(仅提示,
+        // 不强制内联)。-O2 inliner 参考该提示;-O0 不跑 inliner,行为不变。
+        // `main` 从不被调用,挂提示无意义故跳过。
+        if stmt.name != "main" && stmt.body.statements.len() <= 8 {
+            let kind_id = inkwell::attributes::Attribute::get_named_enum_kind_id("inlinehint");
+            if kind_id != 0 {
+                let hint = self.context.create_enum_attribute(kind_id, 0);
+                function.add_attribute(inkwell::attributes::AttributeLoc::Function, hint);
+            }
+        }
+
         let entry = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry);
         self.current_subprogram = function.get_subprogram();
