@@ -1,0 +1,32 @@
+# C1 原生参照：与 hzast --dump-eval 同 6 行（见 RFC），直写算式不经 eval。
+fn fact(n: i32) -> i32 {
+    if n <= 1 {
+        return 1
+    }
+    return n * fact(n - 1)
+}
+
+fn main() -> i32 {
+    print(concat("arithmetic=", to_string((3 + 4) * 5 - 10)))
+    let mut x = 10
+    x = x + 20
+    print(concat("variables=", to_string(x * 2)))
+    let a = 15
+    let mut r = 0
+    if a > 10 {
+        r = 100
+    } else {
+        r = 200
+    }
+    print(concat("conditional=", to_string(r)))
+    let mut sum = 0
+    let mut i = 1
+    while i <= 10 {
+        sum = sum + i
+        i = i + 1
+    }
+    print(concat("while=", to_string(sum)))
+    print(concat("fact=", to_string(fact(5))))
+    print(concat("str=", "hello ", "huzi"))
+    return 0
+}

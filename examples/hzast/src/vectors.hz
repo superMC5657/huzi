@@ -1,0 +1,115 @@
+import ast
+import json
+
+# C2 向量：每个 ID 的 Huzi 侧手工构 AST（与 Rust ast_json::test_vector 等价，见 RFC）。
+# 未知 ID 返回 (false, "")，两侧均非零退出。
+
+fn vector_expr_json(id: str) -> (bool, str) {
+    if id == "expr_num" {
+        return (true, json::expr_to_json(ast::expr_num(42)))
+    }
+    if id == "expr_bool" {
+        return (true, json::expr_to_json(ast::expr_bool(true)))
+    }
+    if id == "expr_str" {
+        return (true, json::expr_to_json(ast::expr_str("hello huzi")))
+    }
+    if id == "expr_str_esc" {
+        return (true, json::expr_to_json(ast::expr_str("a\"b\\c\nd\te\rf")))
+    }
+    if id == "expr_var" {
+        return (true, json::expr_to_json(ast::expr_var("x")))
+    }
+    if id == "expr_bin" {
+        let e = ast::expr_bin("+", ast::expr_num(3), ast::expr_num(4))
+        return (true, json::expr_to_json(e))
+    }
+    if id == "expr_un" {
+        let e = ast::expr_un("-", ast::expr_num(5))
+        return (true, json::expr_to_json(e))
+    }
+    if id == "expr_call" {
+        let mut args = vec<Expr>()
+        push(args, ast::expr_num(5))
+        let e = ast::expr_call("fact", args)
+        return (true, json::expr_to_json(e))
+    }
+    return (false, "")
+}
+
+fn vector_stmt_json(id: str) -> (bool, str) {
+    if id == "stmt_let" {
+        return (true, json::stmt_to_json(ast::stmt_let("x", ast::expr_num(10))))
+    }
+    if id == "stmt_assign" {
+        let e = ast::expr_bin("+", ast::expr_var("x"), ast::expr_num(20))
+        return (true, json::stmt_to_json(ast::stmt_assign("x", e)))
+    }
+    if id == "stmt_if" {
+        let cond = ast::expr_bin(">", ast::expr_var("a"), ast::expr_num(10))
+        let mut then_b = vec<Stmt>()
+        push(then_b, ast::stmt_assign("r", ast::expr_num(100)))
+        let mut else_b = vec<Stmt>()
+        push(else_b, ast::stmt_assign("r", ast::expr_num(200)))
+        return (true, json::stmt_to_json(ast::stmt_if(cond, then_b, else_b)))
+    }
+    if id == "stmt_while" {
+        let cond = ast::expr_bin("<=", ast::expr_var("i"), ast::expr_num(10))
+        let mut body = vec<Stmt>()
+        let step = ast::expr_bin("+", ast::expr_var("i"), ast::expr_num(1))
+        push(body, ast::stmt_assign("i", step))
+        return (true, json::stmt_to_json(ast::stmt_while(cond, body)))
+    }
+    if id == "stmt_return" {
+        return (true, json::stmt_to_json(ast::stmt_return(ast::expr_var("x"))))
+    }
+    if id == "stmt_print" {
+        return (true, json::stmt_to_json(ast::stmt_print(ast::expr_str("hi"))))
+    }
+    if id == "stmt_expr" {
+        let args = vec<Expr>()
+        return (true, json::stmt_to_json(ast::stmt_expr(ast::expr_call("f", args))))
+    }
+    return (false, "")
+}
+
+fn vector_prog_json(id: str) -> (bool, str) {
+    if id == "prog_fact" {
+        let mut params = vec<str>()
+        push(params, "n")
+        let mut body = vec<Stmt>()
+        let cond = ast::expr_bin("<=", ast::expr_var("n"), ast::expr_num(1))
+        let mut then_b = vec<Stmt>()
+        push(then_b, ast::stmt_return(ast::expr_num(1)))
+        let else_b = vec<Stmt>()
+        push(body, ast::stmt_if(cond, then_b, else_b))
+        let mut cargs = vec<Expr>()
+        let sub = ast::expr_bin("-", ast::expr_var("n"), ast::expr_num(1))
+        push(cargs, sub)
+        let recur = ast::expr_call("fact", cargs)
+        let ret = ast::expr_bin("*", ast::expr_var("n"), recur)
+        push(body, ast::stmt_return(ret))
+        let f = ast::fn_def("fact", params, body)
+        let mut fns = vec<FnDef>()
+        push(fns, f)
+        let mut main_b = vec<Stmt>()
+        let mut margs = vec<Expr>()
+        push(margs, ast::expr_num(5))
+        push(main_b, ast::stmt_return(ast::expr_call("fact", margs)))
+        let prog = ast::program_new(fns, main_b)
+        return (true, json::program_to_json(prog))
+    }
+    return (false, "")
+}
+
+fn vector_json(id: str) -> (bool, str) {
+    let r = vector_expr_json(id)
+    if r.0 {
+        return r
+    }
+    let s = vector_stmt_json(id)
+    if s.0 {
+        return s
+    }
+    return vector_prog_json(id)
+}

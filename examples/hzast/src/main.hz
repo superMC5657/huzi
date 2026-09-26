@@ -1,5 +1,6 @@
 import ast
 import eval
+import dump
 import core.assert
 
 fn test_arithmetic() -> i32 {
@@ -124,6 +125,12 @@ fn selftest() -> i32 {
 fn main() -> i32 {
     if arg_count() >= 2 && arg(1) == "--selftest" {
         return selftest()
+    }
+    if arg_count() >= 2 && arg(1) == "--dump-eval" {
+        return dump::dump_eval()
+    }
+    if arg_count() >= 3 && arg(1) == "--dump-json" {
+        return dump::dump_json(arg(2))
     }
     // Default to running selftest
     return selftest()

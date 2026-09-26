@@ -1,0 +1,89 @@
+import ast
+import eval
+import vectors
+
+# C1：与 main.hz 6 自测同构的求值打印（冻结 6 行，见 RFC）。
+# 每行 `name=value`，顺序固定；自测断言仍在 main.hz，互为对拍。
+
+fn dump_arith() -> i32 {
+    let add_e = ast::expr_bin("+", ast::expr_num(3), ast::expr_num(4))
+    let mul_e = ast::expr_bin("*", add_e, ast::expr_num(5))
+    let sub_e = ast::expr_bin("-", mul_e, ast::expr_num(10))
+    let v = eval::eval_expr(sub_e, eval::env_new, vec<FnDef>())
+    print(concat("arithmetic=", to_string(ast::val_to_int(v))))
+    return 0
+}
+
+fn dump_vars_if() -> i32 {
+    let mut s1 = vec<Stmt>()
+    push(s1, ast::stmt_let("x", ast::expr_num(10)))
+    push(s1, ast::stmt_assign("x", ast::expr_bin("+", ast::expr_var("x"), ast::expr_num(20))))
+    push(s1, ast::stmt_return(ast::expr_bin("*", ast::expr_var("x"), ast::expr_num(2))))
+    let r1 = eval::eval_block(s1, eval::env_new, vec<FnDef>())
+    print(concat("variables=", to_string(ast::val_to_int(r1.1))))
+    let mut s2 = vec<Stmt>()
+    push(s2, ast::stmt_let("a", ast::expr_num(15)))
+    push(s2, ast::stmt_let("r", ast::expr_num(0)))
+    let cond = ast::expr_bin(">", ast::expr_var("a"), ast::expr_num(10))
+    let mut then_b = vec<Stmt>()
+    push(then_b, ast::stmt_assign("r", ast::expr_num(100)))
+    let mut else_b = vec<Stmt>()
+    push(else_b, ast::stmt_assign("r", ast::expr_num(200)))
+    push(s2, ast::stmt_if(cond, then_b, else_b))
+    push(s2, ast::stmt_return(ast::expr_var("r")))
+    let r2 = eval::eval_block(s2, eval::env_new, vec<FnDef>())
+    print(concat("conditional=", to_string(ast::val_to_int(r2.1))))
+    return 0
+}
+
+fn dump_while_fact_str() -> i32 {
+    let mut s3 = vec<Stmt>()
+    push(s3, ast::stmt_let("sum", ast::expr_num(0)))
+    push(s3, ast::stmt_let("i", ast::expr_num(1)))
+    let cond = ast::expr_bin("<=", ast::expr_var("i"), ast::expr_num(10))
+    let mut body = vec<Stmt>()
+    push(body, ast::stmt_assign("sum", ast::expr_bin("+", ast::expr_var("sum"), ast::expr_var("i"))))
+    push(body, ast::stmt_assign("i", ast::expr_bin("+", ast::expr_var("i"), ast::expr_num(1))))
+    push(s3, ast::stmt_while(cond, body))
+    push(s3, ast::stmt_return(ast::expr_var("sum")))
+    let r3 = eval::eval_block(s3, eval::env_new, vec<FnDef>())
+    print(concat("while=", to_string(ast::val_to_int(r3.1))))
+    let mut params = vec<str>()
+    push(params, "n")
+    let mut fbody = vec<Stmt>()
+    let fc = ast::expr_bin("<=", ast::expr_var("n"), ast::expr_num(1))
+    let mut ft = vec<Stmt>()
+    push(ft, ast::stmt_return(ast::expr_num(1)))
+    push(fbody, ast::stmt_if(fc, ft, vec<Stmt>()))
+    let mut cargs = vec<Expr>()
+    push(cargs, ast::expr_bin("-", ast::expr_var("n"), ast::expr_num(1)))
+    push(fbody, ast::stmt_return(ast::expr_bin("*", ast::expr_var("n"), ast::expr_call("fact", cargs))))
+    let mut fns = vec<FnDef>()
+    push(fns, ast::fn_def("fact", params, fbody))
+    let mut mb = vec<Stmt>()
+    let mut margs = vec<Expr>()
+    push(margs, ast::expr_num(5))
+    push(mb, ast::stmt_return(ast::expr_call("fact", margs)))
+    let res = eval::eval_program(ast::program_new(fns, mb))
+    print(concat("fact=", to_string(ast::val_to_int(res))))
+    let ce = ast::expr_bin("+", ast::expr_str("hello "), ast::expr_str("huzi"))
+    let rv = eval::eval_expr(ce, eval::env_new, vec<FnDef>())
+    print(concat("str=", ast::val_to_string(rv)))
+    return 0
+}
+
+fn dump_eval() -> i32 {
+    dump_arith()
+    dump_vars_if()
+    dump_while_fact_str()
+    return 0
+}
+
+fn dump_json(id: str) -> i32 {
+    let r = vectors::vector_json(id)
+    if !r.0 {
+        panic(concat("hzast: unknown json vector '", id, "'"))
+    }
+    print(r.1)
+    return 0
+}

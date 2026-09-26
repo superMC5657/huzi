@@ -1,0 +1,165 @@
+import ast
+
+# M1-C JSON 子集 v1：canonical 紧凑 JSON（见 ../RFC.md）。
+# 转义仅 5 种（"/\/n/r/t），与 std.jsonq::escape_json_str 同口径；Box 透明、Span 丢弃。
+
+fn json_escape(s: str) -> str {
+    let n = len(s)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if ch == "\"" {
+            res = concat(res, "\\\"")
+        } elif ch == "\\" {
+            res = concat(res, "\\\\")
+        } elif ch == "\n" {
+            res = concat(res, "\\n")
+        } elif ch == "\r" {
+            res = concat(res, "\\r")
+        } elif ch == "\t" {
+            res = concat(res, "\\t")
+        } else {
+            res = concat(res, ch)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn json_quoted(s: str) -> str {
+    return concat("\"", json_escape(s), "\"")
+}
+
+fn strs_to_json(ss: vec<str>) -> str {
+    let n = len(ss)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        res = concat(res, json_quoted(ss[i]))
+        i = i + 1
+    }
+    return concat(res, "]")
+}
+
+fn exprs_to_json(es: vec<Expr>) -> str {
+    let n = len(es)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        res = concat(res, expr_to_json(es[i]))
+        i = i + 1
+    }
+    return concat(res, "]")
+}
+
+fn stmts_to_json(ss: vec<Stmt>) -> str {
+    let n = len(ss)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        res = concat(res, stmt_to_json(ss[i]))
+        i = i + 1
+    }
+    return concat(res, "]")
+}
+
+fn expr_to_json(e: Expr) -> str {
+    if e.kind == "num" {
+        return concat("{\"kind\":\"num\",\"value\":", to_string(e.num_val), "}")
+    }
+    if e.kind == "bool" {
+        let b = if e.bool_val { "true" } else { "false" }
+        return concat("{\"kind\":\"bool\",\"value\":", b, "}")
+    }
+    if e.kind == "str" {
+        return concat("{\"kind\":\"str\",\"value\":", json_quoted(e.str_val), "}")
+    }
+    if e.kind == "var" {
+        return concat("{\"kind\":\"var\",\"name\":", json_quoted(e.name), "}")
+    }
+    if e.kind == "bin" {
+        let l = expr_to_json(*e.left)
+        let r = expr_to_json(*e.right)
+        return concat("{\"kind\":\"bin\",\"op\":", json_quoted(e.op), ",\"left\":", l, ",\"right\":", r, "}")
+    }
+    if e.kind == "un" {
+        let o = expr_to_json(*e.left)
+        return concat("{\"kind\":\"un\",\"op\":", json_quoted(e.op), ",\"operand\":", o, "}")
+    }
+    if e.kind == "call" {
+        let a = exprs_to_json(e.args)
+        return concat("{\"kind\":\"call\",\"name\":", json_quoted(e.name), ",\"args\":", a, "}")
+    }
+    return ""
+}
+
+fn stmt_to_json(s: Stmt) -> str {
+    if s.kind == "let" {
+        let e = expr_to_json(*s.expr)
+        return concat("{\"kind\":\"let\",\"name\":", json_quoted(s.name), ",\"expr\":", e, "}")
+    }
+    if s.kind == "assign" {
+        let e = expr_to_json(*s.expr)
+        return concat("{\"kind\":\"assign\",\"name\":", json_quoted(s.name), ",\"expr\":", e, "}")
+    }
+    if s.kind == "if" {
+        let c = expr_to_json(*s.expr)
+        let t = stmts_to_json(s.body)
+        let el = stmts_to_json(s.else_body)
+        return concat("{\"kind\":\"if\",\"cond\":", c, ",\"then\":", t, ",\"else\":", el, "}")
+    }
+    if s.kind == "while" {
+        let c = expr_to_json(*s.expr)
+        let b = stmts_to_json(s.body)
+        return concat("{\"kind\":\"while\",\"cond\":", c, ",\"body\":", b, "}")
+    }
+    if s.kind == "return" {
+        let e = expr_to_json(*s.expr)
+        return concat("{\"kind\":\"return\",\"expr\":", e, "}")
+    }
+    if s.kind == "print" {
+        let e = expr_to_json(*s.expr)
+        return concat("{\"kind\":\"print\",\"expr\":", e, "}")
+    }
+    if s.kind == "expr" {
+        let e = expr_to_json(*s.expr)
+        return concat("{\"kind\":\"expr\",\"expr\":", e, "}")
+    }
+    return ""
+}
+
+fn fn_to_json(f: FnDef) -> str {
+    let p = strs_to_json(f.params)
+    let b = stmts_to_json(f.body)
+    return concat("{\"name\":", json_quoted(f.name), ",\"params\":", p, ",\"body\":", b, "}")
+}
+
+fn fns_to_json(fns: vec<FnDef>) -> str {
+    let n = len(fns)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        res = concat(res, fn_to_json(fns[i]))
+        i = i + 1
+    }
+    return concat(res, "]")
+}
+
+fn program_to_json(p: Program) -> str {
+    let f = fns_to_json(p.fns)
+    let m = stmts_to_json(p.main_body)
+    return concat("{\"fns\":", f, ",\"main\":", m, "}")
+}
