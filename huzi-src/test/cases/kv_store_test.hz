@@ -134,7 +134,9 @@ fn main() -> i32 {
     assert::assert_eq_i32(mapx::map_get_or(m_dump, "delta", 0), 400)
     let elapsed = timex::elapsed_ms(t0)
     assert::assert_true(elapsed >= 0)
-    log::info("TCP KV store end-to-end integration test passed")
+    // 固定时钟注入:快照可确定性断言(同 log_test,不直接调实时时钟的 info)。
+    let r_log = log::info_with_ts("TCP KV store end-to-end integration test passed", "2026-01-01 00:00:00")
+    assert::assert_eq_i32(r_log, 0)
     print("kv_store_test: ok")
     return 0
 }

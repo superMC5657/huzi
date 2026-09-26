@@ -1,5 +1,15 @@
 import std.timex
 
+// 时间源注入点:设置 HUZI_LOG_FIXED_TS 环境变量时采用固定时钟
+// (日志快照测试可确定性断言输出);未设置时回退到 timex::now_str 实时时钟。
+fn current_ts() -> str {
+    let res = env_get("HUZI_LOG_FIXED_TS")
+    if res.0 {
+        return res.1
+    }
+    return timex::now_str
+}
+
 fn format_record(level: str, ts: str, msg: str) -> str {
     return concat("[", level, "] ", ts, " - ", msg)
 }
@@ -20,13 +30,13 @@ fn error_with_ts(msg: str, ts: str) -> i32 {
 }
 
 fn info(msg: str) -> i32 {
-    return info_with_ts(msg, timex::now_str)
+    return info_with_ts(msg, current_ts())
 }
 
 fn warn(msg: str) -> i32 {
-    return warn_with_ts(msg, timex::now_str)
+    return warn_with_ts(msg, current_ts())
 }
 
 fn error(msg: str) -> i32 {
-    return error_with_ts(msg, timex::now_str)
+    return error_with_ts(msg, current_ts())
 }

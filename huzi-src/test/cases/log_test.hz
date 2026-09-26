@@ -2,14 +2,19 @@ import core.assert
 import std.log
 
 fn main() -> i32 {
-    let r_info = log::info("service running")
+    // 固定时钟注入:打印输出全部走 *_with_ts,快照可确定性断言。
+    let ts = "2026-01-01 00:00:00"
+    let r_info = log::info_with_ts("service running", ts)
     assert::assert_eq_i32(r_info, 0)
-    let r_warn = log::warn("high load")
+    let r_warn = log::warn_with_ts("high load", ts)
     assert::assert_eq_i32(r_warn, 0)
-    let r_err = log::error("connection reset")
+    let r_err = log::error_with_ts("connection reset", ts)
     assert::assert_eq_i32(r_err, 0)
     let rec = log::format_record("DEBUG", "2026-01-01 00:00:00", "debug trace")
     assert::assert_eq_str(rec, "[DEBUG] 2026-01-01 00:00:00 - debug trace")
+    // 实时时钟只验形状(长度 19),不打印以保持快照确定性。
+    let live = log::current_ts()
+    assert::assert_eq_i32(len(live), 19)
     print("log_test: ok")
     return 0
 }
