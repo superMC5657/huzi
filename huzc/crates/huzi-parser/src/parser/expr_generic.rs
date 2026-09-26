@@ -45,30 +45,10 @@ impl Parser {
     /// 未匹配或后续非 `(` / `{` 时安全回退并返回 `None`。
     pub(super) fn try_parse_generic(&mut self, name: &str) -> Result<Option<Expr>> {
         let saved = self.pos;
-        if !self.check(&Token::Less) {
-            return Ok(None);
-        }
-        self.advance(); // consume '<'
-        let mut type_args = Vec::new();
-        while !self.check(&Token::Greater) && !self.is_at_end() {
-            match self.parse_type() {
-                Ok(ty) => type_args.push(ty),
-                Err(_) => {
-                    self.pos = saved;
-                    return Ok(None);
-                }
-            }
-            if self.check(&Token::Comma) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
-        if type_args.is_empty() || !self.check(&Token::Greater) {
+        let Some(type_args) = self.parse_generic_type_args()? else {
             self.pos = saved;
             return Ok(None);
-        }
-        self.advance(); // consume '>'
+        };
 
         // 泛型函数调用：name<T1, T2>(args)
         if self.check(&Token::LParen) {
@@ -98,6 +78,52 @@ impl Parser {
             })));
         }
 
+        if let Some(expr) = self.parse_generic_enum_construct(name, type_args)? {
+            return Ok(Some(expr));
+        }
+
+        self.pos = saved;
+        Ok(None)
+    }
+
+    /// 泛型实参阶段：消费 `<T1, T2>` 并校验闭合 `>`(调用时 `<` 尚未消费)。
+    /// 未匹配或类型解析失败时回退调用点并返回 `None`。
+    fn parse_generic_type_args(&mut self) -> Result<Option<Vec<Type>>> {
+        let saved = self.pos;
+        if !self.check(&Token::Less) {
+            return Ok(None);
+        }
+        self.advance(); // consume '<'
+        let mut type_args = Vec::new();
+        while !self.check(&Token::Greater) && !self.is_at_end() {
+            match self.parse_type() {
+                Ok(ty) => type_args.push(ty),
+                Err(_) => {
+                    self.pos = saved;
+                    return Ok(None);
+                }
+            }
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        if type_args.is_empty() || !self.check(&Token::Greater) {
+            self.pos = saved;
+            return Ok(None);
+        }
+        self.advance(); // consume '>'
+        Ok(Some(type_args))
+    }
+
+    /// 泛型枚举变体构造阶段：`name<T1, T2>::Variant` 或 `name<T1, T2>::Variant(args)`。
+    /// 后续非 `::` 时返回 `None`(调用方回退)。
+    fn parse_generic_enum_construct(
+        &mut self,
+        name: &str,
+        type_args: Vec<Type>,
+    ) -> Result<Option<Expr>> {
         // 泛型枚举变体构造：name<T1, T2>::Variant 或 name<T1, T2>::Variant(args)
         if self.check(&Token::PathSep) {
             self.advance();
@@ -129,8 +155,6 @@ impl Parser {
                 type_args,
             })));
         }
-
-        self.pos = saved;
         Ok(None)
     }
 

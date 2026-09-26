@@ -73,26 +73,7 @@ impl Parser {
                     Ok(Pattern::Variable(name))
                 }
             }
-            Token::Minus => {
-                self.advance();
-                match self.peek() {
-                    Token::Int(n) => {
-                        let n = *n;
-                        self.advance();
-                        Ok(Pattern::Literal(Literal::Int(-n)))
-                    }
-                    Token::Float(f) => {
-                        let f = *f;
-                        self.advance();
-                        Ok(Pattern::Literal(Literal::Float(-f)))
-                    }
-                    _ => Err(HuziError::new(
-                        "Expected number after '-' in pattern",
-                        self.current_line(),
-                        self.current_col(),
-                    )),
-                }
-            }
+            Token::Minus => self.parse_signed_pattern(),
             Token::Int(n) => {
                 self.advance();
                 Ok(Pattern::Literal(Literal::Int(n)))
@@ -119,6 +100,28 @@ impl Parser {
             }
             _ => Err(HuziError::new(
                 "Expected pattern (variant, literal, variable, or '_')",
+                self.current_line(),
+                self.current_col(),
+            )),
+        }
+    }
+
+    /// 带符号数字模式阶段：`-` 后的整数/浮点字面量(调用时 `-` 尚未消费)。
+    fn parse_signed_pattern(&mut self) -> Result<Pattern> {
+        self.advance();
+        match self.peek() {
+            Token::Int(n) => {
+                let n = *n;
+                self.advance();
+                Ok(Pattern::Literal(Literal::Int(-n)))
+            }
+            Token::Float(f) => {
+                let f = *f;
+                self.advance();
+                Ok(Pattern::Literal(Literal::Float(-f)))
+            }
+            _ => Err(HuziError::new(
+                "Expected number after '-' in pattern",
                 self.current_line(),
                 self.current_col(),
             )),

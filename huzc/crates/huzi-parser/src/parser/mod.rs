@@ -3,6 +3,7 @@ mod expr_closure;
 mod expr_fstring;
 mod expr_generic;
 mod expr_if;
+mod expr_primary;
 mod pattern;
 mod stmt;
 mod stmt_def;
@@ -23,6 +24,8 @@ pub struct Parser {
     in_function: bool,
     in_defer: bool,
     type_params_in_scope: Vec<String>,
+    expr_depth: usize,
+    max_expr_depth: usize,
 }
 
 /// 单次 `parse_recoverable` 最多收集的错误数(防级联误报刷屏)。
@@ -36,7 +39,15 @@ impl Parser {
             in_function: false,
             in_defer: false,
             type_params_in_scope: Vec::new(),
+            expr_depth: 0,
+            max_expr_depth: 0,
         }
+    }
+
+    /// 当前解析中的表达式嵌套峰值(对标 hzparse `pz_expr` 的 maxd)。
+    /// 每次进入 `parse_expression` 即 +1,含括号/实参/块内语句的嵌套。
+    pub fn max_expr_depth(&self) -> usize {
+        self.max_expr_depth
     }
 
     pub(super) fn push_type_params(&mut self, params: &[String]) {
