@@ -51,6 +51,9 @@ fn pz_struct_def(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>
     }
     cursor::pz_next(pos)
     while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_eof(kinds, pos) {
+        if cursor::pz_kw(kinds, texts, pos, "weak") {
+            cursor::pz_next(pos)
+        }
         if !cursor::pz_is_ident(kinds, texts, pos) {
             return cursor::pz_fail(errs, texts, pos, lines, cols, "expected field name")
         }

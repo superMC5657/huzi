@@ -106,6 +106,10 @@ fn pz_fn_type(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, l
 }
 
 fn pz_type(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    if cursor::pz_kw(kinds, texts, pos, "weak") {
+        cursor::pz_next(pos)
+        return pz_type(kinds, texts, pos, errs, lines, cols)
+    }
     if cursor::pz_at(kinds, texts, pos, "[") {
         cursor::pz_next(pos)
         return pz_array_type(kinds, texts, pos, errs, lines, cols)
@@ -237,4 +241,3 @@ fn pz_let_pattern(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str
     cursor::pz_next(pos)
     return true
 }
-

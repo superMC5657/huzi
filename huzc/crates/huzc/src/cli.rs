@@ -176,6 +176,18 @@ pub struct Args {
     /// 以 hzlex 兼容格式逐行打印词法结果（`行:列 类型 文本`）后退出，不做后续编译。
     #[arg(long)]
     pub dump_tokens: bool,
+
+    /// 打印九维解析统计（`fns=.. structs=.. enums=.. traits=.. impls=.. imports=.. exports=.. lets=.. depth=..`）后退出。
+    #[arg(long)]
+    pub dump_parse_stats: bool,
+
+    /// 以 hzast 兼容的紧凑 JSON 打印整程序（`{"fns":..,"main":..}`）后退出。
+    #[arg(long)]
+    pub dump_ast_json: bool,
+
+    /// 打印 C2 向量 ID 的单行 JSON（与 `hzast --dump-json <id>` 同口径）后退出。
+    #[arg(long)]
+    pub ast_json_test: Option<String>,
 }
 
 impl Args {

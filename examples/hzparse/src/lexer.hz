@@ -104,6 +104,9 @@ fn is_kw(name: str) -> bool {
     if name == "false" {
         return true
     }
+    if name == "weak" {
+        return true
+    }
     return false
 }
 
