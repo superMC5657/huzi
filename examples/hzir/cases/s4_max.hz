@@ -1,0 +1,14 @@
+fn max(a: i32, b: i32) -> i32 {
+    if a > b {
+        return a
+    } else {
+        return b
+    }
+}
+
+fn main() -> i32 {
+    print(max(10, 20))
+    print(max(50, 30))
+    print(max(7, 7))
+    return 0
+}

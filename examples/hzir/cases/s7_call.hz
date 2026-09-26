@@ -1,0 +1,18 @@
+fn add(a: i32, b: i32) -> i32 {
+    return a + b
+}
+
+fn mul(a: i32, b: i32) -> i32 {
+    return a * b
+}
+
+fn add_mul(a: i32, b: i32, c: i32) -> i32 {
+    return add(mul(a, b), c)
+}
+
+fn main() -> i32 {
+    print(add(3, 4))
+    print(mul(3, 4))
+    print(add_mul(3, 4, 5))
+    return 0
+}

@@ -1,0 +1,10 @@
+fn main() -> i32 {
+    let x = 10
+    print(x)
+    let x = 20
+    print(x)
+    let mut y = 1
+    y = y + 10
+    print(y)
+    return 0
+}
