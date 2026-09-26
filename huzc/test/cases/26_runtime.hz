@@ -1,8 +1,16 @@
 srand(42)
 
-print("rand #1:", rand() % 100)
+let r1 = rand() % 100
 
-print("rand #2:", rand() % 100)
+let r2 = rand() % 100
+
+print("rand in range:", r1 >= 0 && r1 < 100 && r2 >= 0 && r2 < 100)
+
+srand(42)
+
+let r3 = rand() % 100
+
+print("rand reproducible:", r1 == r3)
 
 let start = time()
 

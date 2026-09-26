@@ -1,5 +1,5 @@
-rand #1:75
-rand #2:0
+rand in range:true
+rand reproducible:true
 unix epoch started:true
 clock moves forward:true
 done

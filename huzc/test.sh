@@ -24,6 +24,11 @@ fi
 run_limited() {
   if command -v timeout > /dev/null 2>&1; then timeout 10 "$@"; else "$@"; fi
 }
+# 23_cli_args 的 arg(0) 是平台相关可执行路径:归一 `程序名:` 行为 basename
+# (去目录与 .exe 后缀),与原生 runner (test_runner/exec.rs) 同逻辑。
+normalize_prog_name() {
+  sed -E -e 's#^程序名: .*[/\\]([^/\\]*)$#程序名: \1#' -e 's#^程序名: ([^/\\]*)\.exe$#程序名: \1#' "$1" > "$1.norm" && mv "$1.norm" "$1"
+}
 
 cargo build --workspace || { echo "BUILD FAILED"; exit 1; }
 
@@ -50,12 +55,15 @@ for f in test/cases/*.hz; do
   fi
   stdin_file="/dev/null"
   [ "$name" = "24_pipe_read" ] && stdin_file="test/out/pipe_input.txt"
-  if ! run_limited "./test/out/$name$EXE_SUFFIX" < "$stdin_file" > /tmp/huzc_run.log 2>&1; then
-    code=$?
+  run_limited "./test/out/$name$EXE_SUFFIX" < "$stdin_file" > /tmp/huzc_run.log 2>&1
+  code=$?
+  if [ $code -ne 0 ]; then
     echo "FAIL(run/$code): $name"
     fail=$((fail+1))
     continue
   fi
+  # 与原生 runner 一致:比对前归一程序名(仅影响 23_cli_args 的程序名行)。
+  normalize_prog_name /tmp/huzc_run.log
   if ! $DIFF_CMD -q "test/expected/$name.stdout" /tmp/huzc_run.log > /dev/null 2>&1; then
     echo "FAIL(stdout): $name"
     $DIFF_CMD "test/expected/$name.stdout" /tmp/huzc_run.log | head -5

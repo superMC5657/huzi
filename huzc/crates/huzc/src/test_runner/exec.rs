@@ -196,32 +196,37 @@ pub(super) fn run_single_test(
     }
 }
 
+/// 将 `程序名: <路径>` 行归一为 `程序名: <basename>`(并去 `.exe` 后缀),
+/// 使 Windows/Unix 路径差异不影响比对。非程序名行原样返回。
+fn normalize_prog_name_line(line: &str) -> String {
+    if let Some(rest) = line.strip_prefix("程序名: ") {
+        let base = rest.rsplit(['/', '\\']).next().unwrap_or(rest);
+        let base = base.strip_suffix(".exe").unwrap_or(base);
+        format!("程序名: {}", base)
+    } else {
+        line.to_string()
+    }
+}
+
+fn normalize_stdout(text: &str) -> String {
+    let norm = text.replace("\r\n", "\n");
+    let trailing = norm.ends_with('\n');
+    let mut out = norm
+        .lines()
+        .map(normalize_prog_name_line)
+        .collect::<Vec<_>>()
+        .join("\n");
+    if trailing {
+        out.push('\n');
+    }
+    out
+}
+
 fn compare_stdout(case_name: &str, exp: &str, output: &str) -> Result<(), String> {
-    let exp_norm = exp.replace("\r\n", "\n");
-    let act_norm = output.replace("\r\n", "\n");
+    let exp_norm = normalize_stdout(exp);
+    let act_norm = normalize_stdout(output);
     if exp_norm == act_norm {
         return Ok(());
-    }
-    if case_name == "23_cli_args" {
-        let exp_lines: Vec<&str> = exp_norm.lines().collect();
-        let act_lines: Vec<&str> = act_norm.lines().collect();
-        if exp_lines.len() == act_lines.len() {
-            let mut match_all = true;
-            for (i, (e, a)) in exp_lines.iter().zip(act_lines.iter()).enumerate() {
-                if i == 1 {
-                    if !a.starts_with("程序名: ") || !a.contains("23_cli_args") {
-                        match_all = false;
-                        break;
-                    }
-                } else if e != a {
-                    match_all = false;
-                    break;
-                }
-            }
-            if match_all {
-                return Ok(());
-            }
-        }
     }
     let diff = format_diff(&exp_norm, &act_norm);
     Err(format!("FAIL(stdout): {}\n{}", case_name, diff))
