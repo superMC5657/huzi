@@ -47,6 +47,7 @@ mod map_rehash;
 mod map_ops;
 mod map_keys;
 mod match_expr;
+mod opt;
 mod drop;
 mod mem_free;
 mod runtime;

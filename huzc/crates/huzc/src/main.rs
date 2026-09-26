@@ -1,6 +1,8 @@
 use huzc::cli;
 use huzc::cli::Args;
+mod ast_json;
 mod linker;
+mod parse_stats;
 mod paths;
 
 use clap::Parser;
@@ -33,8 +35,20 @@ fn main() {
     }));
 
     let args = Args::parse();
+    if let Some(ref test_id) = args.ast_json_test {
+        run_dump_ast_json_test(test_id);
+        return;
+    }
+    if args.dump_ast_json {
+        run_dump_ast_json(&args);
+        return;
+    }
     if args.dump_tokens {
         run_dump_tokens(&args);
+        return;
+    }
+    if args.dump_parse_stats {
+        run_dump_parse_stats(&args);
         return;
     }
     if let Some(cmd) = args.command {
@@ -145,23 +159,25 @@ fn emit_and_link(paths: &OutputPaths, codegen: &CodeGen, args: &Args, quiet: boo
     if !quiet {
         println!("[4/5] Verifying...");
     }
-    write_ir(codegen, &paths.ll_path);
     if let Err(e) = codegen.verify_detailed() {
         die(format!("Error: LLVM module verification failed (this is a compiler bug)\n{}", e));
     }
 
-    // 优化阶段：当有效优化级别大于 0 时在代码生成前运行 LLVM IR 优化器（--release 映射至级别 2）。
-    // 级别 0（开发模式）直接将原始 inkwell IR 传入 llc。
+    // 优化阶段：当有效优化级别大于 0 时在内存中运行 LLVM 优化流水线
+    // （--release 映射至级别 2）。级别 0（开发模式）直接将原始 inkwell IR 传入 llc。
     let opt_level = args.effective_opt_level();
     if opt_level > 0 {
-        optimize_ir(paths, opt_level, quiet);
+        optimize_ir(codegen, opt_level, args.release, quiet);
     }
+
+    // 优化后的 IR 落盘,以便失败时排查调试。
+    write_ir(codegen, &paths.ll_path);
 
     // 阶段 5/5: 生成可执行文件
     if !quiet {
         println!("[5/5] Generating executable...");
     }
-    compile_ir_to_object(paths, args.debug);
+    compile_ir_to_object(paths, opt_level, args.debug);
     if !quiet {
         println!("  Linking to executable...");
     }
@@ -201,6 +217,9 @@ fn run_target(run_args: &cli::RunArgs) {
             opt_level: None,
             debug: false,
             dump_tokens: false,
+            dump_parse_stats: false,
+            dump_ast_json: false,
+            ast_json_test: None,
         };
         compile_source_file(&args).exe_path
     };
@@ -445,6 +464,75 @@ fn run_dump_tokens(args: &Args) {
     print!("{}", format_tokens(&tokens, &source));
 }
 
+/// 对源码串做词法+语法两段并返回程序与表达式峰值深度。
+fn lex_parse_with_depth(source: &str) -> (Program, usize) {
+    let tokens = Lexer::new(source.to_string())
+        .tokenize()
+        .unwrap_or_else(|e| {
+            eprintln!("lex-error {}:{} {}", e.line(), e.column(), e.message());
+            std::process::exit(1);
+        });
+    let mut parser = HuziParser::new(tokens);
+    let program = parser.parse().unwrap_or_else(|e| {
+        eprintln!("parse-error {}:{} {}", e.line(), e.column(), e.message());
+        std::process::exit(1);
+    });
+    let depth = parser.max_expr_depth();
+    (program, depth)
+}
+
+/// 执行 `--dump-parse-stats -i <file>`：打印九维统计单行后返回。
+fn run_dump_parse_stats(args: &Args) {
+    let input = match &args.input {
+        Some(i) => i,
+        None => {
+            eprintln!("error: '--dump-parse-stats' requires '--input <file.hz>'");
+            std::process::exit(1);
+        }
+    };
+    let source = read_source(input);
+    let (program, depth) = lex_parse_with_depth(&source);
+    let stats = parse_stats::collect(&program, depth);
+    println!("{}", stats.format());
+}
+
+/// 执行 `--dump-ast-json -i <file>`：打印整程序紧凑 JSON 单行后返回。
+/// 子集外节点按冻结口径报错非零退出，不做截断输出。
+fn run_dump_ast_json(args: &Args) {
+    let input = match &args.input {
+        Some(i) => i,
+        None => {
+            eprintln!("error: '--dump-ast-json' requires '--input <file.hz>'");
+            std::process::exit(1);
+        }
+    };
+    let source = read_source(input);
+    let (program, _) = lex_parse_with_depth(&source);
+    match ast_json::program_to_json(&program) {
+        Ok(s) => println!("{s}"),
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// 执行 `--ast-json-test <id>`：打印 C2 向量单行 JSON 后返回。
+/// 未知 ID 非零退出（与 hzast `panic` 对应对拍 FAIL）。
+fn run_dump_ast_json_test(id: &str) {
+    match ast_json::test_vector(id) {
+        Some(Ok(s)) => println!("{s}"),
+        Some(Err(e)) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+        None => {
+            eprintln!("error: unknown ast-json-test id '{id}'");
+            std::process::exit(1);
+        }
+    }
+}
+
 /// 在校验前将 LLVM IR 写盘，以便失败时排查调试。
 fn write_ir(codegen: &CodeGen, ll_path: &Path) {
     if let Err(e) = codegen.write_ir_to_file(ll_path.to_str().unwrap()) {
@@ -453,12 +541,26 @@ fn write_ir(codegen: &CodeGen, ll_path: &Path) {
 }
 
 /// 使用 llc 将 LLVM IR 编译为平台目标文件 (.obj/.o)。
+/// 后端优化等级与 IR 的 `opt -O<level>` 对齐：dev（0 级）用 `-O0` 快速出包，
+/// release（N 级）用 `-O<N>` 做后端优化；优化档额外加 `--mcpu=native` 复用
+/// 主机 CPU 特性（SIMD/流水线）。默认不碰 fast-math
+///（不传 `--enable-unsafe-fp-math`），保持 IEEE 浮点语义。
 /// 调试模式下将调试器格式调整为 DWARF (gdb/lldb)，而非平台默认格式（如 windows-msvc 目标的 CodeView）。
-fn compile_ir_to_object(paths: &OutputPaths, debug: bool) {
+fn compile_ir_to_object(paths: &OutputPaths, opt_level: u8, debug: bool) {
+    let llc_opt: &str = match opt_level {
+        0 => "-O0",
+        1 => "-O1",
+        2 => "-O2",
+        _ => "-O3",
+    };
     let mut llc_args: Vec<&str> = vec![
         "--relocation-model=pic",
         "--filetype=obj",
+        llc_opt,
     ];
+    if opt_level > 0 {
+        llc_args.push("--mcpu=native");
+    }
     if debug {
         llc_args.push("-debugger-tune=gdb");
     }
@@ -467,19 +569,14 @@ fn compile_ir_to_object(paths: &OutputPaths, debug: bool) {
     run_command("llc", &llc_args).unwrap_or_else(|e| die(e));
 }
 
-/// 使用 opt -O<level> 原地优化 LLVM IR（仅在 level > 0 时调用）。
-/// opt 与 llc 均随 LLVM 提供，无需额外工具链。该级别的 Pass 流水线涵盖函数内联、常量折叠与公共子表达式消除。
-fn optimize_ir(paths: &OutputPaths, level: u8, quiet: bool) {
-    let ll_path = paths.ll_path.to_str().unwrap().to_string();
-    let opt_args: Vec<String> = vec![
-        "-S".to_string(),
-        format!("-O{}", level),
-        "-o".to_string(),
-        ll_path.clone(),
-        ll_path,
-    ];
-    let opt_args_ref: Vec<&str> = opt_args.iter().map(|s| s.as_str()).collect();
-    run_command("opt", &opt_args_ref).unwrap_or_else(|e| die(e));
+/// 在内存中运行 LLVM 新 Pass 管理器优化流水线（仅在 level > 0 时调用）。
+/// 流水线 `default<Olevel>` 即原 `opt -S -O<level>` 运行的默认流水线，不再依赖
+/// 外部 opt 二进制（缺 opt 环境下 release 照常用）；llc/link 仍走外部工具链。
+/// `verify_each` 仅开发模式显式 `--opt-level` 时开启（release 关闭以提速）。
+fn optimize_ir(codegen: &CodeGen, level: u8, release: bool, quiet: bool) {
+    if let Err(e) = codegen.optimize(level, !release) {
+        die(format!("Error running optimization passes: {}", e));
+    }
     if !quiet {
         println!("  [opt] -O{} optimization applied", level);
     }
@@ -517,5 +614,88 @@ mod dump_tokens_tests {
         let got = format_tokens(&tokens, &src);
         let expected = "1:1 kw let\n1:5 ident a\n1:7 punct =\n1:9 int 007\n1:12 punct ;\n1:14 kw let\n1:18 ident b\n1:20 punct =\n1:22 float 0.0\n1:25 punct ;\n1:27 kw let\n1:31 ident c\n1:33 punct =\n1:35 float 144.0\n1:40 punct ;\n1:42 kw let\n1:46 ident d\n1:48 punct =\n1:50 float 2.0\n1:53 eof \n";
         assert_eq!(got, expected);
+    }
+}
+
+#[cfg(test)]
+mod dump_parse_stats_tests {
+    use super::*;
+
+    fn stats_of(src: &str) -> String {
+        let tokens = Lexer::new(src.to_string())
+            .tokenize()
+            .expect("test snippet must lex cleanly");
+        let mut parser = HuziParser::new(tokens);
+        let program = parser.parse().expect("test snippet must parse");
+        let depth = parser.max_expr_depth();
+        parse_stats::collect(&program, depth).format()
+    }
+
+    #[test]
+    fn stats_counts_top_shapes() {
+        let src = "import a export b fn f() -> i32 { let x = 1 return x }";
+        let got = stats_of(src);
+        assert_eq!(
+            got,
+            "fns=1 structs=0 enums=0 traits=0 impls=0 imports=1 exports=1 lets=1 depth=1"
+        );
+    }
+
+    #[test]
+    fn stats_counts_impl_methods_as_fns() {
+        let src = "struct S { x: i32 } impl S { fn m(self: S) -> i32 { return self.x } }";
+        let got = stats_of(src);
+        assert_eq!(
+            got,
+            "fns=1 structs=1 enums=0 traits=0 impls=1 imports=0 exports=0 lets=0 depth=1"
+        );
+    }
+
+    #[test]
+    fn stats_depth_nests_calls() {
+        let got = stats_of("fn f() -> i32 { return g(h(1)) }");
+        assert_eq!(
+            got,
+            "fns=1 structs=0 enums=0 traits=0 impls=0 imports=0 exports=0 lets=0 depth=3"
+        );
+    }
+}
+
+#[cfg(test)]
+mod dump_ast_json_tests {
+    use super::*;
+
+    #[test]
+    fn json_escape_freezes_five() {
+        assert_eq!(ast_json::escape("a\"b\\c\nd\te\rf"), "a\\\"b\\\\c\\nd\\te\\rf");
+    }
+
+    #[test]
+    fn json_vector_expr_num() {
+        let got = ast_json::test_vector("expr_num").expect("known id").expect("in subset");
+        assert_eq!(got, "{\"kind\":\"num\",\"value\":42}");
+    }
+
+    #[test]
+    fn json_vector_stmt_assign_folds() {
+        let got = ast_json::test_vector("stmt_assign")
+            .expect("known id")
+            .expect("in subset");
+        assert_eq!(
+            got,
+            "{\"kind\":\"assign\",\"name\":\"x\",\"expr\":{\"kind\":\"bin\",\"op\":\"+\",\"left\":{\"kind\":\"var\",\"name\":\"x\"},\"right\":{\"kind\":\"num\",\"value\":20}}}"
+        );
+    }
+
+    #[test]
+    fn json_vector_prog_fact_shape() {
+        let got = ast_json::test_vector("prog_fact").expect("known id").expect("in subset");
+        assert!(got.starts_with("{\"fns\":[{\"name\":\"fact\",\"params\":[\"n\"]"));
+        assert!(got.ends_with("\"main\":[{\"kind\":\"return\",\"expr\":{\"kind\":\"call\",\"name\":\"fact\",\"args\":[{\"kind\":\"num\",\"value\":5}]}}]}"));
+    }
+
+    #[test]
+    fn json_unknown_id_is_none() {
+        assert!(ast_json::test_vector("no_such_id").is_none());
     }
 }
