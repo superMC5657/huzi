@@ -276,6 +276,95 @@ fn lex_char(src: str, from: i32, from_line: i32, from_col: i32, kinds: vec<str>,
     return (true, i, from_line, col)
 }
 
+/// 标识符/关键字分支(假定 is_ident_start(c));自 lex() 按分支提炼，逐行原样搬移。
+/// 推进 i/col 并推入 kw/ident；返回 (i, col)。
+fn lex_ident_token(src: str, from: i32, from_col: i32, line: i32, start_col: i32, kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (i32, i32) {
+    let mut i = from
+    let mut col = from_col
+    let n = len(src)
+    let start = i
+    while i < n && is_ident_cont(src[i]) {
+        let mut step = utf8_seq_len(src[i])
+        if i + step > n {
+            step = n - i
+        }
+        i = i + step
+        col = col + 1
+    }
+    let name = substring(src, start, i)
+    push(kinds, if is_kw(name) { "kw" } else { "ident" })
+    push(texts, name)
+    push(lines, line)
+    push(cols, start_col)
+    return (i, col)
+}
+
+/// 数字分支(假定 is_digit(c));自 lex() 按分支提炼，逐行原样搬移。
+/// 含 prev_was_dot 语义(!prev_dot 才吞 `.数字`)；返回 (i, col)。
+fn lex_number_token(src: str, from: i32, from_col: i32, line: i32, start_col: i32, prev_dot: bool, kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (i32, i32) {
+    let mut i = from
+    let mut col = from_col
+    let n = len(src)
+    let start = i
+    let mut is_float = false
+    while i < n && is_digit(src[i]) {
+        i = i + 1
+        col = col + 1
+    }
+    if i + 1 < n && !prev_dot && src[i] == 46 && src[i + 1] != 46 && is_digit(src[i + 1]) {
+        is_float = true
+        i = i + 1
+        col = col + 1
+        while i < n && is_digit(src[i]) {
+            i = i + 1
+            col = col + 1
+        }
+    }
+    push(kinds, if is_float { "float" } else { "int" })
+    push(texts, substring(src, start, i))
+    push(lines, line)
+    push(cols, start_col)
+    return (i, col)
+}
+
+/// 标点分支(其余字符);自 lex() 按分支提炼，逐行原样搬移。
+/// 返回 (ok, i, col, prev_dot):双字符 punct 吞 2 列，单字符 punct 吞 1 列(`.` 置 prev_dot)，否则 ok=false。
+fn lex_punct_token(src: str, from: i32, from_col: i32, c: i32, line: i32, start_col: i32, kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, i32, i32, bool) {
+    let mut i = from
+    let mut col = from_col
+    let mut ok = true
+    let mut prev_dot = false
+    let n = len(src)
+    let mut two = ""
+    if i + 1 < n {
+        two = substring(src, i, i + 2)
+    }
+    if two == "==" || two == "!=" || two == "<=" || two == ">=" || two == "&&" || two == "||" || two == "->" || two == "=>" || two == "::" || two == ".." || two == "+=" || two == "-=" || two == "*=" || two == "/=" || two == "%=" {
+        push(kinds, "punct")
+        push(texts, two)
+        push(lines, line)
+        push(cols, start_col)
+        i = i + 2
+        col = col + 2
+        prev_dot = false
+    } elif c == 40 || c == 41 || c == 123 || c == 125 || c == 91 || c == 93 || c == 44 || c == 58 || c == 59 || c == 46 || c == 43 || c == 45 || c == 42 || c == 47 || c == 37 || c == 61 || c == 60 || c == 62 || c == 33 || c == 38 || c == 124 || c == 63 {
+        push(kinds, "punct")
+        push(texts, substring(src, i, i + 1))
+        push(lines, line)
+        push(cols, start_col)
+        i = i + 1
+        col = col + 1
+        if c == 46 {
+            prev_dot = true
+        } else {
+            prev_dot = false
+        }
+    } else {
+        ok = false
+    }
+    return (ok, i, col, prev_dot)
+}
+
 fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
     let mut kinds = vec<str>()
     let mut texts = vec<str>()
@@ -307,41 +396,14 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
             col = r.3 + 1
             prev_dot = false
         } elif is_ident_start(c) {
-            let start = i
-            while i < n && is_ident_cont(src[i]) {
-                let mut step = utf8_seq_len(src[i])
-                if i + step > n {
-                    step = n - i
-                }
-                i = i + step
-                col = col + 1
-            }
-            let name = substring(src, start, i)
-            push(kinds, if is_kw(name) { "kw" } else { "ident" })
-            push(texts, name)
-            push(lines, line)
-            push(cols, start_col)
+            let r = lex_ident_token(src, i, col, line, start_col, kinds, texts, lines, cols)
+            i = r.0
+            col = r.1
             prev_dot = false
         } elif is_digit(c) {
-            let start = i
-            let mut is_float = false
-            while i < n && is_digit(src[i]) {
-                i = i + 1
-                col = col + 1
-            }
-            if i + 1 < n && !prev_dot && src[i] == 46 && src[i + 1] != 46 && is_digit(src[i + 1]) {
-                is_float = true
-                i = i + 1
-                col = col + 1
-                while i < n && is_digit(src[i]) {
-                    i = i + 1
-                    col = col + 1
-                }
-            }
-            push(kinds, if is_float { "float" } else { "int" })
-            push(texts, substring(src, start, i))
-            push(lines, line)
-            push(cols, start_col)
+            let r = lex_number_token(src, i, col, line, start_col, prev_dot, kinds, texts, lines, cols)
+            i = r.0
+            col = r.1
             prev_dot = false
         } elif c == 34 {
             let r = lex_string(src, i, line, col, kinds, texts, lines, cols)
@@ -356,33 +418,11 @@ fn lex(src: str) -> (bool, vec<str>, vec<str>, vec<i32>, vec<i32>) {
             col = r.3
             prev_dot = false
         } else {
-            let mut two = ""
-            if i + 1 < n {
-                two = substring(src, i, i + 2)
-            }
-            if two == "==" || two == "!=" || two == "<=" || two == ">=" || two == "&&" || two == "||" || two == "->" || two == "=>" || two == "::" || two == ".." || two == "+=" || two == "-=" || two == "*=" || two == "/=" || two == "%=" {
-                push(kinds, "punct")
-                push(texts, two)
-                push(lines, line)
-                push(cols, start_col)
-                i = i + 2
-                col = col + 2
-                prev_dot = false
-            } elif c == 40 || c == 41 || c == 123 || c == 125 || c == 91 || c == 93 || c == 44 || c == 58 || c == 59 || c == 46 || c == 43 || c == 45 || c == 42 || c == 47 || c == 37 || c == 61 || c == 60 || c == 62 || c == 33 || c == 38 || c == 124 || c == 63 {
-                push(kinds, "punct")
-                push(texts, substring(src, i, i + 1))
-                push(lines, line)
-                push(cols, start_col)
-                i = i + 1
-                col = col + 1
-                if c == 46 {
-                    prev_dot = true
-                } else {
-                    prev_dot = false
-                }
-            } else {
-                ok = false
-            }
+            let r = lex_punct_token(src, i, col, c, line, start_col, kinds, texts, lines, cols)
+            ok = r.0
+            i = r.1
+            col = r.2
+            prev_dot = r.3
         }
     }
     if ok {
