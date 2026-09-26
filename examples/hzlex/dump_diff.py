@@ -7,9 +7,11 @@
 #   python examples/hzlex/dump_diff.py ./huzc/target/debug/huzc ./examples/hzlex/hzlex huzc/test/cases
 #   python examples/hzlex/dump_diff.py ./huzc/target/debug/huzc ./examples/hzlex/hzlex huzi-src
 #
-# 比较方法(冻结):huzc 输出 LF 行尾,hzlex 经 C 运行时输出 CRLF 行尾,
-#   故 huzc 侧按 b'\\n' 切分、hzlex 侧按 b'\\r\\n' 切分后逐行逐字节比较,
-#   不 strip 任何字节。
+# 比较方法(冻结):两侧统一按 b'\n' 切分(尾空行 pop 保留),二进制安全,不 strip 任何字节。
+#   判据:切后除末空外每一行都以 b'\r' 结尾即判 Windows-CRLF 模式,每行去一个尾部 b'\r'
+#   (内容 \r + \r\n 行尾则留一个 \r,内容无损);否则判 LF/混合模式,原样保留(含内容 \r)。
+#   此判据替代旧的 b'\r\n' in stdout 检测:后者在 dump 内容含 \r(如 csv/framing/http 协议 \r\n
+#   与 stringx_test 202 行 line1\r)+LF 行尾时误触发,把整文件按 \r\n 切成单行致幽灵 FAIL。
 #   警告:不要换成 `diff --strip-trailing-cr` 或 `sed 's/\\r$//'` —
 #   实测前者在部分 diff 构建下对含 CR 内容行比较不可靠(幽灵 FAIL),
 #   后者会吃掉文本尾部真正的 content-\\r,两者都曾把全绿误报成 40 FAIL。
@@ -22,6 +24,15 @@
 import os
 import subprocess
 import sys
+
+
+def split_lines(raw):
+    parts = raw.split(b'\n')
+    if parts and parts[-1] == b'':
+        parts.pop()
+    if parts and all(p.endswith(b'\r') for p in parts):
+        parts = [p[:-1] for p in parts]
+    return parts
 
 
 def main(argv):
@@ -57,12 +68,8 @@ def main(argv):
             print('FAIL(dump-hzlex): %s' % p)
             failed += 1
             continue
-        la = pa.stdout.split(b'\n')
-        if la and la[-1] == b'':
-            la.pop()
-        lb = pb.stdout.split(b'\r\n')
-        if lb and lb[-1] == b'':
-            lb.pop()
+        la = split_lines(pa.stdout)
+        lb = split_lines(pb.stdout)
         if la == lb:
             print('PASS: %s' % p)
             passed += 1
