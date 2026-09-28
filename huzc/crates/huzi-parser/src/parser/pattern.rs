@@ -1,6 +1,6 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use huzi_lexer::Token;
 
 impl Parser {
@@ -98,11 +98,7 @@ impl Parser {
                 self.advance();
                 Ok(Pattern::Literal(Literal::Char(c)))
             }
-            _ => Err(HuziError::new(
-                "Expected pattern (variant, literal, variable, or '_')",
-                self.current_line(),
-                self.current_col(),
-            )),
+            _ => Err(self.error("Expected pattern (variant, literal, variable, or '_')")),
         }
     }
 
@@ -120,11 +116,7 @@ impl Parser {
                 self.advance();
                 Ok(Pattern::Literal(Literal::Float(-f)))
             }
-            _ => Err(HuziError::new(
-                "Expected number after '-' in pattern",
-                self.current_line(),
-                self.current_col(),
-            )),
+            _ => Err(self.error("Expected number after '-' in pattern")),
         }
     }
 
@@ -134,17 +126,10 @@ impl Parser {
             return Ok(Vec::new());
         }
         self.advance();
-        let mut bindings = Vec::new();
-        if !self.check(&Token::RParen) {
-            loop {
-                bindings.push(self.expect_ident("Expected binding name in pattern")?);
-                if self.check(&Token::Comma) {
-                    self.advance();
-                } else {
-                    break;
-                }
-            }
-        }
+        let bindings =
+            self.parse_comma_separated(&Token::RParen, false, |p, _| {
+                p.expect_ident("Expected binding name in pattern")
+            })?;
         self.expect(&Token::RParen, "Expected ')' after pattern bindings")?;
         Ok(bindings)
     }

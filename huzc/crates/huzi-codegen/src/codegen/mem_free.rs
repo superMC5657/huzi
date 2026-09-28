@@ -23,15 +23,7 @@ use inkwell::values::{BasicValueEnum, PointerValue};
 impl<'ctx> CodeGen<'ctx> {
     /// 取变量名(首参必须为变量),并校验可变性(回写槽位需 `let mut`)。
     fn free_var_slot(&self, fname: &str, first: &Expr) -> Result<(String, VarSlot<'ctx>)> {
-        let name = match first {
-            Expr::Ident(name) => name.clone(),
-            _ => {
-                return Err(HuziError::new_global(format!(
-                    "{}() argument must be a variable",
-                    fname
-                )))
-            }
-        };
+        let name = self.first_var_name(fname, first, "argument must be a variable")?;
         let slot = self
             .scope_lookup(&name)
             .ok_or_else(|| self.unknown_variable_error(&name))?;
@@ -59,9 +51,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("free_str() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("free_str", arguments, 1)?;
         let (_, slot) = self.free_var_slot("free_str", &arguments[0])?;
         if !slot.ty.is_pointer_type() || slot.box_inner.is_some() || slot.array_len.is_some() {
             return Err(HuziError::new_global(
@@ -108,9 +98,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("free_vec() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("free_vec", arguments, 1)?;
         let (_, slot) = self.free_var_slot("free_vec", &arguments[0])?;
         if !Self::is_vec_slot(&slot) {
             return Err(HuziError::new_global(
@@ -135,9 +123,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("free_box() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("free_box", arguments, 1)?;
         let (_, slot) = self.free_var_slot("free_box", &arguments[0])?;
         if !Self::is_box_slot(&slot) {
             return Err(HuziError::new_global(

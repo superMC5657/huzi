@@ -12,29 +12,21 @@
 use super::vec::VecParts;
 use super::{CodeGen, VarSlot};
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 impl<'ctx> CodeGen<'ctx> {
     /// 取增删操作的首个 vec 变量槽(非 vec 或不可变时报友好错误)。
     fn vec_op_slot(&mut self, fname: &str, first: &Expr) -> Result<VarSlot<'ctx>> {
-        let name = match first {
-            Expr::Ident(name) => name.clone(),
-            _ => {
-                return Err(HuziError::new_global(format!(
-                    "{}() first argument must be a vec variable",
-                    fname
-                )))
-            }
-        };
+        let name = self.first_var_name(fname, first, "first argument must be a vec variable")?;
         let slot = self.vec_slot_of(&name)?;
         self.ensure_mutable(first)?;
         Ok(slot)
     }
 
     /// 满时翻倍扩容(空 vec 首扩 4),返回重载后的 parts(调用方必须用它,
-    /// data 可能已被 realloc 搬移)。与 `compile_vec_push` 的 grow 逻辑一致。
-    fn ensure_vec_capacity(
+    /// data 可能已被 realloc 搬移)。供 `insert` 与 `push` 复用。
+    pub(super) fn ensure_vec_capacity(
         &mut self,
         slot: &VarSlot<'ctx>,
         parts: &VecParts<'ctx>,
@@ -183,9 +175,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("pop() requires exactly 1 argument (vec)"));
-        }
+        self.expect_arg_count("pop", arguments, 1)?;
         let slot = self.vec_op_slot("pop", &arguments[0])?;
         let elem_type = slot.elem.unwrap();
         let parts = self.load_vec_parts(&slot)?;
@@ -223,9 +213,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global("remove() requires exactly 2 arguments (vec, index)"));
-        }
+        self.expect_arg_count("remove", arguments, 2)?;
         let slot = self.vec_op_slot("remove", &arguments[0])?;
         let elem_type = slot.elem.unwrap();
         let parts = self.load_vec_parts(&slot)?;
@@ -258,11 +246,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 3 {
-            return Err(HuziError::new_global(
-                "insert() requires exactly 3 arguments (vec, index, value)",
-            ));
-        }
+        self.expect_arg_count("insert", arguments, 3)?;
         let slot = self.vec_op_slot("insert", &arguments[0])?;
         let elem_type = slot.elem.unwrap();
         let index_val = self.compile_expr(&arguments[1])?;
@@ -301,9 +285,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("clear() requires exactly 1 argument (vec)"));
-        }
+        self.expect_arg_count("clear", arguments, 1)?;
         let slot = self.vec_op_slot("clear", &arguments[0])?;
         let parts = self.load_vec_parts(&slot)?;
         let vec_ty = self.vec_struct_type();

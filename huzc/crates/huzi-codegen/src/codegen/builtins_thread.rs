@@ -221,9 +221,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// 等待线程结束：`join(handle: i64) -> i32`
     pub(super) fn compile_join(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("join() requires 1 argument: (handle: i64)"));
-        }
+        self.expect_arg_count("join", arguments, 1)?;
 
         let handle_val = match self.compile_expr(&arguments[0])? {
             BasicValueEnum::IntValue(i) => i,

@@ -163,6 +163,23 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
+    /// 组装 `(valid: bool, val: T)` 元组值(值类型由 `val` 推导)。
+    /// 供 `parse_int`/`parse_float`/`env_get`/`map_get` 四处哨兵元组复用。
+    pub(super) fn emit_bool_tuple(
+        &mut self,
+        valid: inkwell::values::IntValue<'ctx>,
+        val: inkwell::values::BasicValueEnum<'ctx>,
+        tag: &str,
+    ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let tup_ty = self.context.struct_type(&[self.context.bool_type().into(), val.get_type()], false);
+        let tmp = self.build_alloca(tup_ty.into(), tag)?;
+        let f0 = self.builder.build_struct_gep(tup_ty, tmp, 0, "tup_f0").unwrap();
+        self.builder.build_store(f0, valid).unwrap();
+        let f1 = self.builder.build_struct_gep(tup_ty, tmp, 1, "tup_f1").unwrap();
+        self.builder.build_store(f1, val).unwrap();
+        Ok(self.builder.build_load(tup_ty, tmp, tag).unwrap())
+    }
+
     /// `let (a, b) = expr` / `let (mut a, (b, c)) = expr` 元组解构绑定。
     pub(super) fn compile_let_tuple_destructure(
         &mut self,

@@ -7,7 +7,7 @@
 //! 立即 `fclose`,不持有句柄,不改变 `read_file` 的既有语义。
 
 use huzi_ast::Expr;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use inkwell::values::{BasicValueEnum, PointerValue};
 
 use super::CodeGen;
@@ -18,12 +18,8 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "read_file_ok() requires exactly 1 argument (path)",
-            ));
-        }
-        let path = self.check_str_arg(&arguments[0], "read_file_ok")?;
+        self.expect_arg_count("read_file_ok", arguments, 1)?;
+        let path = self.compile_str_arg(&arguments[0], "read_file_ok")?;
         let exists = self.emit_file_probe(path, "rfo")?;
         Ok(exists.into())
     }
@@ -33,24 +29,9 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "read_file_err() requires exactly 1 argument (path)",
-            ));
-        }
-        let path = self.check_str_arg(&arguments[0], "read_file_err")?;
+        self.expect_arg_count("read_file_err", arguments, 1)?;
+        let path = self.compile_str_arg(&arguments[0], "read_file_err")?;
         Ok(self.emit_file_diag(path)?.into())
-    }
-
-    /// 编译一个求值为字符串(i8*)的参数。
-    fn check_str_arg(&mut self, expr: &Expr, name: &str) -> Result<PointerValue<'ctx>> {
-        match self.compile_expr(expr)? {
-            BasicValueEnum::PointerValue(p) => Ok(p),
-            _ => Err(HuziError::new_global(format!(
-                "{}() argument must be a string",
-                name
-            ))),
-        }
     }
 
     /// 探测文件是否可读:以 `rb` 打开,成功则关闭并返回 true(i1),
@@ -97,8 +78,9 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_unconditional_branch(done_bb).unwrap();
         self.builder.position_at_end(ok_bb);
         self.emit_fclose(file);
-        let empty = unsafe { self.builder.build_global_string("", "rfe_empty").unwrap() };
-        self.builder.build_store(result, empty.as_pointer_value()).unwrap();
+        // 成功返回共享空串(复用 `empty_str_ptr`)。
+        let empty = self.empty_str_ptr();
+        self.builder.build_store(result, empty).unwrap();
         self.builder.build_unconditional_branch(done_bb).unwrap();
         self.builder.position_at_end(done_bb);
         Ok(self.builder.build_load(ptr_ty, result, "diag_val").unwrap().into_pointer_value())

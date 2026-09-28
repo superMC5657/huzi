@@ -322,9 +322,7 @@ impl<'ctx> CodeGen<'ctx> {
         use inkwell::types::BasicTypeEnum as BTE;
         match llvm_ty {
             BTE::IntType(_) | BTE::FloatType(_) => true,
-            BTE::PointerType(_) => {
-                matches!(ast, Type::Str) || matches!(ast, Type::Named(n) if n == "str")
-            }
+            BTE::PointerType(_) => ast.is_str(),
             _ => false,
         }
     }

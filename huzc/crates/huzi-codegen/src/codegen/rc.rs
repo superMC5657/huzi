@@ -249,12 +249,7 @@ impl<'ctx> CodeGen<'ctx> {
         offset: i64,
         arguments: &[huzi_ast::Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(format!(
-                "{}() requires exactly 1 argument",
-                fname
-            )));
-        }
+        self.expect_arg_count(fname, arguments, 1)?;
         let arg_expr = &arguments[0];
         if !self.is_box_expr(arg_expr) && !Self::is_null_expr(arg_expr) {
             return Err(HuziError::new_global(format!(

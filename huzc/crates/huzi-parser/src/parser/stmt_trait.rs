@@ -1,6 +1,6 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use huzi_lexer::Token;
 
 impl Parser {
@@ -87,14 +87,10 @@ impl Parser {
         } else if self.check(&Token::LBrace) {
             (None, first_ident)
         } else {
-            return Err(HuziError::new(
-                format!(
-                    "Expected 'for' or '{{' after '{}' in impl block",
-                    first_ident
-                ),
-                self.current_line(),
-                self.current_col(),
-            ));
+            return Err(self.error(format!(
+                "Expected 'for' or '{{' after '{}' in impl block",
+                first_ident
+            )));
         };
         self.expect(&Token::LBrace, "Expected '{' after target type in impl")?;
 

@@ -40,19 +40,7 @@ impl<'ctx> CodeGen<'ctx> {
     /// Box 最内层 AST 的规范名:结构体名原样,标量归一到
     /// `i32`/`i64`/`f64`/`bool`/`str` 等;其余返回 None。
     pub(super) fn canonical_leaf_name(ty: &Type) -> Option<String> {
-        match ty {
-            Type::I32 => Some("i32".to_string()),
-            Type::U32 => Some("u32".to_string()),
-            Type::I64 => Some("i64".to_string()),
-            Type::U64 => Some("u64".to_string()),
-            Type::F32 => Some("f32".to_string()),
-            Type::F64 => Some("f64".to_string()),
-            Type::Bool => Some("bool".to_string()),
-            Type::Char => Some("char".to_string()),
-            Type::Str => Some("str".to_string()),
-            Type::Named(n) => Some(n.clone()),
-            _ => None,
-        }
+        ty.canonical_name().map(|n| n.to_string())
     }
 
     /// 嵌套 Box 类型的展示(`(2, "Node")` -> `Box<Box<Node>>`)。

@@ -7,7 +7,7 @@
 
 use super::CodeGen;
 use huzi_ast::Expr;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use inkwell::AddressSpace;
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
@@ -35,13 +35,8 @@ impl<'ctx> CodeGen<'ctx> {
         let cur_p = self.builder.build_load(ptr_t, cur_ptr_alloca, "cur_p").unwrap().into_pointer_value();
         let c = self.builder.build_load(i8_t, cur_p, "char").unwrap().into_int_value();
 
-        let is_space = self.builder.build_int_compare(inkwell::IntPredicate::EQ, c, i8_t.const_int(32, false), "is_sp").unwrap();
-        let is_tab = self.builder.build_int_compare(inkwell::IntPredicate::EQ, c, i8_t.const_int(9, false), "is_tb").unwrap();
-        let is_cr = self.builder.build_int_compare(inkwell::IntPredicate::EQ, c, i8_t.const_int(13, false), "is_cr").unwrap();
-        let is_lf = self.builder.build_int_compare(inkwell::IntPredicate::EQ, c, i8_t.const_int(10, false), "is_lf").unwrap();
-        let is_ws1 = self.builder.build_or(is_space, is_tab, "ws1").unwrap();
-        let is_ws2 = self.builder.build_or(is_cr, is_lf, "ws2").unwrap();
-        let is_ws = self.builder.build_or(is_ws1, is_ws2, "is_ws").unwrap();
+        // 尾部空白判定复用 `is_space_byte`(空格/`\t`/`\n`/`\r`),与 trim 等一致。
+        let is_ws = self.is_space_byte(c);
 
         self.builder.build_conditional_branch(is_ws, check_body_bb, check_done_bb).unwrap();
 
@@ -62,18 +57,12 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("parse_int() requires exactly 1 argument (string)"));
-        }
-        let str_val = match self.compile_expr(&arguments[0])? {
-            BasicValueEnum::PointerValue(p) => p,
-            _ => return Err(HuziError::new_global("parse_int() argument must be a string")),
-        };
+        self.expect_arg_count("parse_int", arguments, 1)?;
+        let str_val = self.compile_str_arg(&arguments[0], "parse_int")?;
 
         let ptr_t = self.context.ptr_type(AddressSpace::default());
         let i32_t = self.context.i32_type();
         let i64_t = self.context.i64_type();
-        let bool_t = self.context.bool_type();
 
         let endptr_alloca = self.build_alloca(ptr_t.into(), "parse_int_endptr")?;
         let strtoll_fn = self.module.get_function("strtoll").unwrap();
@@ -110,14 +99,7 @@ impl<'ctx> CodeGen<'ctx> {
         let val_i32 = self.builder.build_int_cast(parsed_i64, i32_t, "val_i32").unwrap();
         let selected_val = self.builder.build_select(valid, val_i32, i32_t.const_int(0, false), "ret_val").unwrap().into_int_value();
 
-        let tup_ty = self.context.struct_type(&[bool_t.into(), i32_t.into()], false);
-        let tup_alloca = self.build_alloca(tup_ty.into(), "parse_int_tup")?;
-        let f0 = self.builder.build_struct_gep(tup_ty, tup_alloca, 0, "tup_f0").unwrap();
-        self.builder.build_store(f0, valid).unwrap();
-        let f1 = self.builder.build_struct_gep(tup_ty, tup_alloca, 1, "tup_f1").unwrap();
-        self.builder.build_store(f1, selected_val).unwrap();
-
-        Ok(self.builder.build_load(tup_ty, tup_alloca, "parse_int_res").unwrap())
+        self.emit_bool_tuple(valid, selected_val.into(), "parse_int_res")
     }
 
     /// `parse_float(s)`: 将字符串解析为 f64，返回 `(bool, f64)`。
@@ -125,18 +107,12 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("parse_float() requires exactly 1 argument (string)"));
-        }
-        let str_val = match self.compile_expr(&arguments[0])? {
-            BasicValueEnum::PointerValue(p) => p,
-            _ => return Err(HuziError::new_global("parse_float() argument must be a string")),
-        };
+        self.expect_arg_count("parse_float", arguments, 1)?;
+        let str_val = self.compile_str_arg(&arguments[0], "parse_float")?;
 
         let ptr_t = self.context.ptr_type(AddressSpace::default());
         let i64_t = self.context.i64_type();
         let f64_t = self.context.f64_type();
-        let bool_t = self.context.bool_type();
 
         let endptr_alloca = self.build_alloca(ptr_t.into(), "parse_float_endptr")?;
         let strtod_fn = self.module.get_function("strtod").unwrap();
@@ -172,13 +148,6 @@ impl<'ctx> CodeGen<'ctx> {
         let zero_f64 = f64_t.const_float(0.0);
         let selected_val = self.builder.build_select(valid, parsed_f64, zero_f64, "ret_val").unwrap().into_float_value();
 
-        let tup_ty = self.context.struct_type(&[bool_t.into(), f64_t.into()], false);
-        let tup_alloca = self.build_alloca(tup_ty.into(), "parse_float_tup")?;
-        let f0 = self.builder.build_struct_gep(tup_ty, tup_alloca, 0, "tup_f0").unwrap();
-        self.builder.build_store(f0, valid).unwrap();
-        let f1 = self.builder.build_struct_gep(tup_ty, tup_alloca, 1, "tup_f1").unwrap();
-        self.builder.build_store(f1, selected_val).unwrap();
-
-        Ok(self.builder.build_load(tup_ty, tup_alloca, "parse_float_res").unwrap())
+        self.emit_bool_tuple(valid, selected_val.into(), "parse_float_res")
     }
 }

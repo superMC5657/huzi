@@ -2,7 +2,7 @@
 
 use super::super::CodeGen;
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use inkwell::values::PointerValue;
 
 impl<'ctx> CodeGen<'ctx> {
@@ -11,10 +11,8 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("trim() requires exactly 1 argument"));
-        }
-        let s = self.str_ptr_arg(&arguments[0], "trim()")?;
+        self.expect_arg_count("trim", arguments, 1)?;
+        let s = self.compile_str_arg(&arguments[0], "trim")?;
         let s_len = self.str_len_of(s, "trim_len")?;
         let function = self.current_function()?;
         let lo = self.trim_left_bound(s, s_len, function)?;
@@ -99,13 +97,9 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global(
-                "contains() requires exactly 2 arguments (string, sub)",
-            ));
-        }
-        let s = self.str_ptr_arg(&arguments[0], "contains()")?;
-        let sub = self.str_ptr_arg(&arguments[1], "contains()")?;
+        self.expect_arg_count("contains", arguments, 2)?;
+        let s = self.compile_str_arg(&arguments[0], "contains")?;
+        let sub = self.compile_str_arg(&arguments[1], "contains")?;
         let s_len = self.str_len_of(s, "contains_slen")?;
         let sub_len = self.str_len_of(sub, "contains_sublen")?;
         self.emit_contains_loop(s, s_len, sub, sub_len)

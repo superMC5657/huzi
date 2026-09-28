@@ -12,11 +12,11 @@ impl<'ctx> CodeGen<'ctx> {
         result_ptr: PointerValue<'ctx>,
         end_block: inkwell::basic_block::BasicBlock<'ctx>,
     ) {
-        // 打开失败:返回空串。
+        // 打开失败:返回共享空串(复用 `empty_str_ptr`)。
         self.builder.position_at_end(fail_block);
-        let empty = unsafe { self.builder.build_global_string("", "huzi_empty_str").unwrap() };
+        let empty = self.empty_str_ptr();
         self.builder
-            .build_store(result_ptr, empty.as_pointer_value())
+            .build_store(result_ptr, empty)
             .unwrap();
         self.builder
             .build_unconditional_branch(end_block)

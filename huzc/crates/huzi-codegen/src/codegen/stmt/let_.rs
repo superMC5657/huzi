@@ -5,7 +5,6 @@ use super::{CodeGen, VarSlot};
 use super::qname;
 use crate::codegen::drop::DropKind;
 use inkwell::AddressSpace;
-use inkwell::types::BasicType;
 use huzi_ast::*;
 use huzi_error::{HuziError, Result};
 
@@ -39,30 +38,10 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `let name = [a, b, c]` — 构建定长数组并将其地址存入指针槽，
     /// 使得加载该变量时能够直接产生数组首地址。
+    /// 数组编译复用表达式的 `compile_array_literal_typed`(单次编译),
+    /// 此处仅负责指针槽包装。
     fn compile_let_array(&mut self, stmt: &LetStmt, elements: &[Expr], span: Span) -> Result<()> {
-        if elements.is_empty() {
-            return Err(HuziError::new_global("Empty array literal not supported"));
-        }
-
-        let mut values = Vec::with_capacity(elements.len());
-        for e in elements {
-            values.push(self.compile_expr(e)?);
-        }
-
-        let elem_type = values[0].get_type();
-        let array_type = elem_type.array_type(values.len() as u32);
-        let array_ptr = self.build_alloca(array_type.into(), &stmt.name)?;
-
-        for (i, val) in values.iter().enumerate() {
-            let val = self.coerce_value(elem_type, *val)?;
-            let index = self.context.i32_type().const_int(i as u64, false);
-            let elem_ptr = unsafe {
-                self.builder
-                    .build_gep(elem_type, array_ptr, &[index], "arr_elem")
-                    .unwrap()
-            };
-            self.builder.build_store(elem_ptr, val).unwrap();
-        }
+        let (array_ptr, elem_type) = self.compile_array_literal_typed(elements)?;
 
         let ptr_ty = self.context.ptr_type(AddressSpace::default());
         let slot_ptr = self.build_alloca(ptr_ty.into(), &format!("{}.ptr", stmt.name))?;
@@ -73,7 +52,7 @@ impl<'ctx> CodeGen<'ctx> {
                 ptr: slot_ptr,
                 ty: ptr_ty.into(),
                 elem: Some(elem_type),
-                array_len: Some(values.len() as u32),
+                array_len: Some(elements.len() as u32),
                 mutable: stmt.mutable,
                 box_inner: None,
                 map_kind: None,

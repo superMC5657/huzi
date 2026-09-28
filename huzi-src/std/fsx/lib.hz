@@ -1,4 +1,5 @@
 import alloc.stringx
+import std.path
 
 fn exists(path: str) -> bool {
     return read_file_ok(path)
@@ -23,51 +24,9 @@ fn write_lines(path: str, lines: vec<str>) -> bool {
 }
 
 fn path_join(base: str, sub: str) -> str {
-    if len(base) == 0 {
-        return sub
-    }
-    if len(sub) == 0 {
-        return base
-    }
-    let last = substring(base, len(base) - 1, len(base))
-    if last == "/" {
-        return concat(base, sub)
-    }
-    if last == "\\" {
-        return concat(base, sub)
-    }
-    return concat(base, "/", sub)
+    return path::path_join(base, sub)
 }
 
-fn ext_name(path: str) -> str {
-    let n = len(path)
-    if n == 0 {
-        return ""
-    }
-    let mut dot_idx = -1
-    let mut sep_idx = -1
-    let mut i = 0
-    while i < n {
-        let ch = substring(path, i, i + 1)
-        if ch == "." {
-            dot_idx = i
-        }
-        if ch == "/" {
-            sep_idx = i
-        }
-        if ch == "\\" {
-            sep_idx = i
-        }
-        i = i + 1
-    }
-    if dot_idx < 0 {
-        return ""
-    }
-    if dot_idx < sep_idx {
-        return ""
-    }
-    if dot_idx == n - 1 {
-        return ""
-    }
-    return substring(path, dot_idx + 1, n)
+fn ext_name(p: str) -> str {
+    return path::ext(p)
 }

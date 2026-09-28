@@ -4,10 +4,6 @@ fn is_sep(ch: str) -> bool {
     return ch == "/" || ch == "\\"
 }
 
-fn path_is_sep(ch: str) -> bool {
-    return is_sep(ch)
-}
-
 fn is_abs(p: str) -> bool {
     let n = len(p)
     if n == 0 {
@@ -31,10 +27,6 @@ fn is_abs(p: str) -> bool {
     return false
 }
 
-fn path_is_abs(p: str) -> bool {
-    return is_abs(p)
-}
-
 fn path_join(base: str, sub: str) -> str {
     if len(base) == 0 {
         return sub
@@ -50,10 +42,6 @@ fn path_join(base: str, sub: str) -> str {
         return concat(base, sub)
     }
     return concat(base, "/", sub)
-}
-
-fn combine(base: str, sub: str) -> str {
-    return path_join(base, sub)
 }
 
 fn base(p: str) -> str {
@@ -89,10 +77,6 @@ fn base(p: str) -> str {
         return trimmed
     }
     return substring(trimmed, last_sep + 1, n)
-}
-
-fn path_base(p: str) -> str {
-    return base(p)
 }
 
 fn dir(p: str) -> str {
@@ -137,10 +121,6 @@ fn dir(p: str) -> str {
         return substring(trimmed, 0, 3)
     }
     return substring(trimmed, 0, last_sep)
-}
-
-fn path_dir(p: str) -> str {
-    return dir(p)
 }
 
 fn ext(p: str) -> str {

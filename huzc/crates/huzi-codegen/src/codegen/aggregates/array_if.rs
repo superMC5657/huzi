@@ -89,6 +89,16 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         elements: &[Expr],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
+        let (ptr, _) = self.compile_array_literal_typed(elements)?;
+        Ok(ptr.into())
+    }
+
+    /// 数组字面量(含元素类型):编译各元素、栈上分配定长数组并逐一存入,
+    /// 返回(数组指针, 元素类型)。供表达式值与 `let` 存槽复用,避免双重编译。
+    pub(in crate::codegen) fn compile_array_literal_typed(
+        &mut self,
+        elements: &[Expr],
+    ) -> Result<(inkwell::values::PointerValue<'ctx>, inkwell::types::BasicTypeEnum<'ctx>)> {
         if elements.is_empty() {
             return Err(HuziError::new_global("Empty array literal not supported"));
         }
@@ -121,7 +131,7 @@ impl<'ctx> CodeGen<'ctx> {
             self.builder.build_store(elem_ptr, val).unwrap();
         }
 
-        Ok(array_ptr.into())
+        Ok((array_ptr, elem_type))
     }
 
     pub(in crate::codegen) fn compile_if_expr(

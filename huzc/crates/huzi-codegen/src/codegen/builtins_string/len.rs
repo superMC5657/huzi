@@ -6,9 +6,7 @@ use huzi_error::{HuziError, Result};
 
 impl<'ctx> CodeGen<'ctx> {
     pub(in crate::codegen) fn compile_len(&mut self, arguments: &[Expr]) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("len() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("len", arguments, 1)?;
 
         // 对数组变量调用 len(arr) 返回跟踪的数组长度；
         // 字符串则使用 strlen。

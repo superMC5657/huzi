@@ -81,9 +81,7 @@ impl<'ctx> CodeGen<'ctx> {
     /// `arg(i) -> str`：第 i 个命令行参数；当索引为负或越界时返回空字符串。
     /// 返回的指针为 argv 存储空间的别名，不进行深拷贝。
     pub(super) fn compile_arg(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("arg() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("arg", arguments, 1)?;
         let idx_value = self.compile_expr(&arguments[0])?;
         let i32_type = self.context.i32_type();
         let idx = match idx_value {
@@ -153,9 +151,7 @@ impl<'ctx> CodeGen<'ctx> {
     /// `arg_ok(i) -> bool`：索引 `i` 是否指向有效的 argv 项（`0 <= i < arg_count()`）。
     /// 可在调用 `arg(i)` 前探测，而无需通过是否为空字符串来猜测。
     pub(super) fn compile_arg_ok(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("arg_ok() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("arg_ok", arguments, 1)?;
         let idx = self.coerce_arg_index(&arguments[0])?;
         Ok(self.arg_idx_in_range(idx)?.into())
     }

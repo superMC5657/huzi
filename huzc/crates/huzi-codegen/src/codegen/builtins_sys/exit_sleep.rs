@@ -2,7 +2,7 @@
 
 use super::super::CodeGen;
 use huzi_ast::Expr;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> CodeGen<'ctx> {
@@ -20,13 +20,8 @@ impl<'ctx> CodeGen<'ctx> {
     /// 1 终止进程。除零/越界等检查共用同一 `emit_runtime_check` 路径。
     /// 表达式位置返回整数 0(运行时不可达,仅为兼容表达式位置)。
     pub(in crate::codegen) fn compile_panic(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("panic() requires exactly 1 argument (message)"));
-        }
-        let msg = match self.compile_expr(&arguments[0])? {
-            BasicValueEnum::PointerValue(p) => p,
-            _ => return Err(HuziError::new_global("panic() argument must be a string")),
-        };
+        self.expect_arg_count("panic", arguments, 1)?;
+        let msg = self.compile_str_arg(&arguments[0], "panic")?;
         let never = self.context.bool_type().const_int(0, false);
         self.emit_runtime_check(never, "Runtime error: %s\n\0", &[msg.into()])?;
         Ok(self.context.i32_type().const_int(0, false).into())

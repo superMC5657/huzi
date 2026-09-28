@@ -81,6 +81,41 @@ impl fmt::Display for Type {
 }
 
 impl Type {
+    /// 标量/具名叶类型的规范名:`i32`/`u32`/`i64`/`u64`/`f32`/`f64`/
+    /// `bool`/`str`/`char` 或具名结构体名原样;复合(`Box`/`Array`/
+    /// `Tuple`/`Applied`/`Fn`/`Weak`/`Generic`)返回 `None`。
+    /// 归一含 parser 产物:`Named("str")` 与 `Str` 等价,以此类推。
+    pub fn canonical_name(&self) -> Option<&str> {
+        match self {
+            Type::I32 => Some("i32"),
+            Type::U32 => Some("u32"),
+            Type::I64 => Some("i64"),
+            Type::U64 => Some("u64"),
+            Type::F32 => Some("f32"),
+            Type::F64 => Some("f64"),
+            Type::Bool => Some("bool"),
+            Type::Char => Some("char"),
+            Type::Str => Some("str"),
+            Type::Named(n) => Some(n.as_str()),
+            _ => None,
+        }
+    }
+
+    /// 是否为 `str`(含 `Named("str")`);纯查询,无副作用。
+    pub fn is_str(&self) -> bool {
+        self.canonical_name() == Some("str")
+    }
+
+    /// 是否为 32 位整数(含 `u32`,沿用 map 特化的旧语义);纯查询。
+    pub fn is_i32(&self) -> bool {
+        matches!(self.canonical_name(), Some("i32" | "u32"))
+    }
+
+    /// 是否为 `bool`(含 `Named("bool")`);纯查询。
+    pub fn is_bool(&self) -> bool {
+        self.canonical_name() == Some("bool")
+    }
+
     /// 将类型树中出现的 `Self` 替换为具体的类型名。
     pub fn substitute_self(&self, target: &str) -> Type {
         match self {

@@ -283,7 +283,7 @@ impl Parser {
             self.advance();
             Ok(())
         } else {
-            Err(HuziError::new(msg, self.current_line(), self.current_col()))
+            Err(self.error(msg))
         }
     }
 
@@ -293,7 +293,7 @@ impl Parser {
             self.advance();
             Ok(name)
         } else {
-            Err(HuziError::new(msg, self.current_line(), self.current_col()))
+            Err(self.error(msg))
         }
     }
 
@@ -303,8 +303,50 @@ impl Parser {
             self.advance();
             Ok(n)
         } else {
-            Err(HuziError::new(msg, self.current_line(), self.current_col()))
+            Err(self.error(msg))
         }
+    }
+
+    /// 统一错误构造:当前位置的 `HuziError`(收敛全部
+    /// `HuziError::new(msg, self.current_line(), self.current_col())` 调用点)。
+    pub(super) fn error(&self, msg: impl Into<String>) -> HuziError {
+        HuziError::new(msg, self.current_line(), self.current_col())
+    }
+
+    /// 逗号分隔列表(纯搬移合拢,语义与原循环逐一对应)。
+    /// `allow_trailing == true` 对应
+    /// `while !check(end) && !is_at_end() { item; if Comma { advance } else { break } }`
+    /// (类型形参/结构体字段/枚举变体/类型实参/元组模式:允许尾逗号);
+    /// `false` 对应 `if !check(end) { item; while Comma { advance; item } }`
+    /// (元组类型/函数类型/变体负载/模式绑定:尾逗号触发与原来相同的 item 解析报错)。
+    /// `parse_item` 可通过 `prev` 查看已解析项(如类型形参重名检查)。
+    pub(super) fn parse_comma_separated<T>(
+        &mut self,
+        end: &Token,
+        allow_trailing: bool,
+        mut parse_item: impl FnMut(&mut Self, &[T]) -> Result<T>,
+    ) -> Result<Vec<T>> {
+        let mut items = Vec::new();
+        if !allow_trailing {
+            if self.check(end) {
+                return Ok(items);
+            }
+            items.push(parse_item(self, &items)?);
+            while self.check(&Token::Comma) {
+                self.advance();
+                items.push(parse_item(self, &items)?);
+            }
+            return Ok(items);
+        }
+        while !self.check(end) && !self.is_at_end() {
+            items.push(parse_item(self, &items)?);
+            if self.check(&Token::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        Ok(items)
     }
 
     fn is_at_end(&self) -> bool {

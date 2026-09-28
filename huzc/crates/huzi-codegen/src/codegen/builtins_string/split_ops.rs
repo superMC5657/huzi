@@ -52,13 +52,9 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global(
-                "split() requires exactly 2 arguments (string, delimiter)",
-            ));
-        }
-        let s = self.str_ptr_arg(&arguments[0], "split()")?;
-        let d = self.str_ptr_arg(&arguments[1], "split()")?;
+        self.expect_arg_count("split", arguments, 2)?;
+        let s = self.compile_str_arg(&arguments[0], "split")?;
+        let d = self.compile_str_arg(&arguments[1], "split")?;
         let s_len = self.str_len_of(s, "split_slen")?;
         let d_len = self.str_len_of(d, "split_dlen")?;
         let i32_type = self.context.i32_type();
@@ -97,12 +93,8 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 3 {
-            return Err(HuziError::new_global(
-                "substring() requires exactly 3 arguments (string, start, end)",
-            ));
-        }
-        let s = self.str_ptr_arg(&arguments[0], "substring()")?;
+        self.expect_arg_count("substring", arguments, 3)?;
+        let s = self.compile_str_arg(&arguments[0], "substring")?;
         let start_expr = self.compile_expr(&arguments[1])?;
         let start = self.coerce_index(start_expr)?;
         let end_expr = self.compile_expr(&arguments[2])?;

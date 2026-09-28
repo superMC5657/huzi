@@ -12,7 +12,7 @@ mod lock;
 mod mem;
 
 use huzi_ast::Expr;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use inkwell::values::BasicValueEnum;
 
 use super::CodeGen;
@@ -30,11 +30,7 @@ const CHAN_MAX_CAP: i64 = 4096;
 impl<'ctx> CodeGen<'ctx> {
     /// 创建通道：`chan_new(cap: i32) -> i64`
     pub(super) fn compile_chan_new(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "chan_new() requires 1 argument: (cap: i32)",
-            ));
-        }
+        self.expect_arg_count("chan_new", arguments, 1)?;
         let cap_raw = self.i32_builtin_arg(arguments, "chan_new")?;
         let cap = self.clamp_chan_cap(cap_raw)?;
 
@@ -81,13 +77,9 @@ impl<'ctx> CodeGen<'ctx> {
     /// `chan_send(ch: i64, msg: str) -> bool`:缓冲满时阻塞直至有空间;
     /// 句柄为 null 返回 false。
     pub(super) fn compile_chan_send(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global(
-                "chan_send() requires 2 arguments: (ch: i64, msg: str)",
-            ));
-        }
+        self.expect_arg_count("chan_send", arguments, 2)?;
         let chan_ptr = self.chan_handle_ptr(&arguments[0])?;
-        let msg = self.str_ptr_arg(&arguments[1], "chan_send()")?;
+        let msg = self.compile_str_arg(&arguments[1], "chan_send")?;
 
         let strcpy_fn = self.module.get_function("strcpy").unwrap();
         let function = self.current_function()?;
@@ -168,11 +160,7 @@ impl<'ctx> CodeGen<'ctx> {
     /// `chan_recv(ch: i64) -> str`:缓冲空时阻塞直至有消息;句柄为 null
     /// 返回空串。消息所有权移交接收方。
     pub(super) fn compile_chan_recv(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "chan_recv() requires 1 argument: (ch: i64)",
-            ));
-        }
+        self.expect_arg_count("chan_recv", arguments, 1)?;
         let chan_ptr = self.chan_handle_ptr(&arguments[0])?;
 
         let function = self.current_function()?;

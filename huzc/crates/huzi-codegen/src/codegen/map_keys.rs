@@ -60,11 +60,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<(BasicValueEnum<'ctx>, BasicTypeEnum<'ctx>)> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "map_keys() requires exactly 1 argument (map)",
-            ));
-        }
+        self.expect_arg_count("map_keys", arguments, 1)?;
         let (parts, kind) = self.resolve_map_parts_typed("map_keys", &arguments[0])?;
         let key_ty = self.map_key_llvm(kind);
         let i32_t = self.context.i32_type();

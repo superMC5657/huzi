@@ -42,18 +42,9 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.position_at_end(entry);
         let struct_ptr = function.get_nth_param(0).unwrap().into_pointer_value();
         self.emit_printf_text(&format!("{} {{", struct_name))?;
-        for (i, info) in fields.iter().enumerate() {
-            if i > 0 {
-                self.emit_printf_text(", ")?;
-            }
-            self.emit_printf_text(&format!("{}: ", info.name))?;
-            let field_ptr = self.builder.build_struct_gep(def_st, struct_ptr, i as u32, "pfield").unwrap();
-            if Self::is_box_ast(&info.ast_ty) {
-                self.emit_box_field_print(field_ptr, info)?;
-            } else {
-                self.emit_field_print(field_ptr, info)?;
-            }
-        }
+        // Box 字段经 `emit_field_print` 内部分发判空递归,其余内联
+        // (按值嵌套无环,见 `check_type_cycles`,内联必终止)。
+        self.emit_struct_fields(def_st, struct_ptr, fields)?;
         self.emit_printf_text("}")?;
         self.builder.build_return(None).unwrap();
         if let Some(saved) = saved {

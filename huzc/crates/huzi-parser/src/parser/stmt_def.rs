@@ -1,6 +1,6 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use huzi_lexer::Token;
 
 impl Parser {
@@ -9,30 +9,16 @@ impl Parser {
             return Ok(Vec::new());
         }
         self.advance(); // consume '<'
-        let mut params = Vec::new();
         if self.check(&Token::Greater) {
-            return Err(HuziError::new(
-                "Expected type parameter name between '<' and '>'",
-                self.current_line(),
-                self.current_col(),
-            ));
+            return Err(self.error("Expected type parameter name between '<' and '>'"));
         }
-        while !self.check(&Token::Greater) && !self.is_at_end() {
-            let p = self.expect_ident("Expected type parameter name")?;
-            if params.contains(&p) {
-                return Err(HuziError::new(
-                    format!("Duplicate type parameter '{}'", p),
-                    self.current_line(),
-                    self.current_col(),
-                ));
+        let params = self.parse_comma_separated(&Token::Greater, true, |p, prev| {
+            let name = p.expect_ident("Expected type parameter name")?;
+            if prev.contains(&name) {
+                return Err(p.error(format!("Duplicate type parameter '{}'", name)));
             }
-            params.push(p);
-            if self.check(&Token::Comma) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
+            Ok(name)
+        })?;
         self.expect(&Token::Greater, "Expected '>' after type parameters")?;
         Ok(params)
     }
@@ -47,45 +33,32 @@ impl Parser {
 
         self.expect(&Token::LBrace, "Expected '{' after struct name")?;
 
-        let mut fields = Vec::new();
-        while !self.check(&Token::RBrace) && !self.is_at_end() {
-            let is_weak_prefix = if self.check(&Token::Weak) {
-                self.advance();
+        let fields = self.parse_comma_separated(&Token::RBrace, true, |p, _| {
+            let is_weak_prefix = if p.check(&Token::Weak) {
+                p.advance();
                 true
             } else {
                 false
             };
-            let field_name = self.expect_ident("Expected field name")?;
-
-            self.expect(&Token::Colon, "Expected ':' after field name")?;
-            let mut field_type = self.parse_type()?;
+            let field_name = p.expect_ident("Expected field name")?;
+            p.expect(&Token::Colon, "Expected ':' after field name")?;
+            let mut field_type = p.parse_type()?;
             if is_weak_prefix {
                 match field_type {
                     Type::Box(_) => field_type = Type::Weak(Box::new(field_type)),
                     _ => {
-                        return Err(HuziError::new(
-                            format!(
-                                "'weak' modifier can only be applied to 'Box<T>' (found '{}')",
-                                field_type
-                            ),
-                            self.current_line(),
-                            self.current_col(),
-                        ));
+                        return Err(p.error(format!(
+                            "'weak' modifier can only be applied to 'Box<T>' (found '{}')",
+                            field_type
+                        )));
                     }
                 }
             }
-
-            fields.push(StructField {
+            Ok(StructField {
                 name: field_name,
                 field_type,
-            });
-
-            if self.check(&Token::Comma) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
+            })
+        })?;
 
         self.expect(&Token::RBrace, "Expected '}' after struct fields")?;
         self.pop_type_params(num_params);
@@ -107,40 +80,22 @@ impl Parser {
 
         self.expect(&Token::LBrace, "Expected '{' after enum name")?;
 
-        let mut variants = Vec::new();
-        while !self.check(&Token::RBrace) && !self.is_at_end() {
-            let variant_name = self.expect_ident("Expected variant name")?;
-
-            let payloads = if self.check(&Token::LParen) {
-                self.advance();
-                let mut payloads = Vec::new();
-                if !self.check(&Token::RParen) {
-                    loop {
-                        payloads.push(self.parse_type()?);
-                        if self.check(&Token::Comma) {
-                            self.advance();
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                self.expect(&Token::RParen, "Expected ')' after variant payload types")?;
+        let variants = self.parse_comma_separated(&Token::RBrace, true, |p, _| {
+            let variant_name = p.expect_ident("Expected variant name")?;
+            let payloads = if p.check(&Token::LParen) {
+                p.advance();
+                let payloads =
+                    p.parse_comma_separated(&Token::RParen, false, |q, _| q.parse_type())?;
+                p.expect(&Token::RParen, "Expected ')' after variant payload types")?;
                 payloads
             } else {
                 Vec::new()
             };
-
-            variants.push(EnumVariant {
+            Ok(EnumVariant {
                 name: variant_name,
                 payloads,
-            });
-
-            if self.check(&Token::Comma) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
+            })
+        })?;
 
         self.expect(&Token::RBrace, "Expected '}' after enum variants")?;
         self.pop_type_params(num_params);

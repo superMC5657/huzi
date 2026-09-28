@@ -29,11 +29,7 @@ impl Parser {
                     template.push_str("}}");
                     i += 2;
                 } else {
-                    return Err(HuziError::new(
-                        "Unmatched '}' in format string; use '}}' to escape",
-                        self.current_line(),
-                        self.current_col(),
-                    ));
+                    return Err(self.error("Unmatched '}' in format string; use '}}' to escape"));
                 }
             } else {
                 template.push(chars[i]);

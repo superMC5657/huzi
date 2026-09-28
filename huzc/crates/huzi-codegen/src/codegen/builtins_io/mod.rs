@@ -21,11 +21,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "read_file() requires exactly 1 argument (path)",
-            ));
-        }
+        self.expect_arg_count("read_file", arguments, 1)?;
         let path = self.compile_str_arg(&arguments[0], "read_file")?;
 
         let fopen_fn = self.module.get_function("fopen").expect("fopen in prelude");
@@ -74,11 +70,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global(
-                "write_file() requires exactly 2 arguments (path, content)",
-            ));
-        }
+        self.expect_arg_count("write_file", arguments, 2)?;
         let path = self.compile_str_arg(&arguments[0], "write_file")?;
         let content = self.compile_str_arg(&arguments[1], "write_file")?;
 

@@ -1,6 +1,6 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use huzi_lexer::Token;
 
 impl Parser {
@@ -192,11 +192,7 @@ impl Parser {
         self.advance();
         if !self.check(&Token::RParen) {
             // `vec<T>(args)` 暂不支持:空 vec 必须无参(位置停在 `(` 处)。
-            return Err(HuziError::new(
-                "vec<T>() takes no arguments (empty vec has no elements)",
-                self.current_line(),
-                self.current_col(),
-            ));
+            return Err(self.error("vec<T>() takes no arguments (empty vec has no elements)"));
         }
         self.advance();
         Ok(Some(Expr::VecEmpty(elem_ty)))

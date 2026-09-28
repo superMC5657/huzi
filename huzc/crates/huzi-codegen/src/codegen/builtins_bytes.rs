@@ -16,11 +16,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "str_from_bytes() requires 1 argument: (bytes: vec<i32>)",
-            ));
-        }
+        self.expect_arg_count("str_from_bytes", arguments, 1)?;
         let vec_val = self.compile_expr(&arguments[0])?;
         if !vec_val.is_struct_value() {
             return Err(HuziError::new_global(

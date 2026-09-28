@@ -67,7 +67,36 @@ impl<'ctx> CodeGen<'ctx> {
                     self.collect_free_vars_expr(e, known, free_vars);
                 }
             }
-            _ => {}
+            // `match`:判别式用外层作用域;守卫/体用分支绑定扩展后的作用域。
+            Expr::Match(m) => {
+                self.collect_free_vars_expr(&m.scrutinee, known, free_vars);
+                for arm in &m.arms {
+                    let mut arm_known = known.clone();
+                    for b in match_pattern_bindings(&arm.pattern) {
+                        arm_known.insert(b.to_string());
+                    }
+                    if let Some(g) = &arm.guard {
+                        self.collect_free_vars_expr(g, &mut arm_known, free_vars);
+                    }
+                    self.collect_free_vars_block(&arm.body, &mut arm_known, free_vars);
+                }
+            }
+            // 其余(含 FieldAccess/StructLiteral/EnumConstruct/FString/Try/
+            // BoxAlloc):直系子表达式通用递归;叶节点产出空,行为不变。
+            other => {
+                for_each_child_expr(other, &mut |e| {
+                    self.collect_free_vars_expr(e, known, free_vars)
+                });
+            }
         }
+    }
+}
+
+/// `match` 臂模式绑定的局部名(分支体内视为已知,非自由变量)。
+fn match_pattern_bindings(pattern: &Pattern) -> Vec<&str> {
+    match pattern {
+        Pattern::Variant { bindings, .. } => bindings.iter().map(|s| s.as_str()).collect(),
+        Pattern::Variable(name) => vec![name.as_str()],
+        Pattern::Literal(_) | Pattern::Wildcard => Vec::new(),
     }
 }

@@ -1,6 +1,5 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::HuziError;
 use huzi_error::Result;
 use huzi_lexer::Token;
 
@@ -21,11 +20,10 @@ impl Parser {
             match &inner {
                 Type::Box(_) => return Ok(Type::Weak(Box::new(inner))),
                 _ => {
-                    return Err(HuziError::new(
-                        format!("'weak' modifier can only be applied to 'Box<T>' (found '{}')", inner),
-                        self.current_line(),
-                        self.current_col(),
-                    ));
+                    return Err(self.error(format!(
+                        "'weak' modifier can only be applied to 'Box<T>' (found '{}')",
+                        inner
+                    )));
                 }
             }
         }
@@ -47,11 +45,7 @@ impl Parser {
             self.advance();
             return Ok(Type::Unit);
         }
-        let mut elems = vec![self.parse_type()?];
-        while self.check(&Token::Comma) {
-            self.advance();
-            elems.push(self.parse_type()?);
-        }
+        let elems = self.parse_comma_separated(&Token::RParen, false, |p, _| p.parse_type())?;
         self.expect(&Token::RParen, "Expected ')' in tuple type")?;
         Ok(Type::Tuple(elems))
     }
@@ -60,14 +54,8 @@ impl Parser {
     fn parse_fn_type(&mut self) -> Result<Type> {
         self.advance(); // consume 'fn'
         self.expect(&Token::LParen, "Expected '(' after 'fn' in function type")?;
-        let mut param_types = Vec::new();
-        if !self.check(&Token::RParen) {
-            param_types.push(self.parse_type()?);
-            while self.check(&Token::Comma) {
-                self.advance();
-                param_types.push(self.parse_type()?);
-            }
-        }
+        let param_types =
+            self.parse_comma_separated(&Token::RParen, false, |p, _| p.parse_type())?;
         self.expect(&Token::RParen, "Expected ')' in function type")?;
         let return_type = if self.check(&Token::Arrow) {
             self.advance();
@@ -100,11 +88,7 @@ impl Parser {
                     Ok(Type::Named(name))
                 }
             }
-            _ => Err(HuziError::new(
-                "Expected type",
-                self.current_line(),
-                self.current_col(),
-            )),
+            _ => Err(self.error("Expected type")),
         }
     }
 
@@ -117,11 +101,10 @@ impl Parser {
         match &inner {
             Type::Named(_) | Type::Box(_) | Type::Generic(_) | Type::Applied(..) => {}
             _ => {
-                return Err(HuziError::new(
-                    format!("Box<T> requires a named struct type (found '{}')", inner),
-                    self.current_line(),
-                    self.current_col(),
-                ))
+                return Err(self.error(format!(
+                    "Box<T> requires a named struct type (found '{}')",
+                    inner
+                )))
             }
         }
         self.expect(&Token::Greater, "Expected '>' in Box<T>")?;
@@ -131,22 +114,13 @@ impl Parser {
     /// 解析具名类型后的 `<T1, T2, ...>` 参数化类型(如 `Stack<i32>`, `vec<i32>`)。
     fn parse_applied_type(&mut self, name: String) -> Result<Type> {
         self.advance(); // consume '<'
-        let mut args = Vec::new();
-        while !self.check(&Token::Greater) && !self.is_at_end() {
-            args.push(self.parse_type()?);
-            if self.check(&Token::Comma) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
+        let args = self.parse_comma_separated(&Token::Greater, true, |p, _| p.parse_type())?;
         self.expect(&Token::Greater, "Expected '>' after type arguments")?;
         if args.is_empty() {
-            return Err(HuziError::new(
-                format!("Type '{}' requires at least one type argument", name),
-                self.current_line(),
-                self.current_col(),
-            ));
+            return Err(self.error(format!(
+                "Type '{}' requires at least one type argument",
+                name
+            )));
         }
         Ok(Type::Applied(name, args))
     }

@@ -1,6 +1,5 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::HuziError;
 use huzi_error::Result;
 use huzi_lexer::Token;
 
@@ -40,11 +39,7 @@ impl Parser {
                 Expr::Ident(_) | Expr::ArrayIndex(_) | Expr::FieldAccess(_) => expr,
                 Expr::Unary(u) if u.operator == UnOp::Deref => expr,
                 _ => {
-                    return Err(HuziError::new(
-                        "Invalid assignment target",
-                        self.current_line(),
-                        self.current_col(),
-                    ))
+                    return Err(self.error("Invalid assignment target"))
                 }
             };
             self.advance();

@@ -52,12 +52,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub(super) fn i32_builtin_arg(&mut self, arguments: &[Expr], name: &str) -> Result<IntValue<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(format!(
-                "{}() requires exactly 1 argument",
-                name
-            )));
-        }
+        self.expect_arg_count(name, arguments, 1)?;
         let value = self.compile_expr(&arguments[0])?;
         match self.coerce_value(self.context.i32_type().into(), value)? {
             BasicValueEnum::IntValue(iv) => Ok(iv),
@@ -66,5 +61,27 @@ impl<'ctx> CodeGen<'ctx> {
                 name
             ))),
         }
+    }
+
+    /// 校验内置函数实参个数;不符时报统一格式的错误。
+    /// 供各 `compile_*` 入口复用,替代散落的 `if arguments.len() != N`。
+    pub(super) fn expect_arg_count(
+        &self,
+        name: &str,
+        arguments: &[Expr],
+        expected: usize,
+    ) -> Result<()> {
+        if arguments.len() != expected {
+            let noun = if expected == 1 {
+                "1 argument".to_string()
+            } else {
+                format!("{} arguments", expected)
+            };
+            return Err(HuziError::new_global(format!(
+                "{}() requires exactly {}",
+                name, noun
+            )));
+        }
+        Ok(())
     }
 }

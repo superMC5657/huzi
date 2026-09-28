@@ -10,20 +10,10 @@
 mod split;
 
 use super::CodeGen;
-use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 
 impl<'ctx> CodeGen<'ctx> {
-    pub(super) fn str_ptr_arg(&mut self, expr: &Expr, what: &str) -> Result<PointerValue<'ctx>> {
-        let v = self.compile_expr(expr)?;
-        if v.is_pointer_value() {
-            Ok(v.into_pointer_value())
-        } else {
-            Err(HuziError::new_global(format!("{what} requires string arguments")))
-        }
-    }
-
     /// strlen 取字节长度(i32)。
     pub(super) fn str_len_of(
         &mut self,

@@ -11,11 +11,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global(
-                "tcp_recv() requires 2 arguments: (sock: i32, max_len: i32)",
-            ));
-        }
+        self.expect_arg_count("tcp_recv", arguments, 2)?;
         let sock_val = match self.compile_expr(&arguments[0])? {
             BasicValueEnum::IntValue(i) => i,
             _ => return Err(HuziError::new_global("tcp_recv() sock must be an integer")),

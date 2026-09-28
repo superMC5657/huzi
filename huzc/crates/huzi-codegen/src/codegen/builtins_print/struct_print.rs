@@ -21,6 +21,29 @@ impl<'ctx> CodeGen<'ctx> {
             .ok_or_else(|| HuziError::new_global("print() does not support this value type"))
     }
 
+    /// 结构体字段展开循环:`Name {k1: v1, ...}` 的 `, `分隔与 `k: `前缀、
+    /// 字段 GEP 与递归打印。供 `emit_struct_value`(栈值)与
+    /// `box_print` 的运行时打印机(堆指针)复用。
+    pub(in crate::codegen) fn emit_struct_fields(
+        &mut self,
+        def_st: inkwell::types::StructType<'ctx>,
+        base: PointerValue<'ctx>,
+        fields: &[StructFieldInfo<'ctx>],
+    ) -> Result<()> {
+        for (i, info) in fields.iter().enumerate() {
+            if i > 0 {
+                self.emit_printf_text(", ")?;
+            }
+            self.emit_printf_text(&format!("{}: ", info.name))?;
+            let field_ptr = self
+                .builder
+                .build_struct_gep(def_st, base, i as u32, "struct_print_field")
+                .unwrap();
+            self.emit_field_print(field_ptr, info)?;
+        }
+        Ok(())
+    }
+
     /// `Name {k1: v1, k2: v2}`:字段编译期展开,逐字段递归打印。
     pub(super) fn emit_struct_value(&mut self, value: BasicValueEnum<'ctx>) -> Result<()> {
         let ty = value.get_type();
@@ -32,17 +55,7 @@ impl<'ctx> CodeGen<'ctx> {
         let tmp = self.build_alloca(ty, "struct_print")?;
         self.builder.build_store(tmp, value).unwrap();
         self.emit_printf_text(&format!("{} {{", name))?;
-        for (i, info) in fields.iter().enumerate() {
-            if i > 0 {
-                self.emit_printf_text(", ")?;
-            }
-            self.emit_printf_text(&format!("{}: ", info.name))?;
-            let field_ptr = self
-                .builder
-                .build_struct_gep(def_st, tmp, i as u32, "struct_print_field")
-                .unwrap();
-            self.emit_field_print(field_ptr, info)?;
-        }
+        self.emit_struct_fields(def_st, tmp, &fields)?;
         self.emit_printf_text("}")?;
         Ok(())
     }

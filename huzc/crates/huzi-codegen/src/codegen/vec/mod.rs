@@ -36,6 +36,16 @@ impl<'ctx> CodeGen<'ctx> {
         slot.ty.is_struct_type() && slot.elem.is_some()
     }
 
+    /// 取容器操作首参的变量名(须为变量);`desc` 为去掉 `fname()` 前缀的
+    /// 期望描述(如 `"first argument must be a vec variable"`)。
+    /// 供 `push`/`vec_ops`/`map_first_slot`/`free_var_slot` 四处复用。
+    pub(super) fn first_var_name(&self, fname: &str, first: &Expr, desc: &str) -> Result<String> {
+        match first {
+            Expr::Ident(name) => Ok(name.clone()),
+            _ => Err(HuziError::new_global(format!("{}() {}", fname, desc))),
+        }
+    }
+
     /// 按名查找 vec 变量槽;非 vec 或未定义时报友好错误。
     pub(super) fn vec_slot_of(&self, name: &str) -> Result<VarSlot<'ctx>> {
         let slot = self

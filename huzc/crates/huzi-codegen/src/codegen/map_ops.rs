@@ -13,9 +13,7 @@ use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 impl<'ctx> CodeGen<'ctx> {
     /// `map_put(m, k, v)` — 需 `let mut`;存在则覆盖,不存在则插入。
     pub(super) fn compile_map_put(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 3 {
-            return Err(HuziError::new_global("map_put() requires exactly 3 arguments (map, key, value)"));
-        }
+        self.expect_arg_count("map_put", arguments, 3)?;
         let slot = self.map_first_slot("map_put", &arguments[0])?;
         self.ensure_mutable(&arguments[0])?;
         let kind = slot.map_kind.unwrap_or(MapKind::StrI32);
@@ -121,26 +119,18 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
-    /// 组装 `(found: bool, val)` 元组值(值类型按种类)。
+    /// 组装 `(found: bool, val)` 元组值(值类型按种类,经 `emit_bool_tuple` 复用)。
     fn map_found_tuple(
         &mut self,
         found: IntValue<'ctx>,
         val: BasicValueEnum<'ctx>,
     ) -> Result<BasicValueEnum<'ctx>> {
-        let tup = self.context.struct_type(&[self.context.bool_type().into(), val.get_type()], false);
-        let tmp = self.build_alloca(tup.into(), "get_tup")?;
-        let f0 = self.builder.build_struct_gep(tup, tmp, 0, "get_f0").unwrap();
-        self.builder.build_store(f0, found).unwrap();
-        let f1 = self.builder.build_struct_gep(tup, tmp, 1, "get_f1").unwrap();
-        self.builder.build_store(f1, val).unwrap();
-        Ok(self.builder.build_load(tup, tmp, "get_tv").unwrap())
+        self.emit_bool_tuple(found, val, "get_tv")
     }
 
     /// `map_get(m, k)` — 缺键返回 `(false, 零值)` 不 abort。
     pub(super) fn compile_map_get(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global("map_get() requires exactly 2 arguments (map, key)"));
-        }
+        self.expect_arg_count("map_get", arguments, 2)?;
         let (parts, kind) = self.resolve_map_parts_typed("map_get", &arguments[0])?;
         let key = self.compile_map_key(&arguments[1], kind, "map_get")?;
         let f = self.current_function()?;
@@ -194,9 +184,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `map_has(m, k)` — 存在返回 true(含空表 false)。
     pub(super) fn compile_map_has(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global("map_has() requires exactly 2 arguments (map, key)"));
-        }
+        self.expect_arg_count("map_has", arguments, 2)?;
         let (parts, kind) = self.resolve_map_parts_typed("map_has", &arguments[0])?;
         let key = self.compile_map_key(&arguments[1], kind, "map_has")?;
         let i32_t = self.context.i32_type();
@@ -221,9 +209,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `map_remove(m, k)` — 需 `let mut`;命中置墓碑并 `len-1`。
     pub(super) fn compile_map_remove(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global("map_remove() requires exactly 2 arguments (map, key)"));
-        }
+        self.expect_arg_count("map_remove", arguments, 2)?;
         let slot = self.map_first_slot("map_remove", &arguments[0])?;
         self.ensure_mutable(&arguments[0])?;
         let kind = slot.map_kind.unwrap_or(MapKind::StrI32);
@@ -279,9 +265,7 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `map_len(m)` — 已占条目数。
     pub(super) fn compile_map_len(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("map_len() requires exactly 1 argument (map)"));
-        }
+        self.expect_arg_count("map_len", arguments, 1)?;
         let (parts, _) = self.resolve_map_parts_typed("map_len", &arguments[0])?;
         Ok(parts.len.into())
     }

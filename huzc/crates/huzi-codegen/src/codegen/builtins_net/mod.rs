@@ -61,17 +61,10 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global(
-                "tcp_connect() requires 2 arguments: (host: str, port: i32)",
-            ));
-        }
+        self.expect_arg_count("tcp_connect", arguments, 2)?;
         self.ensure_wsa_startup();
 
-        let host_val = match self.compile_expr(&arguments[0])? {
-            BasicValueEnum::PointerValue(p) => p,
-            _ => return Err(HuziError::new_global("tcp_connect() host must be a string")),
-        };
+        let host_val = self.compile_str_arg(&arguments[0], "tcp_connect")?;
         let port_val = match self.compile_expr(&arguments[1])? {
             BasicValueEnum::IntValue(i) => i,
             _ => return Err(HuziError::new_global("tcp_connect() port must be an integer")),
@@ -223,19 +216,12 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global(
-                "tcp_send() requires 2 arguments: (sock: i32, data: str)",
-            ));
-        }
+        self.expect_arg_count("tcp_send", arguments, 2)?;
         let sock_val = match self.compile_expr(&arguments[0])? {
             BasicValueEnum::IntValue(i) => i,
             _ => return Err(HuziError::new_global("tcp_send() sock must be an integer")),
         };
-        let data_val = match self.compile_expr(&arguments[1])? {
-            BasicValueEnum::PointerValue(p) => p,
-            _ => return Err(HuziError::new_global("tcp_send() data must be a string")),
-        };
+        let data_val = self.compile_str_arg(&arguments[1], "tcp_send")?;
 
         let strlen_fn = self.module.get_function("strlen").unwrap();
         let len = self

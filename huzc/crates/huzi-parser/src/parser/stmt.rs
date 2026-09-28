@@ -1,6 +1,6 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::{HuziError, Result};
+use huzi_error::Result;
 use huzi_lexer::Token;
 
 impl Parser {
@@ -83,43 +83,31 @@ impl Parser {
     /// 解析元组解构模式：`(a, b)` / `(mut a, b)` / `(a, (b, c))`
     fn parse_tuple_pattern(&mut self, inherited_mut: bool) -> Result<Vec<LetPatternItem>> {
         self.expect(&Token::LParen, "Expected '(' for tuple pattern")?;
-        let mut items = Vec::new();
-        while !self.check(&Token::RParen) && !self.is_at_end() {
-            let item_mut = if self.check(&Token::Mut) {
-                self.advance();
+        let items = self.parse_comma_separated(&Token::RParen, true, |p, _| {
+            let item_mut = if p.check(&Token::Mut) {
+                p.advance();
                 true
             } else {
                 inherited_mut
             };
-            if self.check(&Token::LParen) {
-                let sub_items = self.parse_tuple_pattern(item_mut)?;
-                items.push(LetPatternItem::Tuple(sub_items));
+            if p.check(&Token::LParen) {
+                let sub_items = p.parse_tuple_pattern(item_mut)?;
+                Ok(LetPatternItem::Tuple(sub_items))
             } else {
-                let name = self.expect_ident("Expected variable name in tuple pattern")?;
-                items.push(LetPatternItem::Ident {
+                let name = p.expect_ident("Expected variable name in tuple pattern")?;
+                Ok(LetPatternItem::Ident {
                     name,
                     mutable: item_mut,
-                });
+                })
             }
-            if self.check(&Token::Comma) {
-                self.advance();
-            } else {
-                break;
-            }
-        }
+        })?;
         self.expect(&Token::RParen, "Expected ')' to close tuple pattern")?;
         Ok(items)
     }
 
     pub(super) fn parse_return_statement(&mut self) -> Result<Stmt> {
-        let line = self.current_line();
-        let col = self.current_col();
         if self.in_defer {
-            return Err(HuziError::new(
-                "return is not allowed inside defer",
-                line,
-                col,
-            ));
+            return Err(self.error("return is not allowed inside defer"));
         }
         self.advance();
 
@@ -133,21 +121,11 @@ impl Parser {
     }
 
     pub(super) fn parse_defer_statement(&mut self) -> Result<Stmt> {
-        let line = self.current_line();
-        let col = self.current_col();
         if !self.in_function {
-            return Err(HuziError::new(
-                "defer is only allowed inside a function",
-                line,
-                col,
-            ));
+            return Err(self.error("defer is only allowed inside a function"));
         }
         if self.in_defer {
-            return Err(HuziError::new(
-                "nested defer is not allowed",
-                line,
-                col,
-            ));
+            return Err(self.error("nested defer is not allowed"));
         }
         self.advance(); // 消费 'defer'
         self.in_defer = true;

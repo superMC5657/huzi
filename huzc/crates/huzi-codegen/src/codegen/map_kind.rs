@@ -12,13 +12,12 @@ use inkwell::values::{BasicValueEnum, IntValue, PointerValue};
 impl MapKind {
     /// 是否为 `str` 类型(含 parser 的 `Named("str")` 与 `Type::Str`)。
     fn is_str_ty(ty: &Type) -> bool {
-        matches!(ty, Type::Str) || matches!(ty, Type::Named(n) if n == "str")
+        ty.is_str()
     }
 
     /// 是否为 `i32` 类型(含 parser 的 `Named("i32")` 与 `Type::I32`)。
     fn is_i32_ty(ty: &Type) -> bool {
-        matches!(ty, Type::I32 | Type::U32)
-            || matches!(ty, Type::Named(n) if n == "i32" || n == "u32")
+        ty.is_i32()
     }
 
     /// 是否为 map 族名(`Map`/`HashMap`/`map`)。
@@ -72,7 +71,6 @@ impl MapKind {
     }
 }
 
-#[allow(dead_code)]
 impl<'ctx> CodeGen<'ctx> {
     /// 条目类型 `{ hash:i32, state:i32, key, klen:i32, val }`,键/值按种类切换。
     pub(super) fn map_entry_type_of(&self, kind: MapKind) -> inkwell::types::StructType<'ctx> {
@@ -103,31 +101,6 @@ impl<'ctx> CodeGen<'ctx> {
         } else {
             self.context.i32_type().into()
         }
-    }
-
-    /// 由表达式判定 map 种类:变量取槽标记,字段取 AST 声明,默认 `str->i32`。
-    pub(super) fn map_kind_of_expr(&self, expr: &Expr) -> Result<MapKind> {
-        if let Expr::Ident(name) = expr {
-            let slot = self.map_slot_of(name)?;
-            if let Some(k) = slot.map_kind {
-                return Ok(k);
-            }
-            return Ok(MapKind::StrI32);
-        }
-        if let Expr::FieldAccess(fa) = expr {
-            if let Some(ty) = self.field_ast_type(&fa.base, &fa.field) {
-                if let Some(k) = MapKind::from_ast(&ty) {
-                    return Ok(k);
-                }
-                return Err(HuziError::new_global(format!(
-                    "Unsupported Map type '{}'; expected Map, Map<str, str> or Map<i32, i32>",
-                    ty
-                )));
-            }
-        }
-        Err(HuziError::new_global(
-            "Map operation requires a HashMap variable or field (str->i32, str->str or i32->i32)",
-        ))
     }
 
     /// 编译键实参并按种类校验(`str` 须指针,`i32` 须 32 位整数)。

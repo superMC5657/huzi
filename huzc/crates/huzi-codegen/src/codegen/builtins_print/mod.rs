@@ -28,13 +28,14 @@ impl<'ctx> CodeGen<'ctx> {
         arguments: &[Expr],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
         if arguments.is_empty() {
-            let empty_str = unsafe { self.builder.build_global_string("", "empty_str").unwrap() };
+            // 空 `print()` 复用共享空串(与 `free_str` 安全态同一全局)。
+            let empty_str = self.empty_str_ptr();
             let printf_fn = self.module.get_function("printf").unwrap();
             let call = self
                 .builder
                 .build_call(
                     printf_fn,
-                    &[empty_str.as_pointer_value().into()],
+                    &[empty_str.into()],
                     "print_empty",
                 )
                 .unwrap();
@@ -174,6 +175,46 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(())
     }
 
+    /// 整型 printf 格式与 C 可变参数提升值:`char(i8)` 按 `%c` 并提为 i32,
+    /// `i64` 用 `%lld`(Windows LLP64 下 `%ld` 会截断),其余用 `%d`。
+    /// 供 `print` 格式化与 `to_string` 复用。
+    pub(in crate::codegen) fn int_printf_parts(
+        &mut self,
+        iv: IntValue<'ctx>,
+    ) -> (&'static str, BasicValueEnum<'ctx>) {
+        match iv.get_type().get_bit_width() {
+            8 => {
+                let c = self
+                    .builder
+                    .build_int_z_extend(iv, self.context.i32_type(), "char_promote")
+                    .unwrap();
+                ("%c", c.into())
+            }
+            64 => ("%lld", iv.into()),
+            _ => ("%d", iv.into()),
+        }
+    }
+
+    /// 浮点 printf 格式与提升值:`f32` 用 `%g`,`f64` 用 `%f`;
+    /// 可变参数将 float 提升为 double。供 `print` 格式化与 `to_string` 复用。
+    pub(in crate::codegen) fn float_printf_parts(
+        &mut self,
+        fv: FloatValue<'ctx>,
+    ) -> (&'static str, BasicValueEnum<'ctx>) {
+        let f64_val = if fv.get_type() == self.context.f64_type() {
+            fv
+        } else {
+            self.builder
+                .build_float_ext(fv, self.context.f64_type(), "f_promote")
+                .unwrap()
+        };
+        if fv.get_type() == self.context.f32_type() {
+            ("%g", f64_val.into())
+        } else {
+            ("%f", f64_val.into())
+        }
+    }
+
     /// 整型值的格式化:char(i8)按 `%c` 打印并提升为 i32,i64 用 `%lld`
     /// (Windows LLP64 下 `%ld` 会截断),其余整型用 `%d`。
     fn format_int_value(
@@ -182,27 +223,9 @@ impl<'ctx> CodeGen<'ctx> {
         format_string: &mut String,
         args: &mut Vec<BasicMetadataValueEnum<'ctx>>,
     ) -> Result<()> {
-        match iv.get_type().get_bit_width() {
-            8 => {
-                // char 按字符打印。
-                format_string.push_str("%c");
-                let c = self
-                    .builder
-                    .build_int_z_extend(iv, self.context.i32_type(), "char_promote")
-                    .unwrap();
-                args.push(c.into());
-            }
-            64 => {
-                // Windows 为 LLP64（long=32 位），%ld 会截断 i64；
-                // %lld（long long）在 Windows/Linux/macOS 均为 64 位。
-                format_string.push_str("%lld");
-                args.push(iv.into());
-            }
-            _ => {
-                format_string.push_str("%d");
-                args.push(iv.into());
-            }
-        }
+        let (spec, val) = self.int_printf_parts(iv);
+        format_string.push_str(spec);
+        args.push(val.into());
         Ok(())
     }
 
@@ -213,20 +236,9 @@ impl<'ctx> CodeGen<'ctx> {
         format_string: &mut String,
         args: &mut Vec<BasicMetadataValueEnum<'ctx>>,
     ) -> Result<()> {
-        // 可变参数将 float 提升为 double
-        let f64_val = if fv.get_type() == self.context.f64_type() {
-            fv
-        } else {
-            self.builder
-                .build_float_ext(fv, self.context.f64_type(), "f_promote")
-                .unwrap()
-        };
-        if fv.get_type() == self.context.f32_type() {
-            format_string.push_str("%g");
-        } else {
-            format_string.push_str("%f");
-        }
-        args.push(f64_val.into());
+        let (spec, val) = self.float_printf_parts(fv);
+        format_string.push_str(spec);
+        args.push(val.into());
         Ok(())
     }
 

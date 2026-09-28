@@ -7,9 +7,7 @@ use inkwell::values::PointerValue;
 
 impl<'ctx> CodeGen<'ctx> {
     pub(in crate::codegen) fn compile_to_string(&mut self, arguments: &[Expr]) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("to_string() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("to_string", arguments, 1)?;
 
         let sprintf_fn = self.module.get_function("sprintf").unwrap();
 
@@ -50,50 +48,29 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 为 `arg` 选择 printf 风格的格式化字符串，并提升其值以匹配 C 可变参数规范（char 转 i32，float 转 double）。
+    /// 格式与提升复用 `print` 的 `int_printf_parts`/`float_printf_parts`。
     fn pick_printf_format(
         &mut self,
         arg: inkwell::values::BasicValueEnum<'ctx>,
     ) -> Result<(PointerValue<'ctx>, inkwell::values::BasicValueEnum<'ctx>)> {
-        match arg {
-            inkwell::values::BasicValueEnum::IntValue(iv) => {
-                if iv.get_type().get_bit_width() == 64 {
-                    // %lld 跨平台均为 64 位；Windows LLP64 下 %ld 仅 32 位会截断 i64。
-                    let fmt = unsafe { self.builder.build_global_string("%lld", "fmt_i64").unwrap() };
-                    Ok((fmt.as_pointer_value(), inkwell::values::BasicValueEnum::IntValue(iv)))
-                } else if iv.get_type().get_bit_width() == 8 {
-                    let fmt = unsafe { self.builder.build_global_string("%c", "fmt_c").unwrap() };
-                    let promoted = self
-                        .builder
-                        .build_int_z_extend(iv, self.context.i32_type(), "char_promote")
-                        .unwrap();
-                    Ok((fmt.as_pointer_value(), inkwell::values::BasicValueEnum::IntValue(promoted)))
-                } else {
-                    let fmt = unsafe { self.builder.build_global_string("%d", "fmt_i32").unwrap() };
-                    Ok((fmt.as_pointer_value(), inkwell::values::BasicValueEnum::IntValue(iv)))
-                }
-            }
-            inkwell::values::BasicValueEnum::FloatValue(fv) => {
-                // 为 printf 风格的可变参数提升为 double。
-                let f64_val = if fv.get_type() == self.context.f64_type() {
-                    fv
-                } else {
-                    self.builder
-                        .build_float_ext(fv, self.context.f64_type(), "f_promote")
-                        .unwrap()
-                };
-                if fv.get_type() == self.context.f32_type() {
-                    let fmt = unsafe { self.builder.build_global_string("%g", "fmt_f32").unwrap() };
-                    Ok((fmt.as_pointer_value(), inkwell::values::BasicValueEnum::FloatValue(f64_val)))
-                } else {
-                    let fmt = unsafe { self.builder.build_global_string("%f", "fmt_f64").unwrap() };
-                    Ok((fmt.as_pointer_value(), inkwell::values::BasicValueEnum::FloatValue(f64_val)))
-                }
-            }
+        let (spec, value) = match arg {
+            inkwell::values::BasicValueEnum::IntValue(iv) => self.int_printf_parts(iv),
+            inkwell::values::BasicValueEnum::FloatValue(fv) => self.float_printf_parts(fv),
             _ => {
-                Err(HuziError::new_global(
+                return Err(HuziError::new_global(
                     "to_string() requires a numeric argument",
                 ))
             }
-        }
+        };
+        // %lld 跨平台均为 64 位；Windows LLP64 下 %ld 仅 32 位会截断 i64。
+        let tag = match spec {
+            "%lld" => "fmt_i64",
+            "%c" => "fmt_c",
+            "%d" => "fmt_i32",
+            "%g" => "fmt_f32",
+            _ => "fmt_f64",
+        };
+        let fmt = unsafe { self.builder.build_global_string(spec, tag).unwrap() };
+        Ok((fmt.as_pointer_value(), value))
     }
 }

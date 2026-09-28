@@ -4,9 +4,7 @@ use huzi_error::{HuziError, Result};
 
 impl<'ctx> CodeGen<'ctx> {
     pub(super) fn compile_abs(&mut self, arguments: &[Expr]) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("abs() requires exactly 1 argument"));
-        }
+        self.expect_arg_count("abs", arguments, 1)?;
 
         let arg = self.compile_expr(&arguments[0])?;
 
@@ -52,12 +50,7 @@ impl<'ctx> CodeGen<'ctx> {
         fn_name: &str,
         arguments: &[Expr],
     ) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(format!(
-                "{}() requires exactly 1 argument",
-                fn_name
-            )));
-        }
+        self.expect_arg_count(fn_name, arguments, 1)?;
 
         let f = self
             .module
@@ -77,9 +70,7 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     pub(super) fn compile_pow(&mut self, arguments: &[Expr]) -> Result<inkwell::values::BasicValueEnum<'ctx>> {
-        if arguments.len() != 2 {
-            return Err(HuziError::new_global("pow() requires exactly 2 arguments"));
-        }
+        self.expect_arg_count("pow", arguments, 2)?;
 
         let pow_fn = self.module.get_function("pow").unwrap();
         let base = self.compile_expr(&arguments[0])?;
@@ -97,27 +88,19 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(result)
     }
 
-    /// 为数学内置函数将任意数值转换为 f64。
+    /// 为数学内置函数将任意数值转换为 f64(转换经 `coerce_value` 复用)。
     pub(super) fn to_f64(
         &self,
         arg: inkwell::values::BasicValueEnum<'ctx>,
         fn_name: &str,
     ) -> Result<inkwell::values::FloatValue<'ctx>> {
+        let f64_ty = self.context.f64_type().into();
         match arg {
-            inkwell::values::BasicValueEnum::IntValue(iv) => Ok(self
-                .builder
-                .build_signed_int_to_float(iv, self.context.f64_type(), "to_f64")
-                .unwrap()),
-            inkwell::values::BasicValueEnum::FloatValue(fv) => {
-                if fv.get_type() == self.context.f64_type() {
-                    Ok(fv)
-                } else {
-                    Ok(self
-                        .builder
-                        .build_float_cast(fv, self.context.f64_type(), "to_f64")
-                        .unwrap())
-                }
-            }
+            inkwell::values::BasicValueEnum::IntValue(_)
+            | inkwell::values::BasicValueEnum::FloatValue(_) => match self.coerce_value(f64_ty, arg)? {
+                inkwell::values::BasicValueEnum::FloatValue(fv) => Ok(fv),
+                _ => unreachable!("coerce to f64 yields a float"),
+            },
             _ => Err(HuziError::new_global(format!(
                 "{} requires a numeric argument",
                 fn_name

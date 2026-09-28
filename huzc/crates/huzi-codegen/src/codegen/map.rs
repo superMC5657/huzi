@@ -117,13 +117,12 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// 取 map 首参槽(表达式须为 map 变量名,写操作仅支持变量)。
     pub(super) fn map_first_slot(&self, fname: &str, first: &Expr) -> Result<VarSlot<'ctx>> {
-        match first {
-            Expr::Ident(name) => self.map_slot_of(name),
-            _ => Err(HuziError::new_global(format!(
-                "{}() first argument must be a HashMap variable (use a variable, not a field, for mutation)",
-                fname
-            ))),
-        }
+        let name = self.first_var_name(
+            fname,
+            first,
+            "first argument must be a HashMap variable (use a variable, not a field, for mutation)",
+        )?;
+        self.map_slot_of(&name)
     }
 
     /// 解析三件套并附带种类(读操作支持变量与字段,写操作由调用方限变量)。
@@ -215,16 +214,6 @@ impl<'ctx> CodeGen<'ctx> {
         self.builder.build_store(i, ni).unwrap();
         self.builder.build_unconditional_branch(next).unwrap();
         Ok(())
-    }
-
-    /// 键相等旧入口(`str` 路径,供旧探测复用)。
-    #[allow(dead_code)]
-    fn map_key_matches(
-        &mut self,
-        stored: PointerValue<'ctx>,
-        key: PointerValue<'ctx>,
-    ) -> IntValue<'ctx> {
-        self.map_key_matches_inner(stored, key)
     }
 
     /// 读条目 state 字段。

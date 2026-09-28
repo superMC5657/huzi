@@ -34,57 +34,54 @@ impl<'ctx> CodeGen<'ctx> {
     }
 
     /// 声明网络函数（Windows 链接到 ws2_32，POSIX 链接到 libc）。
+    /// 套接字句柄类型按平台取 `sock_ty`(Windows 为 i64,POSIX 为 i32),
+    /// 句柄首参的六个声明复用该类型;仅 `send`/`recv` 的长度与返回值另有差异。
     pub(super) fn declare_net_functions(&mut self) {
         let i32_ty = self.context.i32_type();
         let i64_ty = self.context.i64_type();
         let ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let sock_ty: inkwell::types::BasicMetadataTypeEnum<'ctx> =
+            if cfg!(windows) { i64_ty.into() } else { i32_ty.into() };
+        let close_name = if cfg!(windows) { "closesocket" } else { "close" };
 
         if cfg!(windows) {
             let wsa_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into()], false);
             self.module.add_function("WSAStartup", wsa_fn, None);
+        }
 
-            let sock_fn = i64_ty.fn_type(&[i32_ty.into(), i32_ty.into(), i32_ty.into()], false);
-            self.module.add_function("socket", sock_fn, None);
+        let sock_fn = if cfg!(windows) {
+            i64_ty.fn_type(&[i32_ty.into(), i32_ty.into(), i32_ty.into()], false)
+        } else {
+            i32_ty.fn_type(&[i32_ty.into(), i32_ty.into(), i32_ty.into()], false)
+        };
+        self.module.add_function("socket", sock_fn, None);
 
-            let close_fn = i32_ty.fn_type(&[i64_ty.into()], false);
-            self.module.add_function("closesocket", close_fn, None);
+        let close_fn = i32_ty.fn_type(&[sock_ty], false);
+        self.module.add_function(close_name, close_fn, None);
 
-            let bind_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into()], false);
-            self.module.add_function("bind", bind_fn, None);
+        let bind_fn = i32_ty.fn_type(&[sock_ty, ptr_ty.into(), i32_ty.into()], false);
+        self.module.add_function("bind", bind_fn, None);
 
-            let listen_fn = i32_ty.fn_type(&[i64_ty.into(), i32_ty.into()], false);
-            self.module.add_function("listen", listen_fn, None);
+        let listen_fn = i32_ty.fn_type(&[sock_ty, i32_ty.into()], false);
+        self.module.add_function("listen", listen_fn, None);
 
-            let accept_fn = i64_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), ptr_ty.into()], false);
-            self.module.add_function("accept", accept_fn, None);
+        let accept_fn = if cfg!(windows) {
+            i64_ty.fn_type(&[sock_ty, ptr_ty.into(), ptr_ty.into()], false)
+        } else {
+            i32_ty.fn_type(&[sock_ty, ptr_ty.into(), ptr_ty.into()], false)
+        };
+        self.module.add_function("accept", accept_fn, None);
 
-            let conn_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into()], false);
-            self.module.add_function("connect", conn_fn, None);
+        let conn_fn = i32_ty.fn_type(&[sock_ty, ptr_ty.into(), i32_ty.into()], false);
+        self.module.add_function("connect", conn_fn, None);
 
+        if cfg!(windows) {
             let send_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into(), i32_ty.into()], false);
             self.module.add_function("send", send_fn, None);
 
             let recv_fn = i32_ty.fn_type(&[i64_ty.into(), ptr_ty.into(), i32_ty.into(), i32_ty.into()], false);
             self.module.add_function("recv", recv_fn, None);
         } else {
-            let sock_fn = i32_ty.fn_type(&[i32_ty.into(), i32_ty.into(), i32_ty.into()], false);
-            self.module.add_function("socket", sock_fn, None);
-
-            let close_fn = i32_ty.fn_type(&[i32_ty.into()], false);
-            self.module.add_function("close", close_fn, None);
-
-            let bind_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), i32_ty.into()], false);
-            self.module.add_function("bind", bind_fn, None);
-
-            let listen_fn = i32_ty.fn_type(&[i32_ty.into(), i32_ty.into()], false);
-            self.module.add_function("listen", listen_fn, None);
-
-            let accept_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), ptr_ty.into()], false);
-            self.module.add_function("accept", accept_fn, None);
-
-            let conn_fn = i32_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), i32_ty.into()], false);
-            self.module.add_function("connect", conn_fn, None);
-
             let send_fn = i64_ty.fn_type(&[i32_ty.into(), ptr_ty.into(), i64_ty.into(), i32_ty.into()], false);
             self.module.add_function("send", send_fn, None);
 

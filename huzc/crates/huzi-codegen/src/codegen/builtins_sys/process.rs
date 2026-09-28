@@ -11,16 +11,9 @@ use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
 impl<'ctx> CodeGen<'ctx> {
     /// `env_get(k)`: 读取环境变量,返回 `(bool, str)`。缺键返回 `(false, "")`。
     pub(in crate::codegen) fn compile_env_get(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("env_get() requires exactly 1 argument (key)"));
-        }
-        let key = match self.compile_expr(&arguments[0])? {
-            BasicValueEnum::PointerValue(p) => p,
-            _ => return Err(HuziError::new_global("env_get() argument must be a string")),
-        };
+        self.expect_arg_count("env_get", arguments, 1)?;
+        let key = self.compile_str_arg(&arguments[0], "env_get")?;
 
-        let ptr_t = self.context.ptr_type(AddressSpace::default());
-        let bool_t = self.context.bool_type();
         let getenv_fn = self.module.get_function("getenv").unwrap();
 
         let raw = self
@@ -35,24 +28,15 @@ impl<'ctx> CodeGen<'ctx> {
         let is_null = self.builder.build_is_null(raw, "env_is_null").unwrap();
         let found = self.builder.build_not(is_null, "env_found").unwrap();
 
-        let empty_str = self.builder.build_global_string_ptr("", "empty_str").unwrap().as_pointer_value();
+        let empty_str = self.empty_str_ptr();
         let val_ptr = self.builder.build_select(found, raw, empty_str, "env_str").unwrap().into_pointer_value();
 
-        let tup_ty = self.context.struct_type(&[bool_t.into(), ptr_t.into()], false);
-        let tup_alloca = self.build_alloca(tup_ty.into(), "env_get_tup")?;
-        let f0 = self.builder.build_struct_gep(tup_ty, tup_alloca, 0, "env_f0").unwrap();
-        self.builder.build_store(f0, found).unwrap();
-        let f1 = self.builder.build_struct_gep(tup_ty, tup_alloca, 1, "env_f1").unwrap();
-        self.builder.build_store(f1, val_ptr).unwrap();
-
-        Ok(self.builder.build_load(tup_ty, tup_alloca, "env_get_res").unwrap())
+        self.emit_bool_tuple(found, val_ptr.into(), "env_get_res")
     }
 
     /// `localtime(ts: i64) -> str`: 格式化时间戳为 `YYYY-MM-DD hh:mm:ss`。
     pub(in crate::codegen) fn compile_localtime(&mut self, arguments: &[Expr]) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global("localtime() requires exactly 1 argument (timestamp)"));
-        }
+        self.expect_arg_count("localtime", arguments, 1)?;
         let ts_val = self.compile_expr(&arguments[0])?;
         let i64_t = self.context.i64_type();
         let ts_i64 = match self.coerce_value(i64_t.into(), ts_val)? {
@@ -284,11 +268,7 @@ impl<'ctx> CodeGen<'ctx> {
         &mut self,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>> {
-        if arguments.len() != 1 {
-            return Err(HuziError::new_global(
-                "process_run() requires exactly 1 argument (command)",
-            ));
-        }
+        self.expect_arg_count("process_run", arguments, 1)?;
         let cmd = self.compile_str_arg(&arguments[0], "process_run")?;
         let mode = self.cstr_const("r");
 
@@ -341,11 +321,8 @@ impl<'ctx> CodeGen<'ctx> {
     ) {
         let i32_t = self.context.i32_type();
         self.builder.position_at_end(fail_bb);
-        let empty_str = self
-            .builder
-            .build_global_string_ptr("", "proc_empty")
-            .unwrap()
-            .as_pointer_value();
+        // 管道打开失败返回共享空串(复用 `empty_str_ptr`,与 `env_get` 一致)。
+        let empty_str = self.empty_str_ptr();
         let minus_one = i32_t.const_int((-1i32) as u64, true);
         let f0_fail = self.builder.build_struct_gep(tup_ty, res_alloca, 0, "fail_f0").unwrap();
         self.builder.build_store(f0_fail, minus_one).unwrap();

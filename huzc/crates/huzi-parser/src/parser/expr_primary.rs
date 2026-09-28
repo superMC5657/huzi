@@ -1,6 +1,5 @@
 use super::Parser;
 use huzi_ast::*;
-use huzi_error::HuziError;
 use huzi_error::Result;
 use huzi_lexer::Token;
 
@@ -48,11 +47,7 @@ impl Parser {
             Token::Match => self.parse_match_expression(),
             Token::BarBar => self.parse_closure_zero_args(),
             Token::Pipe => self.parse_closure(),
-            _ => Err(HuziError::new(
-                format!("Unexpected token: {}", token),
-                self.current_line(),
-                self.current_col(),
-            )),
+            _ => Err(self.error(format!("Unexpected token: {}", token))),
         }
     }
 
