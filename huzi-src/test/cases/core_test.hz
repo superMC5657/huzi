@@ -6,21 +6,21 @@ fn main() -> i32 {
     assert::assert_true(true)
     assert::assert_eq_i32(100, 100)
     assert::assert_eq_str("hello", "hello")
-    let r_ok = result::ok_i32(10)
+    let r_ok = result::ok(10)
     assert::assert_true(result::is_ok(r_ok))
     assert::assert_eq_i32(result::unwrap_or(r_ok, 999), 10)
-    let r_err = result::err_i32("bad error")
+    let r_err: Result<i32> = Result<i32> { ok: false, value: 0, err: "bad error" }
     assert::assert_true(result::is_err(r_err))
     assert::assert_eq_i32(result::unwrap_or(r_err, 999), 999)
     assert::assert_eq_str(result::err_msg(r_err), "bad error")
-    assert::assert_eq_str(result::unwrap_or(result::ok_str("fine"), "x"), "fine")
-    let o1 = option::some_i32(42)
-    assert::assert_eq_i32(option::unwrap_or_i32(o1.0, o1.1, 0), 42)
-    let o2 = option::none_i32
-    assert::assert_eq_i32(option::unwrap_or_i32(o2.0, o2.1, 99), 99)
-    let s1 = option::some_str("abc")
-    assert::assert_eq_str(option::unwrap_or_str(s1.0, s1.1, "dflt"), "abc")
-    let s2 = option::none_str
+    assert::assert_eq_str(result::unwrap_or(result::ok("fine"), "x"), "fine")
+    let o1 = option::some(42)
+    assert::assert_eq_i32(o1.unwrap_or(0), 42)
+    let o2: Option<i32> = Option<i32>::None
+    assert::assert_eq_i32(o2.unwrap_or(99), 99)
+    let s1 = option::some("abc")
+    assert::assert_eq_str(s1.unwrap_or("dflt"), "abc")
+    let s2: Option<str> = Option<str>::None
     // ---- 现代泛型 Option<T> 与流式固有方法测试 ----
     let opt_some = option::some(123)
     assert::assert_true(opt_some.is_some())

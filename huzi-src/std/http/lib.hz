@@ -80,22 +80,22 @@ fn http_body(resp: str) -> str {
 fn http_parse(resp: str) -> Result<str> {
     let code = http_status_code(resp)
     if code < 200 || code >= 300 {
-        return result::err_str(concat("http status ", to_string(code)))
+        return Result<str> { ok: false, value: "", err: concat("http status ", to_string(code)) }
     }
-    return result::ok_str(http_body(resp))
+    return result::ok(http_body(resp))
 }
 
 /// 发起 GET 请求,返回完整 body(2xx)或错误信息。
 fn http_get(host: str, port: i32, path: str) -> Result<str> {
     let sock = tcp_connect(host, port)
     if sock < 0 {
-        return result::err_str(concat("connect failed: ", host))
+        return Result<str> { ok: false, value: "", err: concat("connect failed: ", host) }
     }
     let req = http_build_request(host, path)
     let sent = tcp_send(sock, req)
     if sent <= 0 {
         tcp_close(sock)
-        return result::err_str("send failed")
+        return Result<str> { ok: false, value: "", err: "send failed" }
     }
     let mut resp = ""
     let mut chunk = tcp_recv(sock, 4096)
@@ -122,12 +122,12 @@ fn http_recv_all(sock: i32) -> str {
 fn http_do_send(host: str, port: i32, req: str) -> Result<str> {
     let sock = tcp_connect(host, port)
     if sock < 0 {
-        return result::err_str(concat("connect failed: ", host))
+        return Result<str> { ok: false, value: "", err: concat("connect failed: ", host) }
     }
     let sent = tcp_send(sock, req)
     if sent <= 0 {
         tcp_close(sock)
-        return result::err_str("send failed")
+        return Result<str> { ok: false, value: "", err: "send failed" }
     }
     let resp = http_recv_all(sock)
     tcp_close(sock)

@@ -5,15 +5,15 @@ import alloc.vec_algo
 
 fn divide(a: i32, b: i32) -> Result<i32> {
     if b == 0 {
-        return result::err_i32("division by zero")
+        return Result<i32> { ok: false, value: 0, err: "division by zero" }
     }
-    return result::ok_i32(a / b)
+    return Result<i32> { ok: true, value: a / b, err: "" }
 }
 
 fn try_flow(a: i32, b: i32, c: i32) -> Result<i32> {
     let d1 = divide(a, b)?
     let d2 = divide(d1, c)?
-    return result::ok_i32(d2)
+    return Result<i32> { ok: true, value: d2, err: "" }
 }
 
 fn main() -> i32 {

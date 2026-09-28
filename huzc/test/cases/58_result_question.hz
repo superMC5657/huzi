@@ -3,23 +3,23 @@ import core.result
 fn parse_num(raw: str) -> Result<i32> {
     let r = parse_int(raw)
     if !r.0 {
-        return result::err_i32(concat("not a number: ", raw))
+        return Result<i32> { ok: false, value: 0, err: concat("not a number: ", raw) }
     }
-    return result::ok_i32(r.1)
+    return Result<i32> { ok: true, value: r.1, err: "" }
 }
 
 fn checked_double(raw: str) -> Result<i32> {
     let n = parse_num(raw)?
     if n > 100 {
-        return result::err_i32("too large")
+        return Result<i32> { ok: false, value: 0, err: "too large" }
     }
-    return result::ok_i32(n * 2)
+    return Result<i32> { ok: true, value: n * 2, err: "" }
 }
 
 fn checked_sum(a: str, b: str) -> Result<i32> {
     let x = parse_num(a)?
     let y = parse_num(b)?
-    return result::ok_i32(x + y)
+    return Result<i32> { ok: true, value: x + y, err: "" }
 }
 
 fn main() -> i32 {

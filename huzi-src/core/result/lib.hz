@@ -61,19 +61,3 @@ fn err_msg<T>(r: Result<T>) -> str {
 fn ok<T>(val: T) -> Result<T> {
     return Result<T> { ok: true, value: val, err: "" }
 }
-
-fn ok_i32(val: i32) -> Result<i32> {
-    return Result<i32> { ok: true, value: val, err: "" }
-}
-
-fn err_i32(err: str) -> Result<i32> {
-    return Result<i32> { ok: false, value: 0, err: err }
-}
-
-fn ok_str(val: str) -> Result<str> {
-    return Result<str> { ok: true, value: val, err: "" }
-}
-
-fn err_str(err: str) -> Result<str> {
-    return Result<str> { ok: false, value: "", err: err }
-}
