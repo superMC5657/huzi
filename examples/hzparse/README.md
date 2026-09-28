@@ -11,7 +11,7 @@
   `trait`/`impl`/`match`、泛型/`vec<T>()`/`box`/`null`/`?`/方法调用/元组下标/
   `if` 表达式、闭包 `|...|`/函数类型 `fn(...) -> ...`/固有方法块 `impl Type`/
   泛型枚举 `enum Name<T>`/Match Guards 守卫，外加残缺输入负例）全过；
-- 对 `huzc/test/cases/*.hz`（67 个）+ `mods/*.hz`（3 个）+ `huzi-src`
+- 对 `huzc/test/cases/*.hz`（74 个）+ `mods/*.hz`（3 个）+ `huzi-src`
   全部源码及自测（34 个）+ `examples/hzlex|task_engine` 源码（4 个）执行
   “词法 + 语法”两段分析：**108 个文件全部通过，零失败**（验收线 ≥ 90）。
 

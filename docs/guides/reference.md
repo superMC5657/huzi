@@ -207,14 +207,14 @@ Huzi 采用确定性作用域析构（RAII Drop）与双计数弱引用（Swift 
 
 ### 4.15 跨平台路径处理 (自举标准库 `std.path`)
 
-- `path_is_sep(c: char) -> bool` / `is_sep(c: char) -> bool`：判断字符是否为路径分隔符（`/` 或 `\`）。
-- `path_is_abs(p: str) -> bool` / `is_abs(p: str) -> bool`：判断路径是否为绝对路径（支持 POSIX `/`、Windows 盘符 `C:\` 及 UNC 共享路径 `\\`）。
-- `path_join(a: str, b: str) -> str` / `combine(a: str, b: str) -> str`：安全拼接两个路径分量，自动规范化分隔符。
-- `path_base(p: str) -> str` / `base(p: str) -> str`：提取路径的文件名或末级目录名。
-- `path_dir(p: str) -> str` / `dir(p: str) -> str`：提取父目录路径（若无父级返回空串）。
-- `path_ext(p: str) -> str` / `ext(p: str) -> str`：提取文件扩展名（不含点号 `.`，无扩展名返回空串）。
-- `path_stem(p: str) -> str` / `stem(p: str) -> str`：提取文件名主干（不含扩展名与前导点）。
-- `path_normalize(p: str) -> str` / `normalize(p: str) -> str`：路径正规化（消除冗余的 `./` 分量并折叠 `../` 父级跳转）。
+- `is_sep(c: char) -> bool`：判断字符是否为路径分隔符（`/` 或 `\`）。
+- `is_abs(p: str) -> bool`：判断路径是否为绝对路径（支持 POSIX `/`、Windows 盘符 `C:\` 及 UNC 共享路径 `\\`）。
+- `path_join(a: str, b: str) -> str`：安全拼接两个路径分量，自动规范化分隔符。
+- `base(p: str) -> str`：提取路径的文件名或末级目录名。
+- `dir(p: str) -> str`：提取父目录路径（若无父级返回空串）。
+- `ext(p: str) -> str`：提取文件扩展名（不含点号 `.`，无扩展名返回空串）。
+- `stem(p: str) -> str`：提取文件名主干（不含扩展名与前导点）。
+- `normalize(p: str) -> str`：路径正规化（消除冗余的 `./` 分量并折叠 `../` 父级跳转）。
 
 ---
 

@@ -1,13 +1,13 @@
 # Huzi 项目完成状态（STATUS）
 
 > 只回答“做完什么、没做什么”。实现细节见 `USAGE.md`（用户手册）与 `dev/开发文档.md`（技术架构）。
-> 更新日期：2026-09-24，分支 `master`。
+> 更新日期：2026-09-29，分支 `master`。
 
 ## 1. 总体结论
 
 * 核心语言 + 编译器后端 + 工具链已闭环，可构建、可发版。
 * 路线图 7 项已全部完成：`defer` / `fmt` / `RC` / `泛型` / `Trait` / `包管理` / `网络并发`（明细见 git 历史中的 `TODO.md`）。
-* `Roadmap Q0 / Q1 / Q2` 全部达成：CI 全量门禁、性能基准门禁、边界负例补齐、泛型实参自动推导、循环引用打破示例、vec/map 参数与字段支持、生态目录去误导与手册拆分。
+* `Roadmap Q0 / Q1 / Q2` 全部达成：本地全量门禁、性能基准门禁、边界负例补齐、泛型实参自动推导、循环引用打破示例、vec/map 参数与字段支持、生态目录去误导与手册拆分。
 * 内存管理终极演进：落地 Swift 风格自动置零弱引用（`weak Box<T>`），双计数 16 字节头部布局，强引用析构后弱引用自动置零（Auto-Zeroing），根本性杜绝循环引用泄漏。
 * CI 状态：GitHub Actions workflow 已移除，项目后续**不做 CI**；质量门禁以本地门禁为准：cwd=`huzc` 执行 `bash test.sh`（回归）与 `test/bench_compare.py`（性能基准），或 cwd=仓库根执行 `bash check.sh` / `bash huzc/test.sh`（路径前加 `huzc/` 前缀）。
 
@@ -77,7 +77,7 @@
 ### 测试与质量
 
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
-- [x] 原生测试套件：`huzc test` 一键全绿覆盖 152 个用例与负例，支持名称过滤与子集执行
+- [x] 原生测试套件与集成回归全绿（`bash huzc/test.sh` 155 passed，单元测试 64 项），支持名称过滤与子集执行
 - [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；全量示例与负例测试全部通过，交互示例跳过）
 - [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/4] 抽查
 - [x] 构建产物：Release 产物三平台自动化归档上传
