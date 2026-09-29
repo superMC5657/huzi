@@ -29,7 +29,7 @@ cargo build --workspace                            # 构建编译器
 ./target/debug/huzc fmt --check test/cases         # 语法树格式化门禁检查
 ```
 
-提交前在仓库根跑 `bash check.sh`（或 `SKIP_BENCH=1 bash check.sh`），一次跑完四阶段门禁。
+提交前在仓库根跑 `bash check.sh`（或 `SKIP_BENCH=1 bash check.sh` 跳过性能、`SKIP_DUMPDIFF=1 bash check.sh` 跳过对拍），一次跑完五阶段门禁。
 
 ## 文档
 

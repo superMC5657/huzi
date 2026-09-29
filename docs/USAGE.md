@@ -128,7 +128,12 @@ entry = "src/main.hz" # 可选，缺省自动探测入口
 
 [dependencies]
 my_math = { version = "1.0.0", path = "../fixtures/my_math" }
+my_json = { version = "^1.0.0", registry = "file:///opt/hz-registry" }
+"acme/json" = { version = "1.0.0", registry = "https://hz.example.com" }
 ```
+
+- `registry`：可选注册表源 URL，仅 `file://` 与 `https://` 合法，其余/空串/未知键解析直接 `Err`；含 `/` 的作用域全名落盘/解析原样引号包住。
+- 同一依赖同时写 `path` 与 `registry` 时 `path` 胜（求解只看 `path`，不读索引）。
 
 ### 版本语义 (`version` 字段)
 
@@ -142,15 +147,32 @@ my_math = { version = "1.0.0", path = "../fixtures/my_math" }
 | `>=1.0.0, <2.0.0` | 范围：逗号/空格分隔的比较符（`>`/`>=`/`<`/`<=`/`=`/`==`）需全部满足 | 接受 `1.5.0`，拒绝 `2.0.0` |
 | `*` / `1.*` | 任意版本 / 前缀通配（`1.*` 即 `>=1.0.0, <2.0.0`） | `*` 接受任何版本 |
 
-> **明确不做**：中心仓库、下载校验和、semver 自动升级（只按已有约束选最高满足版，不改写 `huzi.toml`）。
+> **当前快照（M4）**：私有源最小读路径已点亮（`file://` + `https` 只读索引，`HUZI_REGISTRY` 默认源，`fetch` 下载验哈希落盘，`build` 纯离线）；无自动升级（只按已有约束选最高满足版，不改写 `huzi.toml`）；`vendor/` 目录哈希校验已点亮（见下）。OUT 见下（publish/服务端/yank/预发布/TOFU/签名）。演进方向见 `docs/rfc/rfc_center_registry_draft.md`（草案；升级若做也只会是显式命令，不会是 `build` 隐式行为）。
 
 ### 传递依赖与冲突
 
 `fetch`/`build` 会读取已选版本目录下的 `huzi.toml`，把传递依赖合并进同一闭包求解：
 
-- 候选来源：`path` 指向目录下的版本子目录（或其 `huzi.toml` 包版本；旧单目录 `path` 按精确原串兼容）；无 `path` 声明则查全局缓存 `~/.huzi/packages/<pkg>/` 与工程 `vendor/<pkg>/` 下的版本子目录。
+- 源优先级（显式）：`path` > `registry=` 声明 > `HUZI_REGISTRY` 环境默认源 > 本地（工程 `vendor/<pkg>/` + 全局缓存 `~/.huzi/packages/<pkg>/`）。同名跨源 `path` 胜（有可行 `path` 只看 `path`，锁记 `source="path"`）；`registry` 声明源逐个试（错直接抛），环境源缺索引回退本地。
+- 候选来源：`path` 指向目录下的版本子目录（或其 `huzi.toml` 包版本；旧单目录 `path` 按精确原串兼容）；`registry` 经只读索引 `<registry>/<pkg>/index.toml` 选版（手写解析版本列表 + 每版 `sha256` + `tarball` URL，不引 toml 库）；本地为版本子目录。
 - 同一包多约束无共同满足版本时直接报错退出（不做自动升级），如菱形依赖两边分别要求 `shared` 的 `1.0.0` 与 `2.0.0`（见 `test/pkg/app_diamond`）。
-- `fetch` 按求解结果落盘 `vendor/<pkg>/<version>/`，并清理该包下落选的版本子目录；`build` 先做同一求解检查，缺 `vendor` 落盘则提示先 `fetch`。多版本示例见 `test/pkg/app_multi`（`^1.0.0` 在 `1.0.0`/`1.2.0` 中选 `1.2.0`）。
+- `fetch` 按求解结果落盘 `vendor/<pkg>/<version>/`（含 `/` 全名即 `vendor/<scope>/<name>/<version>/`），并清理该包下落选的版本子目录；`build` 纯离线先做同一求解检查（`offline=true`，本地有可行版直接用本地，缺版才报 `--offline` 错），缺 `vendor` 落盘则提示先 `fetch`。多版本示例见 `test/pkg/app_multi`（`^1.0.0` 在 `1.0.0`/`1.2.0` 中选 `1.2.0`）。
+- 内置保留：`std`/`core`/`alloc` 及 `std/*` 等命中注册表在求解期直接拒绝（提示走内置 `import`，无需声明）。
+
+### 私有源与索引格式（M4 最小读路径）
+
+- 默认源：`HUZI_REGISTRY` 环境变量（空串视为未设）；声明 `registry=` 优先于它。
+- 索引：只读 `<registry>/<pkg>/index.toml`（`file://` 直读文件，`https://` 经 `curl -fsSL` 读，零新依赖）；`--offline` 下读索引直接错。
+- `index.toml` 手写格式（未知键忽略）：
+```toml
+[[package]]
+version = "1.0.0"
+sha256 = "<tarball文件字节sha256,64位小写hex,允许sha256:前缀>"
+tarball = "tarballs/my_math-1.0.0.tar.gz" # 相对路径相对 <registry>/<pkg>/ 解析，否则须为 file:///https:// 绝对 URL
+```
+- `fetch` 流程（复用 M2 原子时序）：读索引 → 下载 tarball → 验 `sha256(文件字节)` → 落盘 `vendor/`（`file://` 目录直拷；`.tar.gz/.tgz` 经系统 `tar -xzf` 解包，唯一顶层含 `huzi.toml` 时下沉一层）→ 回填目录哈希 → 全成功后清理落选版本并写锁。任一步失败直接退出，不删 `vendor/`、不写锁。
+- 认证（v1 最小可用，明文）：URL 自带（`https://<token>@host/...` 或 `?token=<t>`）优先，否则读 `~/.huzi/credentials`（每行 `<registry> [=] <token>`，`#` 注释），经 `curl -H "Authorization: Bearer <token>"` 携带。
+- OUT（锁死不做）：`publish` 命令、服务端 API、`yank` enforcement、预发布（`SemVersion` 不动，索引遇 `-alpha` 报“暂不支持预发布”错）、TOFU pin、签名验签。
 
 ### 锁定文件 (`huzi.lock`)
 
@@ -161,15 +183,30 @@ my_math = { version = "1.0.0", path = "../fixtures/my_math" }
 [[package]]
 name = "my_math"
 version = "1.2.0"
+source = "path"
+checksum = "sha256:9f2c…(64位小写hex)"
 ```
 
-`build` 校验：锁存在时必须与本次求解精确一致（版本漂移、缺失、多余条目均直接报错并提示重 `fetch`）；无锁文件时仅做闭包与 `vendor` 检查，兼容旧工程。
+- `source`：该包来源种类（`path` 显式本地路径 / `local` 全局缓存与 `vendor/` / `registry` 注册表索引，`fetch` 按优先级落盘，跨源 `path` 胜）；旧锁缺字段解析为 `None`，兼容。
+- `registry`：注册表包的源 URL（声明 `registry=` 或 `HUZI_REGISTRY`，`fetch` 回填；`path`/`local` 包为 `None`）；旧锁缺字段为 `None`，兼容。
+- `checksum`：`fetch` 落盘后回填的 `vendor/<pkg>/<version>/` 目录内容哈希（`sha256:<64位小写hex>`，非法格式解析直接报错）；旧锁缺字段解析为 `None`，兼容。
+- 目录哈希口径：递归收集全部文件，相对路径（`/` 分隔）排序后逐文件取 `sha256(文件字节)` hex，再外层 `sha256(拼接(relpath + 0x00 + hex + \n))`；文件一律按字节读，不做 CRLF 归一，全程零网络。
+- `fetch` 原子性：逐包落盘并算哈希全部成功后，才清理落选版本子目录并写锁；任一步失败直接退出，不删 `vendor/`、不写锁。
+
+`build` 离线校验（按序，失败直接报错退出，不访问网络）：锁一致性（版本漂移、缺失、多余条目均提示重 `fetch`）→ `vendor` 落盘存在 → 目录哈希（锁中有 `checksum` 的包重算比对，篡改一字节即硬错 `vendor内容与huzi.lock不一致，请重fetch`）；无锁/旧锁无 `checksum` 时跳过对应步骤，兼容旧工程。
 
 ### 命令说明
 - `huzc run [<target>] [--path <dir>] [-- <args>...]`: 编译并立即执行单源文件或包含 `huzi.toml` 的项目工程，透明透传命令行参数。
-- `huzc build [--path <dir>]`: 依据 `huzi.toml` 编排编译项目并生成可执行文件。
+- `huzc build [--path <dir>]`: 依据 `huzi.toml` 编排编译项目并生成可执行文件（语义零变化：菱形冲突仍直接报错，不自动升级；锁漂移仍提示重 `fetch`）。
 - `huzc add <package> [version] [--path <local_path>]`: 添加依赖并自动同步至本地 `vendor/`。
-- `huzc fetch [--path <dir>]`: 拉取/同步所有依赖至本地 `vendor/<pkg>/<version>/` 目录。
+- `huzc fetch [--path <dir>] [--offline] [--frozen]`: 拉取/同步所有依赖至本地 `vendor/<pkg>/<version>/` 目录（含 `/` 全名即 `vendor/<scope>/<name>/<version>/`）。
+  - `--offline`：拒读索引/拒下载（需注册表的包无本地可行版直接错 `--offline拒绝读索引`；本地有可行版则回退本地，`build` 即按此离线重放）。
+  - `--frozen`：锁必须已存在且与求解一致，一致则直接成功（不动 `vendor/`、不写锁），缺锁/漂移直接报错；与 `--offline` 互斥，不能同时给。
+- `huzc update [package] [--dry-run] [--path <dir>]`: 显式重解闭包并刷新锁定（默认不动语义）。
+  - 默认（无变化）：打印 `all up to date`，exit 0，不碰 `vendor/`/`huzi.lock`/`huzi.toml`。
+  - `--dry-run`：只读矩阵预览（列：包 | 约束 | 锁版本 -> 候选版本 | source | checksum 短 hash 旧 -> 新），全程只读，不写盘。
+  - 显式重锁：有变化且非 `--dry-run` 时落盘 `vendor/<pkg>/<version>/` + 回填校验和 + 清理落选版本 + 写锁（复用 `fetch` M2 时序，先完整求解成功再写）；不改写 `huzi.toml` 版本串。
+  - 菱形冲突（如 `test/pkg/app_diamond` 两边分要 `shared` 的 `1.0.0`/`2.0.0`）：`--dry-run` 与显式重锁双路径均沿用求解原文案直接报错（exit 非零），零副作用（不建锁、不建 `vendor/`）。
 
 > **标准库开箱即用说明**：
 > Huzi 官方自举标准库（`huzi-src`）由编译器默认提供并解析，在源码中可直接通过 `import std.*` / `import alloc.*` / `import core.*` 全路径导入，**无需在 `huzi.toml` 的 `[dependencies]` 中额外声明**。
@@ -202,7 +239,7 @@ python test/bench_compare.py
 # 方式二：cwd=huzc 经回归脚本顺带跑
 RUN_BENCH=1 bash test.sh
 
-# 方式三：cwd=仓库根 经统一门禁跑（含 [4/4] 性能抽查；仓库根请用 huzc/test/... 路径）
+# 方式三：cwd=仓库根 经统一门禁跑（含 [4/5] 性能抽查；仓库根请用 huzc/test/... 路径）
 bash check.sh
 python huzc/test/bench_compare.py
 RUN_BENCH=1 bash huzc/test.sh

@@ -69,6 +69,7 @@
 - [x] 格式化：`huzc fmt [--check]`（AST pretty-printer，幂等性保障）
 - [x] fmt 保留注释：`//` 与 `#` 行注释格式化后原样保留（整行注释按语句回插，行尾注释随语句拼接），`fmt --check test/cases`（cwd=`huzc`；仓库根请用 `fmt --check huzc/test/cases`）门禁恢复可用
 - [x] 包管理：`huzi.toml` + `huzc build/add/fetch`（本地 `vendor/` 离线）+ `VersionReq` 范围解析（`^`/`~`/`>=`范围/`*`）与最高满足求解 + 传递依赖合并（冲突直接报错，不做自动升级）+ `huzi.lock` 精确锁定与一致性校验
+- [x] 显式更新：`huzc update [package] [--dry-run]` 可用（默认不动/只读矩阵/显式重锁，不改写 `huzi.toml`；菱形冲突双路径同文案报错零副作用）
 - [x] 一键运行：`huzc run` 一键编译并立即执行单源文件或工程目录，无缝透传命令行参数
 - [x] 原生测试运行器：`huzc test [path] [--filter] [-r]` 原生跨平台测试运行器，脱离 bash/diff/timeout，自动收集、比对输出与负例校验
 - [x] LSP：诊断/悬停/跳转/补全/语义高亮/大纲/文档格式化（`textDocument/formatting` 接入 AST 幂等美化器）
@@ -79,7 +80,7 @@
 - [x] 单元测试：全 Workspace 覆盖，0 警告 0 错误
 - [x] 原生测试套件与集成回归全绿（`bash huzc/test.sh` 155 passed，单元测试 64 项），支持名称过滤与子集执行
 - [x] 集成回归：`bash test.sh`（cwd=`huzc`；仓库根请用 `bash huzc/test.sh`；全量示例与负例测试全部通过，交互示例跳过）
-- [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/4] 抽查
+- [x] 性能门禁：`test/bench_compare.py`（cwd=`huzc`；仓库根请用 `huzc/test/bench_compare.py`，huzi release / Rust -O <= 2.0x；三门禁：结果一致性、release 优于 dev、比值门禁）；`test/bench_baseline.txt` 存档历史比值，仅漂移提示（超基线 10% 打印提示），不改阈值与三门禁；运行三处：cwd=`huzc` 直跑 / `RUN_BENCH=1 bash test.sh` 顺带跑 / 仓库根 `bash check.sh` [4/5] 抽查
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
 
@@ -87,7 +88,7 @@
 
 * 无精确 GC（不做 tracing 收集器）：采用确定性作用域析构（RAII Drop）与双计数引用计数（Swift 风格强弱引用）统一模型；`vec` 与 `Box` 出作用域自动确定性释放堆内存，别名赋值自动 retain 引用计数，零 GC 暂停开销；循环引用通过 `weak Box<T>` 弱引用彻底消除，访问失效对象自动置零（Auto-Zeroing），无需手动打破（用例 `74_weak_reference`）
 * 泛型无 `where` 约束、无特化
-* 包管理无中心仓库、无下载校验和、无 semver 自动升级（求解只选最高满足版，不改写清单）
+* 包管理（当前快照）：仅本地 `vendor/` 离线 + `VersionReq` 最高满足求解 + `huzi.lock` 锁定；冲突直接报错，不自动升级。中心仓库 / 下载校验和 / 显式升级命令见 `docs/rfc/rfc_center_registry_draft.md`（草案未冻结；默认“不改写清单”语义不变）
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
 
 ## 4. 文档地图（去哪看什么）
