@@ -45,6 +45,8 @@ pub enum Command {
     Add(AddArgs),
     /// 获取并本地缓存依赖包
     Fetch(FetchArgs),
+    /// 显式重解闭包并刷新锁定(Matrix 只读预览或落盘重锁)
+    Update(UpdateArgs),
     /// 运行 Huzi 测试套件
     Test(TestArgs),
 }
@@ -117,6 +119,30 @@ pub struct AddArgs {
 
 #[derive(clap::Args, Clone, Debug)]
 pub struct FetchArgs {
+    /// 包含 huzi.toml 的项目目录
+    #[arg(short, long, default_value = ".")]
+    pub path: String,
+
+    /// 离线模式:仅用本地来源(显式 path/全局缓存/vendor)求解,不访问网络
+    /// (当前本就零网络,属断言式占位,行为与默认一致)
+    #[arg(long)]
+    pub offline: bool,
+
+    /// 冻结模式:锁必须已存在且与求解一致,一致则直接成功(不动 vendor/锁),
+    /// 不一致直接报错,不写锁(与 `--offline` 互斥)
+    #[arg(long)]
+    pub frozen: bool,
+}
+
+#[derive(clap::Args, Clone, Debug)]
+pub struct UpdateArgs {
+    /// 仅展示可更新矩阵,不写 vendor/huzi.lock(只读)
+    #[arg(long)]
+    pub dry_run: bool,
+
+    /// 仅展示指定包的矩阵行(默认全部;求解仍为全闭包,不改写 huzi.toml)
+    pub package: Option<String>,
+
     /// 包含 huzi.toml 的项目目录
     #[arg(short, long, default_value = ".")]
     pub path: String,

@@ -68,6 +68,10 @@ fn main() {
                 huzc::pkg::run_fetch(&fetch_args);
                 return;
             }
+            cli::Command::Update(update_args) => {
+                huzc::pkg::run_update(&update_args);
+                return;
+            }
             cli::Command::Test(test_args) => {
                 let ok = huzc::test_runner::run_tests(&test_args);
                 if !ok {

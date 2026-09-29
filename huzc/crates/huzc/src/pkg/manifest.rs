@@ -17,6 +17,8 @@ pub struct Dependency {
     /// 版本原串(保留;精确路径 `vendor/<pkg>/<version>/` 仍用此串)。
     pub version: String,
     pub path: Option<String>,
+    /// 注册表源 URL(file:// 或 https://);显式 path 优先于本字段。
+    pub registry: Option<String>,
 }
 
 impl Dependency {
@@ -69,8 +71,14 @@ pub fn parse_manifest(content: &str) -> Result<Manifest, String> {
                 _ => {}
             },
             "dependencies" => {
-                let dep = parse_dependency_val(val);
-                manifest.dependencies.insert(key.to_string(), dep);
+                match parse_dependency_val(val) {
+                    Ok(dep) => {
+                        manifest.dependencies.insert(trim_quotes(key), dep);
+                    }
+                    Err(e) => {
+                        return Err(format!("依赖 '{}' 解析失败: {}", trim_quotes(key), e));
+                    }
+                }
             }
             _ => {}
         }
@@ -83,37 +91,65 @@ fn trim_quotes(s: &str) -> String {
     s.trim().trim_matches('"').trim_matches('\'').to_string()
 }
 
-fn parse_dependency_val(val: &str) -> Dependency {
+fn parse_dependency_val(val: &str) -> Result<Dependency, String> {
     let val = val.trim();
     if val.starts_with('{') && val.ends_with('}') {
         let inner = &val[1..val.len() - 1];
         let mut version = "0.1.0".to_string();
         let mut path = None;
+        let mut registry = None;
         for pair in inner.split(',') {
-            if let Some((k, v)) = pair.split_once(':') {
-                let k = k.trim();
-                let v = trim_quotes(v);
-                if k == "version" {
-                    version = v;
-                } else if k == "path" {
-                    path = Some(v);
+            if pair.trim().is_empty() {
+                continue;
+            }
+            // 含 URL 时优先 `=`(registry 含 `://`),无 `=` 才回退 `:` 兼容旧写法.
+            let kv = if pair.contains('=') {
+                pair.split_once('=')
+            } else {
+                pair.split_once(':')
+            };
+            let Some((k, v)) = kv else {
+                return Err(format!("依赖字段 {:?} 缺 `:`/`=`", pair.trim()));
+            };
+            let k = trim_quotes(k.trim());
+            let v = trim_quotes(v);
+            match k.as_str() {
+                "version" => version = v,
+                "path" => path = Some(v),
+                "registry" => {
+                    check_registry(&v)?;
+                    registry = Some(v);
                 }
-            } else if let Some((k, v)) = pair.split_once('=') {
-                let k = k.trim();
-                let v = trim_quotes(v);
-                if k == "version" {
-                    version = v;
-                } else if k == "path" {
-                    path = Some(v);
+                _ => {
+                    return Err(format!(
+                        "依赖字段 {:?} 非法: 仅支持 version/path/registry",
+                        k
+                    ));
                 }
             }
         }
-        Dependency { version, path }
+        Ok(Dependency { version, path, registry })
     } else {
-        Dependency {
+        Ok(Dependency {
             version: trim_quotes(val),
             path: None,
-        }
+            registry: None,
+        })
+    }
+}
+
+/// 注册表 URL 合法性:非空且仅 file:// 或 https://(最小读路径)。
+fn check_registry(v: &str) -> Result<(), String> {
+    if v.is_empty() {
+        return Err("registry 为空: 请填 file:// 或 https:// 源 URL".to_string());
+    }
+    if v.starts_with("file://") || v.starts_with("https://") {
+        Ok(())
+    } else {
+        Err(format!(
+            "registry {:?} 非法: 仅支持 file:// 与 https://",
+            v
+        ))
     }
 }
 
@@ -135,16 +171,35 @@ pub fn format_manifest(manifest: &Manifest) -> String {
     dep_keys.sort();
     for k in dep_keys {
         let dep = &manifest.dependencies[k];
-        if let Some(path) = &dep.path {
-            out.push_str(&format!(
-                "{} = {{ version = \"{}\", path = \"{}\" }}\n",
-                k, dep.version, path
-            ));
+        let key = format_dep_key(k);
+        if dep.path.is_some() || dep.registry.is_some() {
+            out.push_str(&format!("{} = {}\n", key, format_dep_inline(dep)));
         } else {
-            out.push_str(&format!("{} = \"{}\"\n", k, dep.version));
+            out.push_str(&format!("{} = \"{}\"\n", key, dep.version));
         }
     }
     out
+}
+
+/// 含 `/` 作用域全名原样引号包住,其余原样。
+fn format_dep_key(k: &str) -> String {
+    if k.contains('/') {
+        format!("\"{}\"", k)
+    } else {
+        k.to_string()
+    }
+}
+
+/// 内联表固定键序 version,path,registry(有值才写)。
+fn format_dep_inline(dep: &Dependency) -> String {
+    let mut parts = vec![format!("version = \"{}\"", dep.version)];
+    if let Some(path) = &dep.path {
+        parts.push(format!("path = \"{}\"", path));
+    }
+    if let Some(reg) = &dep.registry {
+        parts.push(format!("registry = \"{}\"", reg));
+    }
+    format!("{{ {} }}", parts.join(", "))
 }
 
 #[cfg(test)]
@@ -187,11 +242,46 @@ bar = { version = "2.0.0", path = "../bar" }
         let dep = Dependency {
             version: "^1.2.0".to_string(),
             path: None,
+            registry: None,
         };
         let r = dep.version_req().expect("req 解析成功");
         assert!(r.matches_str("1.5.0").unwrap());
         assert!(!r.matches_str("2.0.0").unwrap());
         // version 原串保留,精确路径行为不变
         assert_eq!(dep.version, "^1.2.0");
+    }
+
+    #[test]
+    fn test_manifest_registry_parse_and_format() {
+        let toml = "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\nmy_math = { version = \"^1.0.0\", registry = \"file:///tmp/reg\" }\n";
+        let m = parse_manifest(toml).expect("registry 解析成功");
+        assert_eq!(
+            m.dependencies["my_math"].registry.as_deref(),
+            Some("file:///tmp/reg")
+        );
+        let formatted = format_manifest(&m);
+        assert!(formatted.contains("registry = \"file:///tmp/reg\""));
+        let back = parse_manifest(&formatted).expect("往返成功");
+        assert_eq!(back.dependencies["my_math"].registry.as_deref(), Some("file:///tmp/reg"));
+    }
+
+    #[test]
+    fn test_manifest_registry_scoped_quoted() {
+        let toml = "[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\n\"acme/json\" = { version = \"1.0.0\", registry = \"https://hz.example.com\" }\n";
+        let m = parse_manifest(toml).expect("作用域全名解析成功");
+        assert!(m.dependencies.contains_key("acme/json"));
+        let formatted = format_manifest(&m);
+        assert!(formatted.contains("\"acme/json\" = { version = \"1.0.0\", registry = \"https://hz.example.com\" }"));
+    }
+
+    #[test]
+    fn test_manifest_registry_rejects_illegal() {
+        for bad in [
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nx = { version = \"1.0.0\", registry = \"http://insecure/x\" }\n",
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nx = { version = \"1.0.0\", registry = \"\" }\n",
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\n\n[dependencies]\nx = { version = \"1.0.0\", foo = \"bar\" }\n",
+        ] {
+            assert!(parse_manifest(bad).is_err(), "非法值应直接 Err: {}", bad);
+        }
     }
 }
