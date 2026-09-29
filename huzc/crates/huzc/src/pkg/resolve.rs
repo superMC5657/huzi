@@ -3,8 +3,11 @@
 //! 说明:模块文件查找仍按 `vendor/<pkg>/<version>/` 精确目录行为,
 //! 版本“选哪一份”由 `resolve_closure` 最高满足求解 + `fetch` 落盘决定
 //! (逐包取最高满足版本,冲突直接报错,不做自动升级)。
+//! M2:有锁时优先读锁选定版本目录,无锁/锁目录缺失回退降序(兼容旧工程)。
 
+use super::lock::{lock_path_for, read_lock_file};
 use super::manifest::parse_manifest;
+use super::version::SemVersion;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -51,8 +54,10 @@ pub fn resolve_package_module(
     base_dir: &Path,
 ) -> Option<PathBuf> {
     let mut search_dirs = Vec::new();
+    let mut locked_ver: Option<SemVersion> = None;
     if let Some(m_file) = find_manifest_file(base_dir) {
         if let Some(p) = m_file.parent() {
+            locked_ver = read_locked_version(p, pkg_name);
             search_dirs.push(p.join("vendor"));
             // 若 manifest 中声明了显式 path 依赖，支持直接从本地源码路径解析
             if let Ok(content) = fs::read_to_string(&m_file) {
@@ -61,7 +66,9 @@ pub fn resolve_package_module(
                         if let Some(dep_path) = &dep.path {
                             let direct_path = p.join(dep_path);
                             if direct_path.is_dir() {
-                                if let Some(hit) = find_in_package_dir(&direct_path, sub_segs) {
+                                if let Some(hit) =
+                                    find_in_package_dir(&direct_path, sub_segs, locked_ver.as_ref())
+                                {
                                     return Some(hit);
                                 }
                             }
@@ -79,7 +86,7 @@ pub fn resolve_package_module(
         if !pkg_root.is_dir() {
             continue;
         }
-        if let Some(hit) = find_in_package_dir(&pkg_root, sub_segs) {
+        if let Some(hit) = find_in_package_dir(&pkg_root, sub_segs, locked_ver.as_ref()) {
             return Some(hit);
         }
     }
@@ -88,7 +95,7 @@ pub fn resolve_package_module(
     let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).ok()?;
     let global_cache = PathBuf::from(home).join(".huzi").join("packages").join(pkg_name);
     if global_cache.is_dir() {
-        if let Some(hit) = find_in_package_dir(&global_cache, sub_segs) {
+        if let Some(hit) = find_in_package_dir(&global_cache, sub_segs, locked_ver.as_ref()) {
             return Some(hit);
         }
     }
@@ -96,7 +103,25 @@ pub fn resolve_package_module(
     None
 }
 
-fn find_in_package_dir(pkg_dir: &Path, sub_segs: &[&str]) -> Option<PathBuf> {
+/// 读工程锁中该包的选定版本(无锁/非法锁/无条目返回 None,调用方回退降序)。
+fn read_locked_version(proj_dir: &Path, pkg_name: &str) -> Option<SemVersion> {
+    read_lock_file(&lock_path_for(proj_dir)).ok()??.get(pkg_name)
+}
+
+fn find_in_package_dir(
+    pkg_dir: &Path,
+    sub_segs: &[&str],
+    locked: Option<&SemVersion>,
+) -> Option<PathBuf> {
+    // 0. 锁优先:锁选定版本目录存在则先试,未命中回退降序
+    if let Some(ver) = locked {
+        let vdir = pkg_dir.join(ver.to_string());
+        if vdir.is_dir() {
+            if let Some(hit) = find_in_version_dir(&vdir, pkg_dir, sub_segs) {
+                return Some(hit);
+            }
+        }
+    }
     // 1. 如果 pkg_dir 下有版本子目录 (例如 1.0.0/)
     if let Ok(entries) = fs::read_dir(pkg_dir) {
         let mut ver_dirs: Vec<PathBuf> = entries
@@ -107,27 +132,32 @@ fn find_in_package_dir(pkg_dir: &Path, sub_segs: &[&str]) -> Option<PathBuf> {
         ver_dirs.sort();
         ver_dirs.reverse(); // 优先尝试最高版本
         for vdir in ver_dirs {
-            if let Some(hit) = match_module_file(&vdir, sub_segs) {
+            if let Some(hit) = find_in_version_dir(&vdir, pkg_dir, sub_segs) {
                 return Some(hit);
-            }
-            if sub_segs.is_empty() {
-                if let Some(pkg_stem) = pkg_dir.file_name().and_then(|n| n.to_str()) {
-                    for candidate in &[
-                        format!("src/{}.hz", pkg_stem),
-                        format!("{}.hz", pkg_stem),
-                    ] {
-                        let p = vdir.join(candidate);
-                        if p.is_file() {
-                            return Some(p);
-                        }
-                    }
-                }
             }
         }
     }
 
     // 2. pkg_dir 自身即为包源码根目录
     match_module_file(pkg_dir, sub_segs)
+}
+
+/// 单个版本子目录内找模块(先规范入口,再包名同名文件;原逐版本块的纯搬移)。
+fn find_in_version_dir(vdir: &Path, pkg_dir: &Path, sub_segs: &[&str]) -> Option<PathBuf> {
+    if let Some(hit) = match_module_file(vdir, sub_segs) {
+        return Some(hit);
+    }
+    if sub_segs.is_empty() {
+        if let Some(pkg_stem) = pkg_dir.file_name().and_then(|n| n.to_str()) {
+            for candidate in &[format!("src/{}.hz", pkg_stem), format!("{}.hz", pkg_stem)] {
+                let p = vdir.join(candidate);
+                if p.is_file() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+    None
 }
 
 fn match_module_file(root: &Path, sub_segs: &[&str]) -> Option<PathBuf> {
