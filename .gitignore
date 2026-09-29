@@ -6,6 +6,10 @@
 out/
 *.out
 *.exe
+# 工程杂项显式兜底（out/ 与 *.exe 已覆盖全仓库，此处显式列出防漏；*.exe 覆盖 examples/*/*.exe 故去重不再列）
+node_modules/
+huzc/test/out/
+huzi-src/test/out/
 *.ll
 *.bc
 *.obj

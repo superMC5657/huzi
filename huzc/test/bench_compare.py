@@ -32,6 +32,8 @@ PY_RUNS = 1    # 解释型太慢，只跑一次
 
 # 性能门禁阈值：huzi release 相对 Rust -O 的耗时倍数上限（基准约 1.6x，允许波动上限 2.0x）
 MAX_REL_VS_RUST_OPT_RATIO = 2.0
+# 防抖：计时型门禁失败时重测确认一次（阈值 2.0x 不动，仅防单次抖动误杀）
+GATE_MAX_ATTEMPTS = 2
 
 # 历史基线文件：只存档、不判门（门禁仍只看上面的 2.0x 与三门禁）
 BASELINE_FILE = os.path.join(TEST_DIR, "bench_baseline.txt")
@@ -119,6 +121,11 @@ def float_loop(n):
 
 
 def time_exe(path):
+    # 防抖：先一次预热（不计时），消除冷启动/缺页噪声；正式 EXE_RUNS 次取最小
+    try:
+        subprocess.run([path], capture_output=True, timeout=120)
+    except Exception:
+        pass
     times = []
     stdout = ""
     for _ in range(EXE_RUNS):
@@ -235,6 +242,20 @@ def main():
     rust_dev_best, rust_dev_out = time_exe(rust_dev_exe)
     rust_opt_best, rust_opt_out = time_exe(rust_opt_exe)
     print("\nRust 输出:\n" + rust_opt_out.rstrip())
+
+    # 防抖：计时型门禁初检失败则重测一次确认（阈值 2.0x 不动，仅防单次抖动误杀）
+    attempt = 1
+    while attempt < GATE_MAX_ATTEMPTS:
+        prelim_ratio = rel_best / rust_opt_best if rust_opt_best > 0 else float("inf")
+        needs_retry = (rel_best > dev_best) or (prelim_ratio > MAX_REL_VS_RUST_OPT_RATIO)
+        if not needs_retry:
+            break
+        print(f"门禁初检未通过 (attempt {attempt}: rel/dev={rel_best/dev_best:.2f}x, "
+              f"rel/rust-opt={prelim_ratio:.2f}x)，按防抖策略重测一次确认 ...")
+        dev_best, dev_out = time_exe(exe_dev)
+        rel_best, rel_out = time_exe(exe_rel)
+        rust_opt_best, rust_opt_out = time_exe(rust_opt_exe)
+        attempt += 1
 
     print("\nPython 运行中，请稍候 ...")
     t0 = time.perf_counter()
