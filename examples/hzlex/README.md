@@ -17,9 +17,9 @@
 行尾带一个空格)。类型集:`kw | ident | int | float | string | char |
 punct | eof`(f-string 归入 `string`,去前缀 `f`)。文本口径:string 为
 解转义后原始字节(直接打印,不转义回显);char 为码点十进制;其余为源码
-拼写。列号按字节计。完整冻结定义与已知差异见 `src/main.hz` 与
-`src/lexer.hz` 头注释(多字节列号、float 拼写两处与 Rust 侧已知不一致,
-待 Rust 侧对齐,本侧不改)。
+拼写。列号按 unicode 标量计(与 Rust 侧 `lexer/mod.rs:156-160` 的 char 口径及
+本侧 `lexer.hz:26-32` 一致,每个字符占一列)。完整冻结定义见 `src/main.hz` 与
+`src/lexer.hz` 头注释;对拍只做严格文本比较(`dump_diff.py` 二进制安全判据)。
 
 ## 对拍
 

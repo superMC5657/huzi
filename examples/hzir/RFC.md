@@ -1,3 +1,5 @@
+> 冻结spike：仅i32子集（hello/arith/shadow/max/sum/fact/call/fib 8用例），外扩需先立RFC
+
 # hzir RFC：一页冻结子集
 
 ## 1. 语法子集（EBNF）
