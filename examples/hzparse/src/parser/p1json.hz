@@ -57,3 +57,24 @@ fn p1_join(parts: vec<str>) -> str {
     }
     return concat(res, "]")
 }
+
+# P3 复合值 JSON 形状（键序固定，与 hzast json.hz + ast_json.rs 同序；只拼装不判子集）。
+fn p1_tuple_json(elems: vec<str>) -> str {
+    return concat("{\"kind\":\"tuple\",\"elems\":", p1_join(elems), "}")
+}
+
+fn p1_array_json(elems: vec<str>) -> str {
+    return concat("{\"kind\":\"array\",\"elems\":", p1_join(elems), "}")
+}
+
+fn p1_index_json(arr: str, idx: str) -> str {
+    return concat("{\"kind\":\"index\",\"array\":", arr, ",\"index\":", idx, "}")
+}
+
+fn p1_enum_json(full: str, args: vec<str>) -> str {
+    return concat("{\"kind\":\"enum\",\"name\":", p1_quoted(full), ",\"args\":", p1_join(args), "}")
+}
+
+fn p1_try_json(inner: str) -> str {
+    return concat("{\"kind\":\"try\",\"expr\":", inner, "}")
+}

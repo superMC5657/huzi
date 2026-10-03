@@ -85,7 +85,7 @@ fn call_to_json(c: &huzi_ast::CallExpr) -> Result<String, String> {
     ))
 }
 
-/// 表达式递归（子集：Literal/Ident/Binary/Unary/Call）。
+/// 表达式递归（子集：Literal/Ident/Binary/Unary/Call + P3 复合 tuple/array/index/enum/try）。
 pub fn expr_to_json(expr: &Expr) -> Result<String, String> {
     match expr {
         Expr::Literal(l) => literal_to_json(l),
@@ -102,7 +102,12 @@ pub fn expr_to_json(expr: &Expr) -> Result<String, String> {
             expr_to_json(&u.operand)?
         )),
         Expr::Call(c) => call_to_json(c),
-        _ => Err("ast-json: expr outside M1-C subset".to_string()),
+        Expr::TupleLiteral(es) => Ok(format!("{{\"kind\":\"tuple\",\"elems\":{}}}", exprs_to_json(es)?)),
+        Expr::ArrayLiteral(es) => Ok(format!("{{\"kind\":\"array\",\"elems\":{}}}", exprs_to_json(es)?)),
+        Expr::ArrayIndex(a) => Ok(format!("{{\"kind\":\"index\",\"array\":{},\"index\":{}}}", expr_to_json(&a.array)?, expr_to_json(&a.index)?)),
+        Expr::EnumConstruct(c) => Ok(format!("{{\"kind\":\"enum\",\"name\":{},\"args\":{}}}", quoted(&format!("{}::{}", c.enum_name, c.variant)), exprs_to_json(&c.args)?)),
+        Expr::Try(t) => Ok(format!("{{\"kind\":\"try\",\"expr\":{}}}", expr_to_json(&t.inner)?)),
+        _ => Err("ast-json: expr outside subset".to_string()),
     }
 }
 
@@ -330,7 +335,7 @@ fn synth_let(name: &str, value: Expr) -> Stmt {
     })
 }
 
-/// 向量 ID 的表达式 JSON（8 个，与 `vectors.hz` 同构）。
+/// 向量 ID 的表达式 JSON（8+8 个，与 `vectors.hz` 同构；后 8 为 P3 复合）。
 fn test_expr_json(id: &str) -> Option<Result<String, String>> {
     match id {
         "expr_num" => Some(expr_to_json(&synth_num(42))),
@@ -352,6 +357,14 @@ fn test_expr_json(id: &str) -> Option<Result<String, String>> {
             arguments: vec![synth_num(5)],
             type_args: vec![],
         }))),
+        "expr_tuple" => Some(expr_to_json(&Expr::TupleLiteral(vec![synth_num(1), synth_num(2)]))),
+        "expr_array" => Some(expr_to_json(&Expr::ArrayLiteral(vec![synth_num(1), synth_num(2)]))),
+        "expr_index" => Some(expr_to_json(&Expr::ArrayIndex(huzi_ast::ArrayIndexExpr { array: Box::new(Expr::Ident("a".to_string())), index: Box::new(synth_num(0)) }))),
+        "expr_enum_some" => Some(expr_to_json(&Expr::EnumConstruct(huzi_ast::EnumConstructExpr { enum_name: "Option".to_string(), variant: "Some".to_string(), args: vec![synth_num(42)], type_args: vec![] }))),
+        "expr_enum_none" => Some(expr_to_json(&Expr::EnumConstruct(huzi_ast::EnumConstructExpr { enum_name: "Option".to_string(), variant: "None".to_string(), args: vec![], type_args: vec![] }))),
+        "expr_enum_ok" => Some(expr_to_json(&Expr::EnumConstruct(huzi_ast::EnumConstructExpr { enum_name: "Result".to_string(), variant: "Ok".to_string(), args: vec![synth_num(99)], type_args: vec![] }))),
+        "expr_enum_err" => Some(expr_to_json(&Expr::EnumConstruct(huzi_ast::EnumConstructExpr { enum_name: "Result".to_string(), variant: "Err".to_string(), args: vec![Expr::Literal(Literal::String("oops".to_string()))], type_args: vec![] }))),
+        "expr_try" => Some(expr_to_json(&Expr::Try(huzi_ast::TryExpr { inner: Box::new(Expr::Ident("x".to_string())) }))),
         _ => None,
     }
 }

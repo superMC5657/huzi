@@ -36,6 +36,49 @@ fn vector_expr_json(id: str) -> (bool, str) {
     return (false, "")
 }
 
+# P3 复合值向量：每形状一向量 ID（tuple/array/index/enum×4/try，共 8）。
+fn vector_comp_json(id: str) -> (bool, str) {
+    if id == "expr_tuple" {
+        let mut elems = vec<Box<Expr>>()
+        push(elems, ast::expr_num(1))
+        push(elems, ast::expr_num(2))
+        return (true, json::expr_to_json(ast::expr_tuple(elems)))
+    }
+    if id == "expr_array" {
+        let mut elems = vec<Box<Expr>>()
+        push(elems, ast::expr_num(1))
+        push(elems, ast::expr_num(2))
+        return (true, json::expr_to_json(ast::expr_array(elems)))
+    }
+    if id == "expr_index" {
+        let e = ast::expr_index(ast::expr_var("a"), ast::expr_num(0))
+        return (true, json::expr_to_json(e))
+    }
+    if id == "expr_enum_some" {
+        let mut args = vec<Box<Expr>>()
+        push(args, ast::expr_num(42))
+        return (true, json::expr_to_json(ast::expr_enum("Option", "Some", args)))
+    }
+    if id == "expr_enum_none" {
+        let args = vec<Box<Expr>>()
+        return (true, json::expr_to_json(ast::expr_enum("Option", "None", args)))
+    }
+    if id == "expr_enum_ok" {
+        let mut args = vec<Box<Expr>>()
+        push(args, ast::expr_num(99))
+        return (true, json::expr_to_json(ast::expr_enum("Result", "Ok", args)))
+    }
+    if id == "expr_enum_err" {
+        let mut args = vec<Box<Expr>>()
+        push(args, ast::expr_str("oops"))
+        return (true, json::expr_to_json(ast::expr_enum("Result", "Err", args)))
+    }
+    if id == "expr_try" {
+        return (true, json::expr_to_json(ast::expr_try(ast::expr_var("x"))))
+    }
+    return (false, "")
+}
+
 fn vector_stmt_json(id: str) -> (bool, str) {
     if id == "stmt_let" {
         return (true, json::stmt_to_json(ast::stmt_let("x", ast::expr_num(10))))
@@ -105,6 +148,10 @@ fn vector_json(id: str) -> (bool, str) {
     let r = vector_expr_json(id)
     if r.0 {
         return r
+    }
+    let c = vector_comp_json(id)
+    if c.0 {
+        return c
     }
     let s = vector_stmt_json(id)
     if s.0 {

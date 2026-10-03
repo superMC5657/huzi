@@ -99,6 +99,27 @@ fn expr_to_json(e: Box<Expr>) -> str {
         let a = exprs_to_json(e.args)
         return concat("{\"kind\":\"call\",\"name\":", json_quoted(e.name), ",\"args\":", a, "}")
     }
+    if e.kind == "tuple" {
+        let t = exprs_to_json(e.args)
+        return concat("{\"kind\":\"tuple\",\"elems\":", t, "}")
+    }
+    if e.kind == "array" {
+        let ar = exprs_to_json(e.args)
+        return concat("{\"kind\":\"array\",\"elems\":", ar, "}")
+    }
+    if e.kind == "index" {
+        let ab = expr_to_json(e.left)
+        let ib = expr_to_json(e.right)
+        return concat("{\"kind\":\"index\",\"array\":", ab, ",\"index\":", ib, "}")
+    }
+    if e.kind == "enum" {
+        let ea = exprs_to_json(e.args)
+        return concat("{\"kind\":\"enum\",\"name\":", json_quoted(e.name), ",\"args\":", ea, "}")
+    }
+    if e.kind == "try" {
+        let te = expr_to_json(e.left)
+        return concat("{\"kind\":\"try\",\"expr\":", te, "}")
+    }
     return ""
 }
 

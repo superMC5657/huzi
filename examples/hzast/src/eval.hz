@@ -110,6 +110,106 @@ fn eval_binary_num(op: str, a: i32, b: i32) -> Value {
     return Value::Nil
 }
 
+fn eval_elem_strs(args: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> vec<str> {
+    let mut out = vec<str>()
+    let n = len(args)
+    let mut i = 0
+    while i < n {
+        push(out, ast::val_to_string(eval_expr(args[i], env, fns)))
+        i = i + 1
+    }
+    return out
+}
+
+# 已拼接串 `a, b, c` 按 `, ` 切回向量（空串即空向量；元素内不含 `, `，见构造侧约定）。
+fn split_joined(joined: str) -> vec<str> {
+    let mut out = vec<str>()
+    let n = len(joined)
+    if n == 0 {
+        return out
+    }
+    let mut start = 0
+    let mut i = 0
+    while i < n {
+        if i + 1 < n && substring(joined, i, i + 2) == ", " {
+            push(out, substring(joined, start, i))
+            i = i + 2
+            start = i
+        } else {
+            i = i + 1
+        }
+    }
+    push(out, substring(joined, start, n))
+    return out
+}
+
+# 已拼接串取第 j 个元素（越界由调用方先验 count；空串不进此分支）。
+fn nth_joined(joined: str, j: i32) -> str {
+    let parts = split_joined(joined)
+    return parts[j]
+}
+
+fn eval_index_val(arr_e: Box<Expr>, idx_e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let base = eval_expr(arr_e, env, fns)
+    let idx = eval_expr(idx_e, env, fns)
+    let j = ast::val_to_int(idx)
+    return match base {
+    Value::Arr(joined, _) => Value::StrVal(nth_joined(joined, j)),
+    Value::Tuple(joined, _) => Value::StrVal(nth_joined(joined, j)),
+    Value::StrVal(s) => Value::StrVal(substring(s, j, j + 1)),
+    Value::Num(n) => Value::Num(n),
+    Value::Bool(b) => Value::Bool(b),
+    Value::Nil => Value::Nil,
+    Value::OptSome(s) => Value::StrVal(s),
+    Value::OptNone => Value::Nil,
+    Value::ResOk(s) => Value::StrVal(s),
+    Value::ResErr(e) => Value::StrVal(e),
+}
+}
+
+fn eval_enum_val(name: str, args: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let vs = eval_elem_strs(args, env, fns)
+    if name == "Option::Some" || name == "Some" {
+        if len(vs) != 1 {
+            panic("eval: Some expects 1 arg")
+        }
+        return ast::val_some_str(vs[0])
+    }
+    if name == "Option::None" || name == "None" {
+        return ast::val_none
+    }
+    if name == "Result::Ok" || name == "Ok" {
+        if len(vs) != 1 {
+            panic("eval: Ok expects 1 arg")
+        }
+        return ast::val_ok_str(vs[0])
+    }
+    if name == "Result::Err" || name == "Err" {
+        if len(vs) != 1 {
+            panic("eval: Err expects 1 arg")
+        }
+        return ast::val_err(vs[0])
+    }
+    panic(concat("eval: unknown enum '", name, "'"))
+    return Value::Nil
+}
+
+fn eval_try_val(inner_e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let v = eval_expr(inner_e, env, fns)
+    return match v {
+    Value::ResOk(s) => Value::StrVal(s),
+    Value::ResErr(e) => v,
+    Value::Num(n) => v,
+    Value::Bool(b) => v,
+    Value::StrVal(s) => v,
+    Value::Nil => v,
+    Value::Tuple(_, _) => v,
+    Value::Arr(_, _) => v,
+    Value::OptSome(s) => v,
+    Value::OptNone => v,
+}
+}
+
 fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     if e.kind == "num" {
         return Value::Num(e.num_val)
@@ -145,6 +245,12 @@ fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     Value::Num(n1) => Value::Num(n1 + ast::val_to_int(v2)),
     Value::Bool(b1) => Value::Num(ast::val_to_int(v1) + ast::val_to_int(v2)),
     Value::Nil => Value::StrVal(concat("nil", ast::val_to_string(v2))),
+    Value::Tuple(joined, count) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
+    Value::Arr(joined, count) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
+    Value::OptSome(s) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
+    Value::OptNone => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
+    Value::ResOk(s) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
+    Value::ResErr(e) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
 }
         }
         return eval_binary_num(e.op, ast::val_to_int(v1), ast::val_to_int(v2))
@@ -152,7 +258,42 @@ fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     if e.kind == "call" {
         return eval_call(e.name, e.args, env, fns)
     }
+    if e.kind == "tuple" {
+        return ast::val_tuple(eval_elem_strs(e.args, env, fns))
+    }
+    if e.kind == "array" {
+        return ast::val_arr(eval_elem_strs(e.args, env, fns))
+    }
+    if e.kind == "index" {
+        return eval_index_val(e.left, e.right, env, fns)
+    }
+    if e.kind == "enum" {
+        return eval_enum_val(e.name, e.args, env, fns)
+    }
+    if e.kind == "try" {
+        return eval_try_val(e.left, env, fns)
+    }
     return Value::Nil
+}
+
+# `?` 同函数内提前返回：try(Ok(v))→(false,v)；try(Err)→(true,Err) 由语句层直接返回。
+fn eval_expr_checked(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool, Value) {
+    if e.kind == "try" {
+        let v = eval_expr(e.left, env, fns)
+        return match v {
+    Value::ResOk(s) => (false, Value::StrVal(s)),
+    Value::ResErr(err) => (true, v),
+    Value::Num(n) => (false, v),
+    Value::Bool(b) => (false, v),
+    Value::StrVal(s) => (false, v),
+    Value::Nil => (false, v),
+    Value::Tuple(_, _) => (false, v),
+    Value::Arr(_, _) => (false, v),
+    Value::OptSome(s) => (false, v),
+    Value::OptNone => (false, v),
+}
+    }
+    return (false, eval_expr(e, env, fns))
 }
 
 fn eval_call(name: str, args: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
@@ -176,18 +317,27 @@ fn eval_call(name: str, args: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>
 
 fn eval_stmt(s: Box<Stmt>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool, Value, Box<Env>) {
     if s.kind == "let" {
-        let val = eval_expr(s.expr, env, fns)
-        let new_env = define_var(env, s.name, val)
+        let cr = eval_expr_checked(s.expr, env, fns)
+        if cr.0 {
+            return (true, cr.1, env)
+        }
+        let new_env = define_var(env, s.name, cr.1)
         return (false, Value::Nil, new_env)
     }
     if s.kind == "assign" {
-        let val = eval_expr(s.expr, env, fns)
-        let new_env = assign_var(env, s.name, val)
+        let cr = eval_expr_checked(s.expr, env, fns)
+        if cr.0 {
+            return (true, cr.1, env)
+        }
+        let new_env = assign_var(env, s.name, cr.1)
         return (false, Value::Nil, new_env)
     }
     if s.kind == "if" {
-        let cond_val = eval_expr(s.expr, env, fns)
-        if ast::val_to_bool(cond_val) {
+        let cr = eval_expr_checked(s.expr, env, fns)
+        if cr.0 {
+            return (true, cr.1, env)
+        }
+        if ast::val_to_bool(cr.1) {
             return eval_block(s.body, env, fns)
         } else {
             return eval_block(s.else_body, env, fns)
@@ -196,8 +346,11 @@ fn eval_stmt(s: Box<Stmt>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool, Value,
     if s.kind == "while" {
         let mut cur_env = env
         while true {
-            let cond_val = eval_expr(s.expr, cur_env, fns)
-            if !ast::val_to_bool(cond_val) {
+            let cr = eval_expr_checked(s.expr, cur_env, fns)
+            if cr.0 {
+                return (true, cr.1, cur_env)
+            }
+            if !ast::val_to_bool(cr.1) {
                 break
             }
             let res = eval_block(s.body, cur_env, fns)
@@ -209,16 +362,22 @@ fn eval_stmt(s: Box<Stmt>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool, Value,
         return (false, Value::Nil, cur_env)
     }
     if s.kind == "return" {
-        let val = eval_expr(s.expr, env, fns)
-        return (true, val, env)
+        let cr = eval_expr_checked(s.expr, env, fns)
+        return (true, cr.1, env)
     }
     if s.kind == "print" {
-        let val = eval_expr(s.expr, env, fns)
-        print(ast::val_to_string(val))
+        let cr = eval_expr_checked(s.expr, env, fns)
+        if cr.0 {
+            return (true, cr.1, env)
+        }
+        print(ast::val_to_string(cr.1))
         return (false, Value::Nil, env)
     }
     if s.kind == "expr" {
-        eval_expr(s.expr, env, fns)
+        let cr = eval_expr_checked(s.expr, env, fns)
+        if cr.0 {
+            return (true, cr.1, env)
+        }
         return (false, Value::Nil, env)
     }
     return (false, Value::Nil, env)

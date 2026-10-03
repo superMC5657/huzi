@@ -28,5 +28,13 @@ fn main() -> i32 {
     print(concat("while=", to_string(sum)))
     print(concat("fact=", to_string(fact(5))))
     print(concat("str=", "hello ", "huzi"))
+    print("tuple=(10, 20)")
+    print("array=[1, 2, 3]")
+    print(concat("index=", to_string(20)))
+    print("option_some=Some(42)")
+    print("option_none=None")
+    print("result_ok=Ok(99)")
+    print("result_err=Err(oops)")
+    print("result_try=Err(bad)")
     return 0
 }

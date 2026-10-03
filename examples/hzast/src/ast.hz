@@ -1,8 +1,16 @@
+# P3 复合值：扁平字符串化存储（Huzi match 绑定 vec 传参受限，故 Tuple/Arr 存
+# 已拼接串 + 个数，不存 vec；Some/Ok 存内层串；索引经 split 重建 let 绑定 vec）。
 enum Value {
     Num(i32),
     Bool(bool),
     StrVal(str),
     Nil,
+    Tuple(str, i32),
+    Arr(str, i32),
+    OptSome(str),
+    OptNone,
+    ResOk(str),
+    ResErr(str),
 }
 
 fn val_num(n: i32) -> Value {
@@ -21,12 +29,76 @@ fn val_nil() -> Value {
     return Value::Nil
 }
 
+fn val_tuple_strs(vs: vec<str>) -> Value {
+    return Value::Tuple(strs_join(vs), len(vs))
+}
+
+fn val_arr_strs(vs: vec<str>) -> Value {
+    return Value::Arr(strs_join(vs), len(vs))
+}
+
+fn val_some_str(s: str) -> Value {
+    return Value::OptSome(s)
+}
+
+fn val_none() -> Value {
+    return Value::OptNone
+}
+
+fn val_ok_str(s: str) -> Value {
+    return Value::ResOk(s)
+}
+
+fn val_err(e: str) -> Value {
+    return Value::ResErr(e)
+}
+
+fn val_some(v: Value) -> Value {
+    return Value::OptSome(val_to_string(v))
+}
+
+fn val_ok(v: Value) -> Value {
+    return Value::ResOk(val_to_string(v))
+}
+
+fn val_tuple(vs: vec<str>) -> Value {
+    return Value::Tuple(strs_join(vs), len(vs))
+}
+
+fn val_arr(vs: vec<str>) -> Value {
+    return Value::Arr(strs_join(vs), len(vs))
+}
+
+fn strs_join(vs: vec<str>) -> str {
+    let n = len(vs)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ", ")
+        }
+        res = concat(res, vs[i])
+        i = i + 1
+    }
+    return res
+}
+
+fn vals_join(vs: vec<str>) -> str {
+    return strs_join(vs)
+}
+
 fn val_to_string(v: Value) -> str {
     return match v {
     Value::Num(n) => to_string(n),
     Value::Bool(b) => if b { "true" } else { "false" },
     Value::StrVal(s) => s,
     Value::Nil => "nil",
+    Value::Tuple(joined, count) => concat("(", joined, ")"),
+    Value::Arr(joined, count) => concat("[", joined, "]"),
+    Value::OptSome(s) => concat("Some(", s, ")"),
+    Value::OptNone => "None",
+    Value::ResOk(s) => concat("Ok(", s, ")"),
+    Value::ResErr(e) => concat("Err(", e, ")"),
 }
 }
 
@@ -36,6 +108,12 @@ fn val_to_int(v: Value) -> i32 {
     Value::Bool(b) => if b { 1 } else { 0 },
     Value::StrVal(s) => parse_int(s).1,
     Value::Nil => 0,
+    Value::Tuple(joined, count) => count,
+    Value::Arr(joined, count) => count,
+    Value::OptSome(s) => parse_int(s).1,
+    Value::OptNone => 0,
+    Value::ResOk(s) => parse_int(s).1,
+    Value::ResErr(e) => 0,
 }
 }
 
@@ -45,6 +123,12 @@ fn val_to_bool(v: Value) -> bool {
     Value::Bool(b) => b,
     Value::StrVal(s) => len(s) > 0,
     Value::Nil => false,
+    Value::Tuple(joined, count) => count > 0,
+    Value::Arr(joined, count) => count > 0,
+    Value::OptSome(s) => true,
+    Value::OptNone => false,
+    Value::ResOk(s) => true,
+    Value::ResErr(e) => false,
 }
 }
 
@@ -86,6 +170,27 @@ fn expr_un(op: str, operand: Box<Expr>) -> Box<Expr> {
 
 fn expr_call(name: str, args: vec<Box<Expr>>) -> Box<Expr> {
     return box(Expr { kind: "call", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args })
+}
+
+# P3 复合值形状：复用既有字段（args 作 elems，left/right 作 array/index，name+args 作 enum，left 作 try 内层）。
+fn expr_tuple(elems: vec<Box<Expr>>) -> Box<Expr> {
+    return box(Expr { kind: "tuple", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems })
+}
+
+fn expr_array(elems: vec<Box<Expr>>) -> Box<Expr> {
+    return box(Expr { kind: "array", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems })
+}
+
+fn expr_index(arr: Box<Expr>, idx: Box<Expr>) -> Box<Expr> {
+    return box(Expr { kind: "index", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: arr, right: idx, args: vec<Box<Expr>>() })
+}
+
+fn expr_enum(enum_name: str, variant: str, args: vec<Box<Expr>>) -> Box<Expr> {
+    return box(Expr { kind: "enum", op: "", name: concat(enum_name, "::", variant), num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args })
+}
+
+fn expr_try(inner: Box<Expr>) -> Box<Expr> {
+    return box(Expr { kind: "try", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: inner, right: null, args: vec<Box<Expr>>() })
 }
 
 struct Stmt {

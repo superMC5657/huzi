@@ -168,6 +168,128 @@ fn j_parse_expr_call_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     return (true, ast::expr_call(nr.1, ar.1))
 }
 
+# P3 复合形状逆解析：tuple/array 复用 elems 数组；index 双 expr；enum 拆 name::variant；try 单 expr。
+fn j_parse_expr_tuple_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "elems") {
+        return (false, ast::expr_num(0))
+    }
+    let ar = j_parse_expr_array(s, pos)
+    if !ar.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_tuple(ar.1))
+}
+
+fn j_parse_expr_array_lit_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "elems") {
+        return (false, ast::expr_num(0))
+    }
+    let ar = j_parse_expr_array(s, pos)
+    if !ar.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_array(ar.1))
+}
+
+fn j_parse_expr_index_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "array") {
+        return (false, ast::expr_num(0))
+    }
+    let ar = j_parse_expr(s, pos)
+    if !ar.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "index") {
+        return (false, ast::expr_num(0))
+    }
+    let ir = j_parse_expr(s, pos)
+    if !ir.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_index(ar.1, ir.1))
+}
+
+fn j_split_enum_name(full: str) -> (bool, str, str) {
+    let n = len(full)
+    let mut i = 0
+    while i + 1 < n {
+        if substring(full, i, i + 2) == "::" {
+            return (true, substring(full, 0, i), substring(full, i + 2, n))
+        }
+        i = i + 1
+    }
+    return (false, "", "")
+}
+
+fn j_parse_expr_enum_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, ast::expr_num(0))
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, ast::expr_num(0))
+    }
+    let sp = j_split_enum_name(nr.1)
+    if !sp.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "args") {
+        return (false, ast::expr_num(0))
+    }
+    let ar = j_parse_expr_array(s, pos)
+    if !ar.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_enum(sp.1, sp.2, ar.1))
+}
+
+fn j_parse_expr_try_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "expr") {
+        return (false, ast::expr_num(0))
+    }
+    let er = j_parse_expr(s, pos)
+    if !er.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_try(er.1))
+}
+
 fn j_parse_expr_array(s: str, pos: vec<i32>) -> (bool, vec<Box<Expr>>) {
     if !jparse_base::j_expect(s, pos, "[") {
         return (false, vec<Box<Expr>>())
@@ -225,6 +347,21 @@ fn j_parse_expr(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     }
     if kr.1 == "call" {
         return j_parse_expr_call_rest(s, pos)
+    }
+    if kr.1 == "tuple" {
+        return j_parse_expr_tuple_rest(s, pos)
+    }
+    if kr.1 == "array" {
+        return j_parse_expr_array_lit_rest(s, pos)
+    }
+    if kr.1 == "index" {
+        return j_parse_expr_index_rest(s, pos)
+    }
+    if kr.1 == "enum" {
+        return j_parse_expr_enum_rest(s, pos)
+    }
+    if kr.1 == "try" {
+        return j_parse_expr_try_rest(s, pos)
     }
     return (false, ast::expr_num(0))
 }

@@ -8,7 +8,7 @@ fn test_arithmetic() -> i32 {
     let add_e = ast::expr_bin("+", ast::expr_num(3), ast::expr_num(4))
     let mul_e = ast::expr_bin("*", add_e, ast::expr_num(5))
     let sub_e = ast::expr_bin("-", mul_e, ast::expr_num(10))
-    let env: Box<Env> = eval::env_new()
+    let env: Box<Env> = eval::env_new
     let fns = vec<Box<FnDef>>()
     let v = eval::eval_expr(sub_e, env, fns)
     assert::assert_eq_i32(ast::val_to_int(v), 25)
@@ -23,7 +23,7 @@ fn test_variables_and_assign() -> i32 {
     push(stmts, ast::stmt_assign("x", add_e))
     let mul_e = ast::expr_bin("*", ast::expr_var("x"), ast::expr_num(2))
     push(stmts, ast::stmt_return(mul_e))
-    let env: Box<Env> = eval::env_new()
+    let env: Box<Env> = eval::env_new
     let fns = vec<Box<FnDef>>()
     let res = eval::eval_block(stmts, env, fns)
     assert::assert_true(res.0)
@@ -43,7 +43,7 @@ fn test_conditional_if() -> i32 {
     push(else_b, ast::stmt_assign("r", ast::expr_num(200)))
     push(stmts, ast::stmt_if(cond, then_b, else_b))
     push(stmts, ast::stmt_return(ast::expr_var("r")))
-    let env: Box<Env> = eval::env_new()
+    let env: Box<Env> = eval::env_new
     let fns = vec<Box<FnDef>>()
     let res = eval::eval_block(stmts, env, fns)
     assert::assert_true(res.0)
@@ -64,7 +64,7 @@ fn test_while_loop() -> i32 {
     push(loop_body, ast::stmt_assign("i", i_add))
     push(stmts, ast::stmt_while(cond, loop_body))
     push(stmts, ast::stmt_return(ast::expr_var("sum")))
-    let env: Box<Env> = eval::env_new()
+    let env: Box<Env> = eval::env_new
     let fns = vec<Box<FnDef>>()
     let res = eval::eval_block(stmts, env, fns)
     assert::assert_true(res.0)
@@ -104,10 +104,105 @@ fn test_functions_and_recursion() -> i32 {
 
 fn test_string_operations() -> i32 {
     let concat_e = ast::expr_bin("+", ast::expr_str("hello "), ast::expr_str("huzi"))
-    let env: Box<Env> = eval::env_new()
+    let env: Box<Env> = eval::env_new
     let fns = vec<Box<FnDef>>()
     let res = eval::eval_expr(concat_e, env, fns)
     assert::assert_eq_str(ast::val_to_string(res), "hello huzi")
+    return 0
+}
+
+fn test_tuple() -> i32 {
+    let mut elems = vec<Box<Expr>>()
+    push(elems, ast::expr_num(10))
+    push(elems, ast::expr_num(20))
+    let e = ast::expr_tuple(elems)
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_str(ast::val_to_string(res), "(10, 20)")
+    assert::assert_eq_i32(ast::val_to_int(res), 2)
+    return 0
+}
+
+fn test_array() -> i32 {
+    let mut elems = vec<Box<Expr>>()
+    push(elems, ast::expr_num(1))
+    push(elems, ast::expr_num(2))
+    push(elems, ast::expr_num(3))
+    let e = ast::expr_array(elems)
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_str(ast::val_to_string(res), "[1, 2, 3]")
+    assert::assert_eq_i32(ast::val_to_int(res), 3)
+    return 0
+}
+
+fn test_index() -> i32 {
+    let mut elems = vec<Box<Expr>>()
+    push(elems, ast::expr_num(10))
+    push(elems, ast::expr_num(20))
+    push(elems, ast::expr_num(30))
+    let arr = ast::expr_array(elems)
+    let e = ast::expr_index(arr, ast::expr_num(1))
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(res), 20)
+    return 0
+}
+
+fn test_option_some() -> i32 {
+    let mut args = vec<Box<Expr>>()
+    push(args, ast::expr_num(42))
+    let e = ast::expr_enum("Option", "Some", args)
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(res), 42)
+    assert::assert_eq_str(ast::val_to_string(res), "Some(42)")
+    return 0
+}
+
+fn test_option_none() -> i32 {
+    let e = ast::expr_enum("Option", "None", vec<Box<Expr>>())
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_str(ast::val_to_string(res), "None")
+    assert::assert_true(!ast::val_to_bool(res))
+    return 0
+}
+
+fn test_result_ok() -> i32 {
+    let mut args = vec<Box<Expr>>()
+    push(args, ast::expr_num(99))
+    let e = ast::expr_enum("Result", "Ok", args)
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(res), 99)
+    assert::assert_eq_str(ast::val_to_string(res), "Ok(99)")
+    return 0
+}
+
+fn test_result_err() -> i32 {
+    let mut args = vec<Box<Expr>>()
+    push(args, ast::expr_str("oops"))
+    let e = ast::expr_enum("Result", "Err", args)
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_str(ast::val_to_string(res), "Err(oops)")
+    assert::assert_true(!ast::val_to_bool(res))
+    return 0
+}
+
+fn test_try_return() -> i32 {
+    let mut ok_args = vec<Box<Expr>>()
+    push(ok_args, ast::expr_num(21))
+    let ok_try = ast::expr_try(ast::expr_enum("Result", "Ok", ok_args))
+    let v1 = eval::eval_expr(ok_try, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(v1), 21)
+    let mut err_args = vec<Box<Expr>>()
+    push(err_args, ast::expr_str("bad"))
+    let err_try = ast::expr_try(ast::expr_enum("Result", "Err", err_args))
+    let mut fbody = vec<Box<Stmt>>()
+    push(fbody, ast::stmt_let("a", err_try))
+    push(fbody, ast::stmt_return(ast::expr_num(42)))
+    let f = ast::fn_def("f", vec<str>(), fbody)
+    let mut fns = vec<Box<FnDef>>()
+    push(fns, f)
+    let mut mb = vec<Box<Stmt>>()
+    push(mb, ast::stmt_return(ast::expr_call("f", vec<Box<Expr>>())))
+    let res = eval::eval_program(ast::program_new(fns, mb))
+    assert::assert_eq_str(ast::val_to_string(res), "Err(bad)")
     return 0
 }
 
@@ -118,6 +213,14 @@ fn selftest() -> i32 {
     test_while_loop()
     test_functions_and_recursion()
     test_string_operations()
+    test_tuple()
+    test_array()
+    test_index()
+    test_option_some()
+    test_option_none()
+    test_result_ok()
+    test_result_err()
+    test_try_return()
     print("hzast selftest passed")
     return 0
 }

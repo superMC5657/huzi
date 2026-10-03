@@ -10,7 +10,7 @@ fn dump_arith() -> i32 {
     let add_e = ast::expr_bin("+", ast::expr_num(3), ast::expr_num(4))
     let mul_e = ast::expr_bin("*", add_e, ast::expr_num(5))
     let sub_e = ast::expr_bin("-", mul_e, ast::expr_num(10))
-    let v = eval::eval_expr(sub_e, eval::env_new(), vec<Box<FnDef>>())
+    let v = eval::eval_expr(sub_e, eval::env_new, vec<Box<FnDef>>())
     print(concat("arithmetic=", to_string(ast::val_to_int(v))))
     return 0
 }
@@ -20,7 +20,7 @@ fn dump_vars_if() -> i32 {
     push(s1, ast::stmt_let("x", ast::expr_num(10)))
     push(s1, ast::stmt_assign("x", ast::expr_bin("+", ast::expr_var("x"), ast::expr_num(20))))
     push(s1, ast::stmt_return(ast::expr_bin("*", ast::expr_var("x"), ast::expr_num(2))))
-    let r1 = eval::eval_block(s1, eval::env_new(), vec<Box<FnDef>>())
+    let r1 = eval::eval_block(s1, eval::env_new, vec<Box<FnDef>>())
     print(concat("variables=", to_string(ast::val_to_int(r1.1))))
     let mut s2 = vec<Box<Stmt>>()
     push(s2, ast::stmt_let("a", ast::expr_num(15)))
@@ -32,7 +32,7 @@ fn dump_vars_if() -> i32 {
     push(else_b, ast::stmt_assign("r", ast::expr_num(200)))
     push(s2, ast::stmt_if(cond, then_b, else_b))
     push(s2, ast::stmt_return(ast::expr_var("r")))
-    let r2 = eval::eval_block(s2, eval::env_new(), vec<Box<FnDef>>())
+    let r2 = eval::eval_block(s2, eval::env_new, vec<Box<FnDef>>())
     print(concat("conditional=", to_string(ast::val_to_int(r2.1))))
     return 0
 }
@@ -47,7 +47,7 @@ fn dump_while_fact_str() -> i32 {
     push(body, ast::stmt_assign("i", ast::expr_bin("+", ast::expr_var("i"), ast::expr_num(1))))
     push(s3, ast::stmt_while(cond, body))
     push(s3, ast::stmt_return(ast::expr_var("sum")))
-    let r3 = eval::eval_block(s3, eval::env_new(), vec<Box<FnDef>>())
+    let r3 = eval::eval_block(s3, eval::env_new, vec<Box<FnDef>>())
     print(concat("while=", to_string(ast::val_to_int(r3.1))))
     let mut params = vec<str>()
     push(params, "n")
@@ -68,7 +68,7 @@ fn dump_while_fact_str() -> i32 {
     let res = eval::eval_program(ast::program_new(fns, mb))
     print(concat("fact=", to_string(ast::val_to_int(res))))
     let ce = ast::expr_bin("+", ast::expr_str("hello "), ast::expr_str("huzi"))
-    let rv = eval::eval_expr(ce, eval::env_new(), vec<Box<FnDef>>())
+    let rv = eval::eval_expr(ce, eval::env_new, vec<Box<FnDef>>())
     print(concat("str=", ast::val_to_string(rv)))
     return 0
 }
@@ -77,6 +77,66 @@ fn dump_eval() -> i32 {
     dump_arith()
     dump_vars_if()
     dump_while_fact_str()
+    dump_comp_tuple()
+    dump_comp_option()
+    dump_comp_try()
+    return 0
+}
+
+# P3 复合值打印：与 main.hz 8 新自测同构（顺序固定 tuple/array/index + option/result + try）。
+fn dump_comp_tuple() -> i32 {
+    let mut te = vec<Box<Expr>>()
+    push(te, ast::expr_num(10))
+    push(te, ast::expr_num(20))
+    let tv = eval::eval_expr(ast::expr_tuple(te), eval::env_new, vec<Box<FnDef>>())
+    print(concat("tuple=", ast::val_to_string(tv)))
+    let mut ae = vec<Box<Expr>>()
+    push(ae, ast::expr_num(1))
+    push(ae, ast::expr_num(2))
+    push(ae, ast::expr_num(3))
+    let av = eval::eval_expr(ast::expr_array(ae), eval::env_new, vec<Box<FnDef>>())
+    print(concat("array=", ast::val_to_string(av)))
+    let mut ie = vec<Box<Expr>>()
+    push(ie, ast::expr_num(10))
+    push(ie, ast::expr_num(20))
+    push(ie, ast::expr_num(30))
+    let iv = eval::eval_expr(ast::expr_index(ast::expr_array(ie), ast::expr_num(1)), eval::env_new, vec<Box<FnDef>>())
+    print(concat("index=", to_string(ast::val_to_int(iv))))
+    return 0
+}
+
+fn dump_comp_option() -> i32 {
+    let mut sa = vec<Box<Expr>>()
+    push(sa, ast::expr_num(42))
+    let sv = eval::eval_expr(ast::expr_enum("Option", "Some", sa), eval::env_new, vec<Box<FnDef>>())
+    print(concat("option_some=", ast::val_to_string(sv)))
+    let nv = eval::eval_expr(ast::expr_enum("Option", "None", vec<Box<Expr>>()), eval::env_new, vec<Box<FnDef>>())
+    print(concat("option_none=", ast::val_to_string(nv)))
+    let mut oa = vec<Box<Expr>>()
+    push(oa, ast::expr_num(99))
+    let ov = eval::eval_expr(ast::expr_enum("Result", "Ok", oa), eval::env_new, vec<Box<FnDef>>())
+    print(concat("result_ok=", ast::val_to_string(ov)))
+    let mut ea = vec<Box<Expr>>()
+    push(ea, ast::expr_str("oops"))
+    let ev = eval::eval_expr(ast::expr_enum("Result", "Err", ea), eval::env_new, vec<Box<FnDef>>())
+    print(concat("result_err=", ast::val_to_string(ev)))
+    return 0
+}
+
+fn dump_comp_try() -> i32 {
+    let mut ea = vec<Box<Expr>>()
+    push(ea, ast::expr_str("bad"))
+    let err_try = ast::expr_try(ast::expr_enum("Result", "Err", ea))
+    let mut fbody = vec<Box<Stmt>>()
+    push(fbody, ast::stmt_let("a", err_try))
+    push(fbody, ast::stmt_return(ast::expr_num(42)))
+    let f = ast::fn_def("f", vec<str>(), fbody)
+    let mut fns = vec<Box<FnDef>>()
+    push(fns, f)
+    let mut mb = vec<Box<Stmt>>()
+    push(mb, ast::stmt_return(ast::expr_call("f", vec<Box<Expr>>())))
+    let res = eval::eval_program(ast::program_new(fns, mb))
+    print(concat("result_try=", ast::val_to_string(res)))
     return 0
 }
 
