@@ -138,6 +138,9 @@ fn corpus_files(root: str) -> vec<str> {
     push(out, with_root(root, "examples/hzast/src/dump.hz"))
     push(out, with_root(root, "examples/hzast/src/json.hz"))
     push(out, with_root(root, "examples/hzast/src/vectors.hz"))
+    push(out, with_root(root, "examples/hzast/src/jparse_base.hz"))
+    push(out, with_root(root, "examples/hzast/src/jparse_expr.hz"))
+    push(out, with_root(root, "examples/hzast/src/jparse_prog.hz"))
     push(out, with_root(root, "examples/hzast/eval_ref.hz"))
     return out
 }
