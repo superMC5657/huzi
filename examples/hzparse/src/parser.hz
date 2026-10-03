@@ -15,6 +15,8 @@ import parser.stmt
 
 # ---- 入口 ----
 # 解析 kinds/texts/lines/cols 全串;返回 (ok, stats, errs)。
+# P2-a 错误恢复(对标 huzc Parser::parse_recoverable/synchronize):
+# 首错 L:C 不变，后续跳到 `;`/`}`/换行同步点继续计数；成功文件统计不变。
 fn parse(kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, vec<i32>, vec<str>) {
     let mut stats = vec(0, 0, 0, 0, 0, 0, 0, 0, 0)
     let mut errs = vec<str>()
@@ -23,12 +25,17 @@ fn parse(kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (
     let mut maxd = vec(0)
     let n = len(kinds)
     let mut ok = true
-    while pos[0] < n && ok {
+    while pos[0] < n {
         if cursor::pz_at_kind(kinds, pos, "eof") {
             break
         }
         if !stmt::pz_stmt(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
             ok = false
+            if len(errs) >= 32 {
+                break
+            }
+            cursor::pz_sync(kinds, texts, pos, lines)
+            dep[0] = 0
         }
     }
     stats[8] = maxd[0]

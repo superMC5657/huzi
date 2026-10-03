@@ -115,3 +115,42 @@ fn pz_rollback(errs: vec<str>, mark: i32) -> i32 {
     }
     return mark
 }
+
+# 错误同步:跳到下一个 `;`/`}`/EOF 或下一行行首(对标 huzc Parser::synchronize)。
+# `;` 消费后停，`}`/换行停而不消费；至少前进一步，避免原地空转。
+fn pz_sync(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, lines: vec<i32>) -> i32 {
+    let n = len(kinds)
+    let start = pos[0]
+    let mut fail_line = 1
+    if len(lines) > 0 {
+        if start < len(lines) {
+            fail_line = lines[start]
+        } else {
+            fail_line = lines[len(lines) - 1]
+        }
+    }
+    while pos[0] < n {
+        if pz_at_kind(kinds, pos, "eof") {
+            break
+        }
+        if pz_at(kinds, texts, pos, ";") {
+            pz_next(pos)
+            break
+        }
+        if pz_at(kinds, texts, pos, "}") {
+            break
+        }
+        let mut cur_line = fail_line
+        if pos[0] < len(lines) {
+            cur_line = lines[pos[0]]
+        }
+        if cur_line != fail_line {
+            break
+        }
+        pz_next(pos)
+    }
+    if pos[0] == start && pos[0] < n && !pz_at_kind(kinds, pos, "eof") {
+        pz_next(pos)
+    }
+    return pos[0]
+}

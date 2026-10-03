@@ -65,6 +65,30 @@ fn selftest_neg() -> i32 {
     return 0
 }
 
+# P2-a 错误恢复自测(对标 huzc parse_recoverable 双测)：首错 L:C 不变，
+# 同行双错计 2 错零计数，错后好语句仍计数；后续错误只计数不比对。
+fn selftest_recover() -> i32 {
+    let r1 = check_src("let x = ; let y = ;")
+    assert::assert_true(r1.0)
+    assert::assert_true(!r1.1)
+    let e1 = r1.3
+    let s1 = r1.2
+    assert::assert_eq_i32(len(e1), 2)
+    assert::assert_true(has_line_col(e1[0]))
+    assert::assert_eq_i32(s1[7], 0)
+    print(concat("recover double-fault :: ", e1[0], " errors=", to_string(len(e1))))
+    let r2 = check_src("let x = ;\nlet y = 2")
+    assert::assert_true(r2.0)
+    assert::assert_true(!r2.1)
+    let e2 = r2.3
+    let s2 = r2.2
+    assert::assert_eq_i32(len(e2), 1)
+    assert::assert_true(has_line_col(e2[0]))
+    assert::assert_eq_i32(s2[7], 1)
+    print(concat("recover keep-good :: ", e2[0], " lets=", to_string(s2[7])))
+    return 0
+}
+
 fn selftest_units() -> i32 {
     # 词法复用断言(与 hzlex 自测一致的 token 约定)。
     let mut b = vec<i32>()
@@ -114,6 +138,7 @@ fn selftest_units() -> i32 {
     let bad_err = assert_neg("fn broken( { ")
     print(concat("neg broken-fn :: ", bad_err))
     selftest_neg()
+    selftest_recover()
     print("hzparse units passed")
     return 0
 }
@@ -226,7 +251,7 @@ fn main() -> i32 {
     }
     if !r.1 {
         let rerrs = r.3
-        print(concat("hzparse: parse error in ", a, " :: ", rerrs[0]))
+        print(concat("hzparse: parse error in ", a, " :: ", rerrs[0], " (errors=", to_string(len(rerrs)), ")"))
         return 1
     }
     print(concat("ok ", a, " ", parser::summarize(r.2)))

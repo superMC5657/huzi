@@ -6,12 +6,14 @@
 # 例如 (仓库根):
 #   python examples/hzparse/parse_diff.py ./huzc/target/debug/huzc ./examples/hzparse/hzparse
 #
-# 对拍口径 (冻结):
+# 对拍口径 (冻结 + P2-a 增补):
 #   成功文件: Rust 侧 stdout 单行 `fns=.. ... depth=..` 须与 hzparse 侧
 #     `ok <path> fns=.. ... depth=..` 的统计段逐字节一致。
 #   失败文件: 两侧须同为非零退出, 且首错行列 `L:C` 一致 (消息可不同)。
 #     Rust 侧从 stdout+stderr 提 `parse-error L:C`/`lex-error L:C` 或
 #     `line L, column C`; hzparse 侧提行尾 `L:C`。
+#     P2-a 起 hzparse 侧行尾附 `(errors=N)` 仅记录后续错误计数不判
+#     (防幽灵 diff:只比首错 L:C,后续错误只计数)。
 #   语料清单只认 examples/hzparse/src/corpus.hz (仓库根相对路径),
 #   另加 4 个内置负例 (残缺输入) 验首错行列。
 #   首步做覆盖率校验: 文件系统真相 (fd -e hz 等价枚举, 见 expected_files)
@@ -19,6 +21,9 @@
 #   corpus 的假绿)。覆盖域: huzc/test/cases 顶层 + mods, huzi-src 全量,
 #   examples/{hzlex,task_engine}/src, examples/hzast 全量;
 #   neg/pkg/bench/hzir/hzparse 自身按冻结边界排除在外。
+#   内置负例临时文件只放仓库树内
+#   (examples/hzparse/target/tmp/parse_diff_neg/，已被 **/target/ 忽略)，
+#   不用系统 Temp。
 #
 # 退出码: 用法/路径错误返回 2; 全部 PASS 返回 0; 有 FAIL 返回 1.
 
@@ -26,7 +31,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 
 
 def repo_root_of(script_path):
@@ -58,7 +62,8 @@ def expected_files(repo):
         os.path.join("examples", "hzast"),
     ):
         base = os.path.join(repo, root_rel)
-        for dp, _, fns in os.walk(base):
+        for dp, dns, fns in os.walk(base):
+            dns[:] = sorted(d for d in dns if d != "target")
             for f in sorted(fns):
                 if f.endswith(".hz"):
                     full = os.path.join(dp, f)
@@ -117,6 +122,13 @@ def extract_loc(text):
     return None
 
 
+def extract_errors_count(text):
+    m = re.search(r"\(errors=(\d+)\)", text)
+    if m:
+        return int(m.group(1))
+    return None
+
+
 def run_one(huzc, hzparse, path):
     pa = subprocess.run(
         [huzc, "--dump-parse-stats", "-i", path], capture_output=True, text=True
@@ -134,29 +146,35 @@ def run_one(huzc, hzparse, path):
         la = extract_loc(ra_out)
         lb = extract_loc(rb_out)
         if la is not None and la == lb:
-            return (True, "PASS(neg): %s %d:%d" % (path, la[0], la[1]))
+            hz_n = extract_errors_count(rb_out)
+            if hz_n is None:
+                return (True, "PASS(neg): %s %d:%d" % (path, la[0], la[1]))
+            return (True, "PASS(neg): %s %d:%d hz_errors=%d" % (path, la[0], la[1], hz_n))
         return (False, "FAIL(negloc): %s rust=%r hz=%r" % (path, la, lb))
     return (False, "FAIL(status): %s rust_rc=%d hz_rc=%d" % (path, pa.returncode, pb.returncode))
 
 
-def run_negatives(huzc, hzparse):
+def run_negatives(huzc, hzparse, repo):
     cases = [
         "fn f() -> i32 { return (1 + 2 }",
         "fn f(a: i32 { return a }",
         "fn f() -> i32 { return 1 + }",
         "fn broken( { ",
     ]
+    tmpdir = os.path.join(repo, "examples", "hzparse", "target", "tmp", "parse_diff_neg")
+    os.makedirs(tmpdir, exist_ok=True)
     ok = fail = 0
     for i, src in enumerate(cases):
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".hz", delete=False, encoding="utf-8"
-        ) as tf:
-            tf.write(src)
-            name = tf.name
+        name = os.path.join(tmpdir, "neg%d.hz" % i)
+        with open(name, "w", encoding="utf-8", newline="\n") as f:
+            f.write(src)
         try:
             passed, msg = run_one(huzc, hzparse, name)
         finally:
-            os.unlink(name)
+            try:
+                os.unlink(name)
+            except OSError:
+                pass
         print("%s [neg%d]" % (msg, i))
         if passed:
             ok += 1
@@ -191,7 +209,7 @@ def main(argv):
             passed += 1
         else:
             failed += 1
-    nok, nfail = run_negatives(huzc, hzparse)
+    nok, nfail = run_negatives(huzc, hzparse, repo)
     passed += nok
     failed += nfail
     print("-----------------------------")

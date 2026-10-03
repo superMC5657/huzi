@@ -1,0 +1,134 @@
+# parser/stmt_ctrl —— 控制流与小语句(import/export/let/if/for/while)，仅依赖 cursor/typ/expr/stmt。
+# 源自 parser/stmt.hz 同名区段逐行搬移(纯搬移，仅 pz_block 改为 stmt::pz_block 跨模块调用)。
+import cursor
+import typ
+import expr
+import stmt
+
+fn pz_import(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected module name after 'import'")
+    }
+    cursor::pz_next(pos)
+    while cursor::pz_at(kinds, texts, pos, ".") || cursor::pz_at(kinds, texts, pos, "::") {
+        cursor::pz_next(pos)
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, lines, cols, "expected name after '.' in import")
+        }
+        cursor::pz_next(pos)
+    }
+    stats[5] = stats[5] + 1
+    return true
+}
+
+fn pz_export(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected name after 'export'")
+    }
+    cursor::pz_next(pos)
+    while cursor::pz_at(kinds, texts, pos, ".") || cursor::pz_at(kinds, texts, pos, "::") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "*") {
+            cursor::pz_next(pos)
+            break
+        }
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, lines, cols, "expected name after '.' in export")
+        }
+        cursor::pz_next(pos)
+    }
+    if cursor::pz_at(kinds, texts, pos, ";") {
+        cursor::pz_next(pos)
+    }
+    stats[6] = stats[6] + 1
+    return true
+}
+
+fn pz_let(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if cursor::pz_kw(kinds, texts, pos, "mut") {
+        cursor::pz_next(pos)
+    }
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        if !typ::pz_let_pattern(kinds, texts, pos, errs, lines, cols) {
+            return false
+        }
+    } else {
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return cursor::pz_fail(errs, texts, pos, lines, cols, "expected variable name")
+        }
+        cursor::pz_next(pos)
+    }
+    if cursor::pz_at(kinds, texts, pos, ":") {
+        cursor::pz_next(pos)
+        if !typ::pz_type(kinds, texts, pos, errs, lines, cols) {
+            return false
+        }
+    }
+    if cursor::pz_at(kinds, texts, pos, "=") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+            return false
+        }
+    }
+    stats[7] = stats[7] + 1
+    return true
+}
+
+fn pz_if_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+        return false
+    }
+    if !stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+        return false
+    }
+    while cursor::pz_kw(kinds, texts, pos, "elif") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+            return false
+        }
+        if !stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+            return false
+        }
+    }
+    if cursor::pz_kw(kinds, texts, pos, "else") {
+        cursor::pz_next(pos)
+        if !stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+            return false
+        }
+    }
+    return true
+}
+
+fn pz_for_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected loop variable name")
+    }
+    cursor::pz_next(pos)
+    if !cursor::pz_kw(kinds, texts, pos, "in") {
+        return cursor::pz_fail(errs, texts, pos, lines, cols, "expected 'in' after loop variable")
+    }
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+        return false
+    }
+    if cursor::pz_at(kinds, texts, pos, "..") {
+        cursor::pz_next(pos)
+        if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+            return false
+        }
+    }
+    return stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd, lines, cols)
+}
+
+fn pz_while_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, stats: vec<i32>, dep: vec<i32>, maxd: vec<i32>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if !expr::pz_expr(kinds, texts, pos, errs, stats, dep, maxd, lines, cols) {
+        return false
+    }
+    return stmt::pz_block(kinds, texts, pos, errs, stats, dep, maxd, lines, cols)
+}
