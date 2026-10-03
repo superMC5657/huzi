@@ -36,19 +36,41 @@ def split_lines(raw):
 
 def build_ref(huzc, repo):
     src = os.path.join(repo, "examples", "hzast", "eval_ref.hz")
-    fd, path = tempfile.mkstemp(prefix="eval_ref_")
+    # Windows: mkstemp 产物加 .exe 后缀，否则 huzc 输出 <path>.exe 而脚本
+    # 起 subprocess.run([path]) 会 WinError 193；POSIX 保持无后缀不变。
+    suffix = ".exe" if os.name == "nt" else ""
+    fd, path = tempfile.mkstemp(prefix="eval_ref_", suffix=suffix)
     os.close(fd)
     pa = subprocess.run(
         [huzc, "--input", src, "--output", path],
         capture_output=True,
     )
     if pa.returncode != 0:
+        for cand in (path, path + ".exe"):
+            try:
+                os.unlink(cand)
+            except OSError:
+                pass
+        return (None, pa.stderr.decode("utf-8", "replace")[-500:])
+    # 回退：若 huzc 在 Windows 对裸 path 另行追加 .exe，取实际落盘者；
+    # POSIX 下首候选即中，行为不变。
+    for cand in (path, path + ".exe"):
+        if os.path.isfile(cand) and os.path.getsize(cand) > 0:
+            actual = cand
+            break
+    else:
+        for cand in (path, path + ".exe"):
+            try:
+                os.unlink(cand)
+            except OSError:
+                pass
+        return (None, "ref binary missing: %s[.exe]" % path)
+    if actual != path:
         try:
             os.unlink(path)
         except OSError:
             pass
-        return (None, pa.stderr.decode("utf-8", "replace")[-500:])
-    return (path, "")
+    return (actual, "")
 
 
 def main(argv):
@@ -67,7 +89,13 @@ def main(argv):
         return 1
     try:
         pa = subprocess.run([hzast, "--dump-eval"], capture_output=True)
-        pb = subprocess.run([ref_bin], capture_output=True)
+        try:
+            pb = subprocess.run([ref_bin], capture_output=True)
+        except OSError as e:
+            # 曾见 WinError 193（无 .exe 后缀空占位）；修后不应再触发，
+            # 兜底记 FAIL 而非 traceback 崩。
+            print("FAIL(run-ref): OSError: %s" % e)
+            return 1
         if pa.returncode != 0:
             print("FAIL(dump-hzast): rc=%d" % pa.returncode)
             return 1
