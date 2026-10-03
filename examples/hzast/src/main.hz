@@ -8,7 +8,7 @@ fn test_arithmetic() -> i32 {
     let add_e = ast::expr_bin("+", ast::expr_num(3), ast::expr_num(4))
     let mul_e = ast::expr_bin("*", add_e, ast::expr_num(5))
     let sub_e = ast::expr_bin("-", mul_e, ast::expr_num(10))
-    let env = eval::env_new
+    let env = eval::env_new()
     let fns = vec<FnDef>()
     let v = eval::eval_expr(sub_e, env, fns)
     assert::assert_eq_i32(ast::val_to_int(v), 25)
@@ -23,7 +23,7 @@ fn test_variables_and_assign() -> i32 {
     push(stmts, ast::stmt_assign("x", add_e))
     let mul_e = ast::expr_bin("*", ast::expr_var("x"), ast::expr_num(2))
     push(stmts, ast::stmt_return(mul_e))
-    let env = eval::env_new
+    let env = eval::env_new()
     let fns = vec<FnDef>()
     let res = eval::eval_block(stmts, env, fns)
     assert::assert_true(res.0)
@@ -43,7 +43,7 @@ fn test_conditional_if() -> i32 {
     push(else_b, ast::stmt_assign("r", ast::expr_num(200)))
     push(stmts, ast::stmt_if(cond, then_b, else_b))
     push(stmts, ast::stmt_return(ast::expr_var("r")))
-    let env = eval::env_new
+    let env = eval::env_new()
     let fns = vec<FnDef>()
     let res = eval::eval_block(stmts, env, fns)
     assert::assert_true(res.0)
@@ -64,7 +64,7 @@ fn test_while_loop() -> i32 {
     push(loop_body, ast::stmt_assign("i", i_add))
     push(stmts, ast::stmt_while(cond, loop_body))
     push(stmts, ast::stmt_return(ast::expr_var("sum")))
-    let env = eval::env_new
+    let env = eval::env_new()
     let fns = vec<FnDef>()
     let res = eval::eval_block(stmts, env, fns)
     assert::assert_true(res.0)
@@ -104,7 +104,7 @@ fn test_functions_and_recursion() -> i32 {
 
 fn test_string_operations() -> i32 {
     let concat_e = ast::expr_bin("+", ast::expr_str("hello "), ast::expr_str("huzi"))
-    let env = eval::env_new
+    let env = eval::env_new()
     let fns = vec<FnDef>()
     let res = eval::eval_expr(concat_e, env, fns)
     assert::assert_eq_str(ast::val_to_string(res), "hello huzi")
