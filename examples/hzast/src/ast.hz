@@ -1,5 +1,6 @@
 # P3 复合值：扁平字符串化存储（Huzi match 绑定 vec 传参受限，故 Tuple/Arr 存
 # 已拼接串 + 个数，不存 vec；Some/Ok 存内层串；索引经 split 重建 let 绑定 vec）。
+# P3b 结构体：扁平存名 + 已拼接 `k=v` 串 + 字段数（field 经 split 查名，method 按名静态分发直调）。
 enum Value {
     Num(i32),
     Bool(bool),
@@ -11,6 +12,7 @@ enum Value {
     OptNone,
     ResOk(str),
     ResErr(str),
+    Struct(str, str, i32),
 }
 
 fn val_num(n: i32) -> Value {
@@ -69,6 +71,18 @@ fn val_arr(vs: vec<str>) -> Value {
     return Value::Arr(strs_join(vs), len(vs))
 }
 
+# P3b 结构值：名 + `k=v` 已拼接串 + 字段数（k/v 内不含 `, `/`=`，见构造侧约定）。
+fn val_struct(sname: str, names: vec<str>, vals: vec<str>) -> Value {
+    let n = len(names)
+    let mut pairs = vec<str>()
+    let mut i = 0
+    while i < n {
+        push(pairs, concat(names[i], "=", vals[i]))
+        i = i + 1
+    }
+    return Value::Struct(sname, strs_join(pairs), n)
+}
+
 fn strs_join(vs: vec<str>) -> str {
     let n = len(vs)
     let mut res = ""
@@ -99,6 +113,7 @@ fn val_to_string(v: Value) -> str {
     Value::OptNone => "None",
     Value::ResOk(s) => concat("Ok(", s, ")"),
     Value::ResErr(e) => concat("Err(", e, ")"),
+    Value::Struct(sname, joined, count) => concat(concat(sname, "{"), concat(joined, "}")),
 }
 }
 
@@ -114,6 +129,7 @@ fn val_to_int(v: Value) -> i32 {
     Value::OptNone => 0,
     Value::ResOk(s) => parse_int(s).1,
     Value::ResErr(e) => 0,
+    Value::Struct(sname, joined, count) => count,
 }
 }
 
@@ -129,6 +145,7 @@ fn val_to_bool(v: Value) -> bool {
     Value::OptNone => false,
     Value::ResOk(s) => true,
     Value::ResErr(e) => false,
+    Value::Struct(sname, joined, count) => count > 0,
 }
 }
 
@@ -142,55 +159,88 @@ struct Expr {
     left: Box<Expr>,
     right: Box<Expr>,
     args: vec<Box<Expr>>,
+    field_names: vec<str>,
 }
 
 fn expr_num(n: i32) -> Box<Expr> {
-    return box(Expr { kind: "num", op: "", name: "", num_val: n, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "num", op: "", name: "", num_val: n, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
 }
 
 fn expr_bool(b: bool) -> Box<Expr> {
-    return box(Expr { kind: "bool", op: "", name: "", num_val: 0, bool_val: b, str_val: "", left: null, right: null, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "bool", op: "", name: "", num_val: 0, bool_val: b, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
 }
 
 fn expr_str(s: str) -> Box<Expr> {
-    return box(Expr { kind: "str", op: "", name: "", num_val: 0, bool_val: false, str_val: s, left: null, right: null, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "str", op: "", name: "", num_val: 0, bool_val: false, str_val: s, left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
 }
 
 fn expr_var(name: str) -> Box<Expr> {
-    return box(Expr { kind: "var", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "var", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
 }
 
 fn expr_bin(op: str, left: Box<Expr>, right: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "bin", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: left, right: right, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "bin", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: left, right: right, args: vec<Box<Expr>>(), field_names: vec<str>() })
 }
 
 fn expr_un(op: str, operand: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "un", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: operand, right: null, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "un", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: operand, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
 }
 
 fn expr_call(name: str, args: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "call", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args })
+    return box(Expr { kind: "call", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args, field_names: vec<str>() })
 }
 
 # P3 复合值形状：复用既有字段（args 作 elems，left/right 作 array/index，name+args 作 enum，left 作 try 内层）。
 fn expr_tuple(elems: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "tuple", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems })
+    return box(Expr { kind: "tuple", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems, field_names: vec<str>() })
 }
 
 fn expr_array(elems: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "array", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems })
+    return box(Expr { kind: "array", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems, field_names: vec<str>() })
 }
 
 fn expr_index(arr: Box<Expr>, idx: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "index", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: arr, right: idx, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "index", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: arr, right: idx, args: vec<Box<Expr>>(), field_names: vec<str>() })
 }
 
 fn expr_enum(enum_name: str, variant: str, args: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "enum", op: "", name: concat(enum_name, "::", variant), num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args })
+    return box(Expr { kind: "enum", op: "", name: concat(enum_name, "::", variant), num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args, field_names: vec<str>() })
 }
 
 fn expr_try(inner: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "try", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: inner, right: null, args: vec<Box<Expr>>() })
+    return box(Expr { kind: "try", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: inner, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+}
+
+# P3b 结构/方法/fstring：struct 用 name+field_names+args；field 用 left+name；
+# method 用 left+name+args；fstring 用 str_val+args（沿用扁平复用方法学）。
+fn expr_struct(sname: str, fnames: vec<str>, fexprs: vec<Box<Expr>>) -> Box<Expr> {
+    return box(Expr { kind: "struct", op: "", name: sname, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: fexprs, field_names: fnames })
+}
+
+fn expr_field(base: Box<Expr>, field: str) -> Box<Expr> {
+    return box(Expr { kind: "field", op: "", name: field, num_val: 0, bool_val: false, str_val: "", left: base, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+}
+
+fn expr_method(recv: Box<Expr>, method: str, margs: vec<Box<Expr>>) -> Box<Expr> {
+    return box(Expr { kind: "method", op: "", name: method, num_val: 0, bool_val: false, str_val: "", left: recv, right: null, args: margs, field_names: vec<str>() })
+}
+
+fn expr_fstring(tpl: str, fargs: vec<Box<Expr>>) -> Box<Expr> {
+    return box(Expr { kind: "fstring", op: "", name: "", num_val: 0, bool_val: false, str_val: tpl, left: null, right: null, args: fargs, field_names: vec<str>() })
+}
+
+# P3b 类型：只存 name+args（不求解不检查，与 ast_json.rs type_to_json 同键序）。
+struct TypeRef {
+    name: str,
+    args: vec<Box<TypeRef>>,
+}
+
+fn type_atom(name: str) -> Box<TypeRef> {
+    return box(TypeRef { name: name, args: vec<Box<TypeRef>>() })
+}
+
+fn type_applied(name: str, args: vec<Box<TypeRef>>) -> Box<TypeRef> {
+    return box(TypeRef { name: name, args: args })
 }
 
 struct Stmt {

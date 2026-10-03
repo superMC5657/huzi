@@ -120,7 +120,58 @@ fn expr_to_json(e: Box<Expr>) -> str {
         let te = expr_to_json(e.left)
         return concat("{\"kind\":\"try\",\"expr\":", te, "}")
     }
+    if e.kind == "struct" {
+        return concat("{\"kind\":\"struct\",\"name\":", json_quoted(e.name), ",\"fields\":", struct_fields_to_json(e.field_names, e.args), "}")
+    }
+    if e.kind == "field" {
+        let fb = expr_to_json(e.left)
+        return concat("{\"kind\":\"field\",\"base\":", fb, ",\"field\":", json_quoted(e.name), "}")
+    }
+    if e.kind == "method" {
+        let mr = expr_to_json(e.left)
+        let ma = exprs_to_json(e.args)
+        return concat("{\"kind\":\"method\",\"receiver\":", mr, ",\"method\":", json_quoted(e.name), ",\"args\":", ma, "}")
+    }
+    if e.kind == "fstring" {
+        let fa = exprs_to_json(e.args)
+        return concat("{\"kind\":\"fstring\",\"template\":", json_quoted(e.str_val), ",\"args\":", fa, "}")
+    }
     return ""
+}
+
+# P3b 结构字段数组：`[{"name":"x","value":expr},...]`（键序固定 name/value）。
+fn struct_fields_to_json(names: vec<str>, vals: vec<Box<Expr>>) -> str {
+    let n = len(names)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        let v = expr_to_json(vals[i])
+        res = concat(res, concat("{\"name\":", json_quoted(names[i]), ",\"value\":", v, "}"))
+        i = i + 1
+    }
+    return concat(res, "]")
+}
+
+# P3b 类型：只存 name+args（不求解不检查，与 ast_json.rs type_to_json 同键序）。
+fn type_to_json(t: Box<TypeRef>) -> str {
+    return concat("{\"kind\":\"type\",\"name\":", json_quoted(t.name), ",\"args\":", types_to_json(t.args), "}")
+}
+
+fn types_to_json(ts: vec<Box<TypeRef>>) -> str {
+    let n = len(ts)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        res = concat(res, type_to_json(ts[i]))
+        i = i + 1
+    }
+    return concat(res, "]")
 }
 
 fn stmt_to_json(s: Box<Stmt>) -> str {

@@ -80,6 +80,8 @@ fn dump_eval() -> i32 {
     dump_comp_tuple()
     dump_comp_option()
     dump_comp_try()
+    dump_p3b_struct()
+    dump_p3b_types()
     return 0
 }
 
@@ -137,6 +139,49 @@ fn dump_comp_try() -> i32 {
     push(mb, ast::stmt_return(ast::expr_call("f", vec<Box<Expr>>())))
     let res = eval::eval_program(ast::program_new(fns, mb))
     print(concat("result_try=", ast::val_to_string(res)))
+    return 0
+}
+
+# P3b 结构/方法/fstring 打印：与 main.hz 4 新自测同构（顺序固定 struct/field/method/fstring）。
+fn dump_p3b_struct() -> i32 {
+    let mut fnames = vec<str>()
+    push(fnames, "x")
+    push(fnames, "y")
+    let mut fexprs = vec<Box<Expr>>()
+    push(fexprs, ast::expr_num(10))
+    push(fexprs, ast::expr_num(20))
+    let sv = eval::eval_expr(ast::expr_struct("Point", fnames, fexprs), eval::env_new, vec<Box<FnDef>>())
+    print(concat("struct=", ast::val_to_string(sv)))
+    let mut gnames = vec<str>()
+    push(gnames, "x")
+    push(gnames, "y")
+    let mut gexprs = vec<Box<Expr>>()
+    push(gexprs, ast::expr_num(10))
+    push(gexprs, ast::expr_num(20))
+    let fv = eval::eval_expr(ast::expr_field(ast::expr_struct("Point", gnames, gexprs), "x"), eval::env_new, vec<Box<FnDef>>())
+    print(concat("field=", ast::val_to_string(fv)))
+    let mut hnames = vec<str>()
+    push(hnames, "x")
+    push(hnames, "y")
+    let mut hexprs = vec<Box<Expr>>()
+    push(hexprs, ast::expr_num(10))
+    push(hexprs, ast::expr_num(20))
+    let mv = eval::eval_expr(ast::expr_method(ast::expr_struct("Point", hnames, hexprs), "sum", vec<Box<Expr>>()), eval::env_new, vec<Box<FnDef>>())
+    print(concat("method=", to_string(ast::val_to_int(mv))))
+    let mut fargs = vec<Box<Expr>>()
+    push(fargs, ast::expr_str("Alice"))
+    let fw = eval::eval_expr(ast::expr_fstring("hi {}!", fargs), eval::env_new, vec<Box<FnDef>>())
+    print(concat("fstring=", ast::val_to_string(fw)))
+    return 0
+}
+
+# P3b 类型打印：只序列化（TypeRef name+args，与 ast_json.rs type_to_json 同串）。
+fn dump_p3b_types() -> i32 {
+    print(concat("type_atom=", json::type_to_json(ast::type_atom("i32"))))
+    let mut targs = vec<Box<TypeRef>>()
+    push(targs, ast::type_atom("i32"))
+    push(targs, ast::type_atom("str"))
+    print(concat("type_applied=", json::type_to_json(ast::type_applied("Pair", targs))))
     return 0
 }
 

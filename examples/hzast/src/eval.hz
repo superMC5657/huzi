@@ -1,4 +1,5 @@
 import ast
+import eval_p3b
 
 struct Env {
     names: vec<str>,
@@ -164,6 +165,7 @@ fn eval_index_val(arr_e: Box<Expr>, idx_e: Box<Expr>, env: Box<Env>, fns: vec<Bo
     Value::OptNone => Value::Nil,
     Value::ResOk(s) => Value::StrVal(s),
     Value::ResErr(e) => Value::StrVal(e),
+    Value::Struct(sname, joined, count) => Value::Struct(sname, joined, count),
 }
 }
 
@@ -207,6 +209,7 @@ fn eval_try_val(inner_e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Valu
     Value::Arr(_, _) => v,
     Value::OptSome(s) => v,
     Value::OptNone => v,
+    Value::Struct(_, _, _) => v,
 }
 }
 
@@ -251,6 +254,7 @@ fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     Value::OptNone => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
     Value::ResOk(s) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
     Value::ResErr(e) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
+    Value::Struct(_, _, _) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
 }
         }
         return eval_binary_num(e.op, ast::val_to_int(v1), ast::val_to_int(v2))
@@ -273,6 +277,9 @@ fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     if e.kind == "try" {
         return eval_try_val(e.left, env, fns)
     }
+    if e.kind == "struct" || e.kind == "field" || e.kind == "method" || e.kind == "fstring" {
+        return eval_p3b::eval_p3b_val(e, env, fns)
+    }
     return Value::Nil
 }
 
@@ -291,6 +298,7 @@ fn eval_expr_checked(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool
     Value::Arr(_, _) => (false, v),
     Value::OptSome(s) => (false, v),
     Value::OptNone => (false, v),
+    Value::Struct(_, _, _) => (false, v),
 }
     }
     return (false, eval_expr(e, env, fns))

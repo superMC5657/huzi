@@ -1,9 +1,9 @@
-# parser/p1expr —— P1 子集表达式 + P3 复合值（JSON 直出，Expr7+5，对标 ast_json.rs）。
-# 链：or → and → eq → cmp → add → mul → unary → suffix → atom；
-# 无 bor/band（`| ^ &` 见超集拒绝），无 `=`（赋值仅语句级）；后缀仅 `[]/?`（index/try），`.`/`::` 仅枚举。
+# parser/p1expr —— P1 子集表达式 + P3 复合值 + P3b 结构（JSON 直出）。
+# 链：or → and → eq → cmp → add → mul → unary → suffix → atom；后缀转调 p1p3b。
 import cursor
 import typ
 import p1json
+import p1p3b
 
 fn p1_bin(op: str, left: str, right: str) -> str {
     return concat("{\"kind\":\"bin\",\"op\":", p1json::p1_quoted(op), ",\"left\":", left, ",\"right\":", right, "}")
@@ -69,37 +69,7 @@ fn p1_is_generic(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>
     return is_gen
 }
 
-# 后缀链：`[expr]` 折 index、`?` 折 try；`.`/`::`/`(` 一律拒（枚举由上层先行）。
-fn p1_postfix(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, base: str, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
-    let mut cur = base
-    while true {
-        if cursor::pz_at(kinds, texts, pos, "[") {
-            cursor::pz_next(pos)
-            let ix = p1_expr(kinds, texts, pos, errs, lines, cols)
-            if !ix.0 {
-                return ix
-            }
-            if !cursor::pz_at(kinds, texts, pos, "]") {
-                return (false, "")
-            }
-            cursor::pz_next(pos)
-            cur = p1json::p1_index_json(cur, ix.1)
-        } elif cursor::pz_at(kinds, texts, pos, "?") {
-            cursor::pz_next(pos)
-            cur = p1json::p1_try_json(cur)
-        } else {
-            break
-        }
-    }
-    if cursor::pz_at(kinds, texts, pos, "(") || cursor::pz_at(kinds, texts, pos, ".") {
-        return (false, "")
-    }
-    if cursor::pz_at(kinds, texts, pos, "::") {
-        return (false, "")
-    }
-    return (true, cur)
-}
-
+# 后缀链已迁 p1p3b::p1_postfix（P3b 点号/方法扩展，纯搬移见 p1p3b.hz）。
 # `Enum::Variant` / `Enum::Variant(args)`：仅 Option/Result × Some/None/Ok/Err，无泛型实参。
 fn p1_enum_after(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, enum_name: str, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
     cursor::pz_next(pos)
@@ -118,7 +88,7 @@ fn p1_enum_after(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>
         let mut args = vec<str>()
         if cursor::pz_at(kinds, texts, pos, ")") {
             cursor::pz_next(pos)
-            return p1_postfix(kinds, texts, pos, errs, p1json::p1_enum_json(full, args), lines, cols)
+            return p1p3b::p1_postfix(kinds, texts, pos, errs, p1json::p1_enum_json(full, args), lines, cols)
         }
         let a0 = p1_expr(kinds, texts, pos, errs, lines, cols)
         if !a0.0 {
@@ -140,10 +110,10 @@ fn p1_enum_after(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>
             return (false, "")
         }
         cursor::pz_next(pos)
-        return p1_postfix(kinds, texts, pos, errs, p1json::p1_enum_json(full, args), lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, p1json::p1_enum_json(full, args), lines, cols)
     }
     let mut empty = vec<str>()
-    return p1_postfix(kinds, texts, pos, errs, p1json::p1_enum_json(full, empty), lines, cols)
+    return p1p3b::p1_postfix(kinds, texts, pos, errs, p1json::p1_enum_json(full, empty), lines, cols)
 }
 
 fn p1_expr(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
@@ -330,17 +300,15 @@ fn p1_suffix(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, li
         }
         if cursor::pz_at(kinds, texts, pos, "{") {
             if cursor::pz_next_kind(kinds, pos, 1, "ident") && cursor::pz_next_at(kinds, texts, pos, 2, ":") {
-                return (false, "")
+                pos[0] = pos[0] - 1
+                return p1p3b::p1_struct_after(kinds, texts, pos, errs, name, lines, cols)
             }
-        }
-        if cursor::pz_at(kinds, texts, pos, ".") {
-            return (false, "")
         }
         if cursor::pz_at(kinds, texts, pos, "::") {
             return (false, "")
         }
         let base = concat("{\"kind\":\"var\",\"name\":", p1json::p1_quoted(name), "}")
-        return p1_postfix(kinds, texts, pos, errs, base, lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, base, lines, cols)
     }
     return p1_atom(kinds, texts, pos, errs, lines, cols)
 }
@@ -351,7 +319,7 @@ fn p1_call_args(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>,
     if cursor::pz_at(kinds, texts, pos, ")") {
         cursor::pz_next(pos)
         let empty_call = concat("{\"kind\":\"call\",\"name\":", p1json::p1_quoted(name), ",\"args\":", p1json::p1_join(args), "}")
-        return p1_postfix(kinds, texts, pos, errs, empty_call, lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, empty_call, lines, cols)
     }
     let a0 = p1_expr(kinds, texts, pos, errs, lines, cols)
     if !a0.0 {
@@ -374,7 +342,7 @@ fn p1_call_args(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>,
     }
     cursor::pz_next(pos)
     let call = concat("{\"kind\":\"call\",\"name\":", p1json::p1_quoted(name), ",\"args\":", p1json::p1_join(args), "}")
-    return p1_postfix(kinds, texts, pos, errs, call, lines, cols)
+    return p1p3b::p1_postfix(kinds, texts, pos, errs, call, lines, cols)
 }
 
 # `(` expr `)` 分组 vs `(` expr `,` ... `)` 元组（调用时 `(` 已消费）。
@@ -392,7 +360,7 @@ fn p1_paren_or_tuple(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<
             return (false, "")
         }
         cursor::pz_next(pos)
-        return p1_postfix(kinds, texts, pos, errs, first.1, lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, first.1, lines, cols)
     }
     let mut elems = vec<str>()
     push(elems, first.1)
@@ -411,7 +379,7 @@ fn p1_paren_or_tuple(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<
         return (false, "")
     }
     cursor::pz_next(pos)
-    return p1_postfix(kinds, texts, pos, errs, p1json::p1_tuple_json(elems), lines, cols)
+    return p1p3b::p1_postfix(kinds, texts, pos, errs, p1json::p1_tuple_json(elems), lines, cols)
 }
 
 # `[` ... `]` 数组字面量（调用时 `[` 未消费；空即 `[]`，尾逗号容忍）。
@@ -420,7 +388,7 @@ fn p1_array_lit(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>,
     let mut elems = vec<str>()
     if cursor::pz_at(kinds, texts, pos, "]") {
         cursor::pz_next(pos)
-        return p1_postfix(kinds, texts, pos, errs, p1json::p1_array_json(elems), lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, p1json::p1_array_json(elems), lines, cols)
     }
     let e0 = p1_expr(kinds, texts, pos, errs, lines, cols)
     if !e0.0 {
@@ -442,7 +410,7 @@ fn p1_array_lit(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>,
         return (false, "")
     }
     cursor::pz_next(pos)
-    return p1_postfix(kinds, texts, pos, errs, p1json::p1_array_json(elems), lines, cols)
+    return p1p3b::p1_postfix(kinds, texts, pos, errs, p1json::p1_array_json(elems), lines, cols)
 }
 
 fn p1_atom(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
@@ -454,14 +422,14 @@ fn p1_atom(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, line
         }
         let norm = to_string(pr.1)
         cursor::pz_next(pos)
-        if cursor::pz_at(kinds, texts, pos, "(") || cursor::pz_at(kinds, texts, pos, ".") {
+        if cursor::pz_at(kinds, texts, pos, "(") {
             return (false, "")
         }
         if cursor::pz_at(kinds, texts, pos, "::") {
             return (false, "")
         }
         let base_num = concat("{\"kind\":\"num\",\"value\":", norm, "}")
-        return p1_postfix(kinds, texts, pos, errs, base_num, lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, base_num, lines, cols)
     }
     if cursor::pz_at_kind(kinds, pos, "float") || cursor::pz_at_kind(kinds, pos, "char") {
         return (false, "")
@@ -469,25 +437,25 @@ fn p1_atom(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, line
     if cursor::pz_at_kind(kinds, pos, "string") {
         let s = texts[pos[0]]
         cursor::pz_next(pos)
-        if cursor::pz_at(kinds, texts, pos, "(") || cursor::pz_at(kinds, texts, pos, ".") {
+        if cursor::pz_at(kinds, texts, pos, "(") {
             return (false, "")
         }
         let base_str = concat("{\"kind\":\"str\",\"value\":", p1json::p1_quoted(s), "}")
-        return p1_postfix(kinds, texts, pos, errs, base_str, lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, base_str, lines, cols)
     }
     if cursor::pz_kw(kinds, texts, pos, "true") {
         cursor::pz_next(pos)
-        if cursor::pz_at(kinds, texts, pos, "(") || cursor::pz_at(kinds, texts, pos, ".") {
+        if cursor::pz_at(kinds, texts, pos, "(") {
             return (false, "")
         }
-        return p1_postfix(kinds, texts, pos, errs, "{\"kind\":\"bool\",\"value\":true}", lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, "{\"kind\":\"bool\",\"value\":true}", lines, cols)
     }
     if cursor::pz_kw(kinds, texts, pos, "false") {
         cursor::pz_next(pos)
-        if cursor::pz_at(kinds, texts, pos, "(") || cursor::pz_at(kinds, texts, pos, ".") {
+        if cursor::pz_at(kinds, texts, pos, "(") {
             return (false, "")
         }
-        return p1_postfix(kinds, texts, pos, errs, "{\"kind\":\"bool\",\"value\":false}", lines, cols)
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, "{\"kind\":\"bool\",\"value\":false}", lines, cols)
     }
     if cursor::pz_at(kinds, texts, pos, "(") {
         return p1_paren_or_tuple(kinds, texts, pos, errs, lines, cols)

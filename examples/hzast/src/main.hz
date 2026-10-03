@@ -1,6 +1,7 @@
 import ast
 import eval
 import dump
+import json
 import core.assert
 
 fn test_arithmetic() -> i32 {
@@ -206,6 +207,72 @@ fn test_try_return() -> i32 {
     return 0
 }
 
+fn test_struct_lit() -> i32 {
+    let mut fnames = vec<str>()
+    push(fnames, "x")
+    push(fnames, "y")
+    let mut fexprs = vec<Box<Expr>>()
+    push(fexprs, ast::expr_num(10))
+    push(fexprs, ast::expr_num(20))
+    let e = ast::expr_struct("Point", fnames, fexprs)
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_str(ast::val_to_string(res), "Point{x=10, y=20}")
+    assert::assert_eq_i32(ast::val_to_int(res), 2)
+    return 0
+}
+
+fn test_struct_field() -> i32 {
+    let mut fnames = vec<str>()
+    push(fnames, "x")
+    push(fnames, "y")
+    let mut fexprs = vec<Box<Expr>>()
+    push(fexprs, ast::expr_num(10))
+    push(fexprs, ast::expr_num(20))
+    let base = ast::expr_struct("Point", fnames, fexprs)
+    let e = ast::expr_field(base, "x")
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_str(ast::val_to_string(res), "10")
+    return 0
+}
+
+fn test_method_sum() -> i32 {
+    let mut fnames = vec<str>()
+    push(fnames, "x")
+    push(fnames, "y")
+    let mut fexprs = vec<Box<Expr>>()
+    push(fexprs, ast::expr_num(10))
+    push(fexprs, ast::expr_num(20))
+    let recv = ast::expr_struct("Point", fnames, fexprs)
+    let e = ast::expr_method(recv, "sum", vec<Box<Expr>>())
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(res), 30)
+    return 0
+}
+
+fn test_fstring_basic() -> i32 {
+    let mut fargs = vec<Box<Expr>>()
+    push(fargs, ast::expr_str("Alice"))
+    let e = ast::expr_fstring("hi {}!", fargs)
+    let res = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_str(ast::val_to_string(res), "hi Alice!")
+    return 0
+}
+
+fn test_type_shapes() -> i32 {
+    let a = ast::type_atom("i32")
+    assert::assert_eq_str(json_type_of(a), "{\"kind\":\"type\",\"name\":\"i32\",\"args\":[]}")
+    let mut targs = vec<Box<TypeRef>>()
+    push(targs, ast::type_atom("i32"))
+    push(targs, ast::type_atom("str"))
+    let ap = ast::type_applied("Pair", targs)
+    assert::assert_eq_str(json_type_of(ap), "{\"kind\":\"type\",\"name\":\"Pair\",\"args\":[{\"kind\":\"type\",\"name\":\"i32\",\"args\":[]},{\"kind\":\"type\",\"name\":\"str\",\"args\":[]}]}")
+    return 0
+}
+
+fn json_type_of(t: Box<TypeRef>) -> str {
+    return json::type_to_json(t)
+}
+
 fn selftest() -> i32 {
     test_arithmetic()
     test_variables_and_assign()
@@ -221,6 +288,11 @@ fn selftest() -> i32 {
     test_result_ok()
     test_result_err()
     test_try_return()
+    test_struct_lit()
+    test_struct_field()
+    test_method_sum()
+    test_fstring_basic()
+    test_type_shapes()
     print("hzast selftest passed")
     return 0
 }

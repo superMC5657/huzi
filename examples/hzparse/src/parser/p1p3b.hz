@@ -1,0 +1,144 @@
+# parser/p1p3b —— P3b 落盘（struct/field/method，JSON 直出，对标 ast_json.rs）。
+# 后缀 `.` 链 + 结构体字面量；与 p1expr 互递归（沿用 atom/expr 循环模式）。
+# fstring 因词法层 `f` 前缀已丢弃（见 lexer.hz is_fstr），本文件不判，仍走 string。
+import cursor
+import p1json
+import p1expr
+
+# 后缀链：`[expr]` 折 index、`?` 折 try、`.field`/`.0`/`.m(args)` 折 field/method。
+fn p1_postfix(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, base: str, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    let mut cur = base
+    while true {
+        if cursor::pz_at(kinds, texts, pos, "[") {
+            cursor::pz_next(pos)
+            let ix = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+            if !ix.0 {
+                return ix
+            }
+            if !cursor::pz_at(kinds, texts, pos, "]") {
+                return (false, "")
+            }
+            cursor::pz_next(pos)
+            cur = p1json::p1_index_json(cur, ix.1)
+        } elif cursor::pz_at(kinds, texts, pos, "?") {
+            cursor::pz_next(pos)
+            cur = p1json::p1_try_json(cur)
+        } elif cursor::pz_at(kinds, texts, pos, ".") {
+            let dr = p1_dot_after(kinds, texts, pos, errs, cur, lines, cols)
+            if !dr.0 {
+                return dr
+            }
+            cur = dr.1
+        } else {
+            break
+        }
+    }
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        return (false, "")
+    }
+    if cursor::pz_at(kinds, texts, pos, "::") {
+        return (false, "")
+    }
+    return (true, cur)
+}
+
+# `.` 后：ident + `(` 为方法，其余 ident/int 为字段；float/关键字一律拒。
+fn p1_dot_after(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, base: str, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    if cursor::pz_is_ident(kinds, texts, pos) {
+        let field = texts[pos[0]]
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "(") {
+            return p1_method_args(kinds, texts, pos, errs, base, field, lines, cols)
+        }
+        return (true, p1json::p1_field_json(base, field))
+    }
+    if cursor::pz_at_kind(kinds, pos, "int") {
+        let field = texts[pos[0]]
+        cursor::pz_next(pos)
+        return (true, p1json::p1_field_json(base, field))
+    }
+    return (false, "")
+}
+
+# `.m(a, ...)` 实参表（调用时位于 `(`，已消费 recv + method）。
+fn p1_method_args(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, base: str, method: str, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    let mut args = vec<str>()
+    if cursor::pz_at(kinds, texts, pos, ")") {
+        cursor::pz_next(pos)
+        return (true, p1json::p1_method_json(base, method, args))
+    }
+    let a0 = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !a0.0 {
+        return a0
+    }
+    push(args, a0.1)
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ")") {
+            break
+        }
+        let a = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+        if !a.0 {
+            return a
+        }
+        push(args, a.1)
+    }
+    if !cursor::pz_at(kinds, texts, pos, ")") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    return (true, p1json::p1_method_json(base, method, args))
+}
+
+# `Name { x: expr, ... }`（调用时位于 `Name`，尚未消费；空/缺 `:` 拒）。
+fn p1_struct_after(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, sname: str, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    let mut entries = vec<str>()
+    if cursor::pz_at(kinds, texts, pos, "}") {
+        return (false, "")
+    }
+    let f0 = p1_struct_field(kinds, texts, pos, errs, lines, cols)
+    if !f0.0 {
+        return f0
+    }
+    push(entries, f0.1)
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "}") {
+            break
+        }
+        let f = p1_struct_field(kinds, texts, pos, errs, lines, cols)
+        if !f.0 {
+            return f
+        }
+        push(entries, f.1)
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    return p1_postfix(kinds, texts, pos, errs, p1json::p1_struct_json(sname, entries), lines, cols)
+}
+
+fn p1_struct_field(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return (false, "")
+    }
+    let fname = texts[pos[0]]
+    cursor::pz_next(pos)
+    if !cursor::pz_at(kinds, texts, pos, ":") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    let v = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !v.0 {
+        return v
+    }
+    return (true, p1json::p1_field_entry(fname, v.1))
+}

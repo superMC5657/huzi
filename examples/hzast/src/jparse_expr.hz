@@ -1,7 +1,8 @@
-# jparse_expr —— Canonical JSON Expr 逆解析（仅 Expr7，对标 json.hz expr_to_json）。
-# 超集 kind/op 返回 false，由上层 panic 非零退出；不扩变体数量。
+# jparse_expr —— Canonical JSON Expr 逆解析（Expr7+P3复合+P3b结构，对标 json.hz）。
+# 超集 kind/op 返回 false，由上层 panic 非零退出；P3b 四形转调 jparse_p3b。
 import ast
 import jparse_base
+import jparse_p3b
 
 fn j_parse_expr_num_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
@@ -362,6 +363,18 @@ fn j_parse_expr(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     }
     if kr.1 == "try" {
         return j_parse_expr_try_rest(s, pos)
+    }
+    if kr.1 == "struct" {
+        return jparse_p3b::j_parse_expr_struct_rest(s, pos)
+    }
+    if kr.1 == "field" {
+        return jparse_p3b::j_parse_expr_field_rest(s, pos)
+    }
+    if kr.1 == "method" {
+        return jparse_p3b::j_parse_expr_method_rest(s, pos)
+    }
+    if kr.1 == "fstring" {
+        return jparse_p3b::j_parse_expr_fstring_rest(s, pos)
     }
     return (false, ast::expr_num(0))
 }

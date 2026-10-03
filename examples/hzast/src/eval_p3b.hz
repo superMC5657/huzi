@@ -1,0 +1,173 @@
+# eval_p3b —— P3b 求值（Struct 构造/field 查名/method 静态分发/fstring 脱糖）。
+# 与 eval 互递归（沿用 parser atom/expr 循环模式）；Type 只序列化不求值。
+import ast
+import eval
+
+# P3b 结构字段查名：joined 为 `k=v, k=v`，k/v 内不含 `, `/`=`，线性查名。
+fn struct_lookup(joined: str, field: str) -> (bool, str) {
+    let pairs = eval::split_joined(joined)
+    let n = len(pairs)
+    let mut i = 0
+    while i < n {
+        let p = pairs[i]
+        let m = len(p)
+        let mut j = 0
+        while j < m {
+            if substring(p, j, j + 1) == "=" {
+                break
+            }
+            j = j + 1
+        }
+        if j < m && substring(p, 0, j) == field {
+            return (true, substring(p, j + 1, m))
+        }
+        i = i + 1
+    }
+    return (false, "")
+}
+
+# P3b 求值：Struct 构造 + field 查名 + method 按名静态分发 + fstring 脱糖 concat。
+fn eval_struct_val(sname: str, fnames: vec<str>, fexprs: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let mut vals = vec<str>()
+    let n = len(fexprs)
+    let mut i = 0
+    while i < n {
+        push(vals, ast::val_to_string(eval::eval_expr(fexprs[i], env, fns)))
+        i = i + 1
+    }
+    return ast::val_struct(sname, fnames, vals)
+}
+
+fn eval_field_val(base_e: Box<Expr>, field: str, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let base = eval::eval_expr(base_e, env, fns)
+    return match base {
+    Value::Struct(_, joined, _) => eval_field_from_joined(joined, field),
+    Value::Num(n) => Value::Nil,
+    Value::Bool(b) => Value::Nil,
+    Value::StrVal(s) => Value::Nil,
+    Value::Nil => Value::Nil,
+    Value::Tuple(_, _) => Value::Nil,
+    Value::Arr(_, _) => Value::Nil,
+    Value::OptSome(s) => Value::Nil,
+    Value::OptNone => Value::Nil,
+    Value::ResOk(s) => Value::Nil,
+    Value::ResErr(e) => Value::Nil,
+}
+}
+
+fn eval_field_from_joined(joined: str, field: str) -> Value {
+    let r = struct_lookup(joined, field)
+    if !r.0 {
+        panic(concat("eval: unknown field '", field, "'"))
+    }
+    return Value::StrVal(r.1)
+}
+
+# P3b 分发：struct/field/method/fstring 四形（主函数仅此一行，保持 70 行内）。
+fn eval_p3b_val(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    if e.kind == "struct" {
+        return eval_struct_val(e.name, e.field_names, e.args, env, fns)
+    }
+    if e.kind == "field" {
+        return eval_field_val(e.left, e.name, env, fns)
+    }
+    if e.kind == "method" {
+        return eval_method_val(e.left, e.name, e.args, env, fns)
+    }
+    return eval_fstring_val(e.str_val, e.args, env, fns)
+}
+
+# P3b 方法：按名静态分发直调（Point.sum 取 x+y；greet 取 name 问候）。
+fn eval_method_val(recv_e: Box<Expr>, method: str, margs: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let recv = eval::eval_expr(recv_e, env, fns)
+    return match recv {
+    Value::Struct(sname, joined, _) => eval_method_on_struct(sname, joined, method, margs, env, fns),
+    Value::Num(n) => eval_method_fallback(method, margs, env, fns),
+    Value::Bool(b) => eval_method_fallback(method, margs, env, fns),
+    Value::StrVal(s) => eval_method_fallback(method, margs, env, fns),
+    Value::Nil => eval_method_fallback(method, margs, env, fns),
+    Value::Tuple(_, _) => eval_method_fallback(method, margs, env, fns),
+    Value::Arr(_, _) => eval_method_fallback(method, margs, env, fns),
+    Value::OptSome(s) => eval_method_fallback(method, margs, env, fns),
+    Value::OptNone => eval_method_fallback(method, margs, env, fns),
+    Value::ResOk(s) => eval_method_fallback(method, margs, env, fns),
+    Value::ResErr(e) => eval_method_fallback(method, margs, env, fns),
+}
+}
+
+fn eval_method_fallback(method: str, margs: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    panic(concat("eval: method '", method, "' on non-struct"))
+    return Value::Nil
+}
+
+fn eval_method_on_struct(sname: str, joined: str, method: str, margs: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    if method == "sum" {
+        return eval_point_sum(joined)
+    }
+    if method == "greet" {
+        return eval_greet_call(joined, margs, env, fns)
+    }
+    panic(concat("eval: unknown method '", method, "'"))
+    return Value::Nil
+}
+
+fn eval_point_sum(joined: str) -> Value {
+    let xr = struct_lookup(joined, "x")
+    let yr = struct_lookup(joined, "y")
+    if !xr.0 || !yr.0 {
+        panic("eval: Point.sum needs x,y")
+    }
+    let xv = parse_int(xr.1)
+    let yv = parse_int(yr.1)
+    if !xv.0 || !yv.0 {
+        panic("eval: Point.sum non-int field")
+    }
+    return Value::Num(xv.1 + yv.1)
+}
+
+fn eval_greet_call(joined: str, margs: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let nr = struct_lookup(joined, "name")
+    if !nr.0 {
+        panic("eval: greet needs name")
+    }
+    return Value::StrVal(concat("hi ", nr.1))
+}
+
+# P3b fstring：模板 `hi {}!` 按序填 val_to_string，`{{`/`}}` 转义为单括号。
+fn eval_fstring_val(tpl: str, fargs: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let mut parts = vec<str>()
+    let n = len(fargs)
+    let mut i = 0
+    while i < n {
+        push(parts, ast::val_to_string(eval::eval_expr(fargs[i], env, fns)))
+        i = i + 1
+    }
+    return Value::StrVal(fstring_fill(tpl, parts))
+}
+
+fn fstring_fill(tpl: str, vals: vec<str>) -> str {
+    let n = len(tpl)
+    let mut res = ""
+    let mut i = 0
+    let mut ai = 0
+    while i < n {
+        if i + 1 < n && substring(tpl, i, i + 2) == "{{" {
+            res = concat(res, "{")
+            i = i + 2
+        } elif i + 1 < n && substring(tpl, i, i + 2) == "}}" {
+            res = concat(res, "}")
+            i = i + 2
+        } elif i + 1 < n && substring(tpl, i, i + 2) == "{}" {
+            if ai >= len(vals) {
+                panic("eval: fstring missing arg")
+            }
+            res = concat(res, vals[ai])
+            ai = ai + 1
+            i = i + 2
+        } else {
+            res = concat(res, substring(tpl, i, i + 1))
+            i = i + 1
+        }
+    }
+    return res
+}

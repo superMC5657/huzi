@@ -1,9 +1,20 @@
-# C1 原生参照：与 hzast --dump-eval 同 6 行（见 RFC），直写算式不经 eval。
+# C1 原生参照：与 hzast --dump-eval 同 20 行（见 RFC），直写算式不经 eval。
 fn fact(n: i32) -> i32 {
     if n <= 1 {
         return 1
     }
     return n * fact(n - 1)
+}
+
+struct Point {
+    x: i32,
+    y: i32,
+}
+
+impl Point {
+    fn sum(self: Point) -> i32 {
+        return self.x + self.y
+    }
 }
 
 fn main() -> i32 {
@@ -36,5 +47,13 @@ fn main() -> i32 {
     print("result_ok=Ok(99)")
     print("result_err=Err(oops)")
     print("result_try=Err(bad)")
+    print("struct=Point{x=10, y=20}")
+    let pf = Point { x: 10, y: 20 }
+    print(concat("field=", to_string(pf.x)))
+    print(concat("method=", to_string(pf.sum())))
+    let name = "Alice"
+    print(concat("fstring=", f"hi {name}!"))
+    print("type_atom={\"kind\":\"type\",\"name\":\"i32\",\"args\":[]}")
+    print("type_applied={\"kind\":\"type\",\"name\":\"Pair\",\"args\":[{\"kind\":\"type\",\"name\":\"i32\",\"args\":[]},{\"kind\":\"type\",\"name\":\"str\",\"args\":[]}]}")
     return 0
 }

@@ -3,9 +3,7 @@
 //! - 紧凑、无空白、键序固定；转义仅 `"` `\` `\n` `\r` `\t`（与 `jsonq::escape_json_str` 同口径）。
 //! - Box 透明、Span 丢弃；`un` 统一为 `operand` 单字段；`if` 空 else 为 `[]`。
 //! - 子集外变体返回 `Err`（文件模式非零退出；向量模式未知 ID 返回 `None`）。
-
-use huzi_ast::{BinOp, Block, Expr, FnStmt, Literal, Program, Stmt, UnOp};
-
+use huzi_ast::{BinOp, Block, Expr, FnStmt, Literal, Program, Stmt, Type, UnOp};
 /// JSON 字符串转义（冻结 5 种，其余字节透传，不做 `\u`）。
 pub fn escape(input: &str) -> String {
     let mut out = String::with_capacity(input.len() + 2);
@@ -21,12 +19,10 @@ pub fn escape(input: &str) -> String {
     }
     out
 }
-
 /// 带引号的 JSON 字符串。
 pub(crate) fn quoted(input: &str) -> String {
     format!("\"{}\"", escape(input))
 }
-
 /// 二元运算符 spelling（与 hzast `op` 字符串一致）。
 fn bin_op_str(op: &BinOp) -> &'static str {
     match op {
@@ -45,7 +41,6 @@ fn bin_op_str(op: &BinOp) -> &'static str {
         BinOp::Or => "||",
     }
 }
-
 /// 一元运算符 spelling。
 fn un_op_str(op: &UnOp) -> &'static str {
     match op {
@@ -54,7 +49,6 @@ fn un_op_str(op: &UnOp) -> &'static str {
         UnOp::Deref => "*",
     }
 }
-
 /// 字面量直映（仅 Int/Bool/String；Float/Char 不在 M1-C 子集）。
 fn literal_to_json(lit: &Literal) -> Result<String, String> {
     match lit {
@@ -68,7 +62,6 @@ fn literal_to_json(lit: &Literal) -> Result<String, String> {
         Literal::Char(_) => Err("ast-json: char outside M1-C subset".to_string()),
     }
 }
-
 /// 调用形（被调须为裸 Ident，泛型实参须空）。
 fn call_to_json(c: &huzi_ast::CallExpr) -> Result<String, String> {
     if !c.type_args.is_empty() {
@@ -84,8 +77,7 @@ fn call_to_json(c: &huzi_ast::CallExpr) -> Result<String, String> {
         exprs_to_json(&c.arguments)?
     ))
 }
-
-/// 表达式递归（子集：Literal/Ident/Binary/Unary/Call + P3 复合 tuple/array/index/enum/try）。
+/// 表达式递归（子集：Literal/Ident/Binary/Unary/Call + P3 复合 tuple/array/index/enum/try + P3b struct/field/method/fstring）。
 pub fn expr_to_json(expr: &Expr) -> Result<String, String> {
     match expr {
         Expr::Literal(l) => literal_to_json(l),
@@ -107,10 +99,13 @@ pub fn expr_to_json(expr: &Expr) -> Result<String, String> {
         Expr::ArrayIndex(a) => Ok(format!("{{\"kind\":\"index\",\"array\":{},\"index\":{}}}", expr_to_json(&a.array)?, expr_to_json(&a.index)?)),
         Expr::EnumConstruct(c) => Ok(format!("{{\"kind\":\"enum\",\"name\":{},\"args\":{}}}", quoted(&format!("{}::{}", c.enum_name, c.variant)), exprs_to_json(&c.args)?)),
         Expr::Try(t) => Ok(format!("{{\"kind\":\"try\",\"expr\":{}}}", expr_to_json(&t.inner)?)),
+        Expr::StructLiteral(s) => struct_to_json(s),
+        Expr::FieldAccess(f) => Ok(format!("{{\"kind\":\"field\",\"base\":{},\"field\":{}}}", expr_to_json(&f.base)?, quoted(&f.field))),
+        Expr::MethodCall(m) => Ok(format!("{{\"kind\":\"method\",\"receiver\":{},\"method\":{},\"args\":{}}}", expr_to_json(&m.receiver)?, quoted(&m.method), exprs_to_json(&m.arguments)?)),
+        Expr::FString(f) => Ok(format!("{{\"kind\":\"fstring\",\"template\":{},\"args\":{}}}", quoted(&f.template), exprs_to_json(&f.args)?)),
         _ => Err("ast-json: expr outside subset".to_string()),
     }
 }
-
 /// 表达式列表。
 fn exprs_to_json(es: &[Expr]) -> Result<String, String> {
     let mut out = String::from("[");
@@ -123,7 +118,49 @@ fn exprs_to_json(es: &[Expr]) -> Result<String, String> {
     out.push(']');
     Ok(out)
 }
-
+/// 结构体字面量（泛型实参须空；字段为 `[{"name":..,"value":..}]`，键序固定）。
+fn struct_to_json(s: &huzi_ast::StructLiteralExpr) -> Result<String, String> {
+    if !s.type_args.is_empty() {
+        return Err("ast-json: generic struct outside P3b subset".to_string());
+    }
+    let mut fields = String::from("[");
+    for (i, (name, value)) in s.fields.iter().enumerate() {
+        if i > 0 {
+            fields.push(',');
+        }
+        fields.push_str(&format!("{{\"name\":{},\"value\":{}}}", quoted(name), expr_to_json(value)?));
+    }
+    fields.push(']');
+    Ok(format!("{{\"kind\":\"struct\",\"name\":{},\"fields\":{}}}", quoted(&s.name), fields))
+}
+/// 类型递归（P3b：仅名+参；复合 Array/Tuple/Box/Weak/Fn 为超集）。
+pub fn type_to_json(ty: &Type) -> Result<String, String> {
+    if let Some(n) = ty.canonical_name() {
+        return Ok(format!("{{\"kind\":\"type\",\"name\":{},\"args\":[]}}", quoted(n)));
+    }
+    if matches!(ty, Type::Unit) {
+        return Ok(format!("{{\"kind\":\"type\",\"name\":{},\"args\":[]}}", quoted("()")));
+    }
+    if let Type::Generic(n) = ty {
+        return Ok(format!("{{\"kind\":\"type\",\"name\":{},\"args\":[]}}", quoted(n)));
+    }
+    if let Type::Applied(n, args) = ty {
+        return Ok(format!("{{\"kind\":\"type\",\"name\":{},\"args\":{}}}", quoted(n), types_to_json(args)?));
+    }
+    Err("ast-json: type outside P3b subset".to_string())
+}
+/// 类型列表。
+fn types_to_json(tys: &[Type]) -> Result<String, String> {
+    let mut out = String::from("[");
+    for (i, t) in tys.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str(&type_to_json(t)?);
+    }
+    out.push(']');
+    Ok(out)
+}
 /// 语句递归（子集：Let/Expr/Return/If/While；Fn 由 `fn_to_json` 另行处理）。
 /// `x = v`（AssignExpr）与 `print(e)`（单参 print 调用）折叠为 Huzi 侧
 /// `assign`/`print` 语句形，保证两侧逐字节一致；其余为 `expr` 语句形。
@@ -150,7 +187,6 @@ pub fn stmt_to_json(stmt: &Stmt) -> Result<String, String> {
         _ => Err("ast-json: stmt outside M1-C subset".to_string()),
     }
 }
-
 /// `Expr` 语句分发：赋值/打印折叠，其余为普通表达式语句。
 fn stmt_expr_to_json(e: &huzi_ast::ExprStmt) -> Result<String, String> {
     if let Expr::Assign(a) = &e.expr {
@@ -183,7 +219,6 @@ fn stmt_expr_to_json(e: &huzi_ast::ExprStmt) -> Result<String, String> {
         expr_to_json(&e.expr)?
     ))
 }
-
 /// `let` 语句（元组模式/无初值/类型标注不在子集）。
 fn stmt_let_to_json(l: &huzi_ast::LetStmt) -> Result<String, String> {
     if l.tuple_pattern.is_some() {
@@ -199,7 +234,6 @@ fn stmt_let_to_json(l: &huzi_ast::LetStmt) -> Result<String, String> {
         expr_to_json(v)?
     ))
 }
-
 /// `if` 语句（elif 不在子集；空 else 为 `[]`）。
 fn stmt_if_to_json(i: &huzi_ast::IfStmt) -> Result<String, String> {
     if !i.elif_branches.is_empty() {
@@ -216,7 +250,6 @@ fn stmt_if_to_json(i: &huzi_ast::IfStmt) -> Result<String, String> {
         els
     ))
 }
-
 /// 块内逐语句数组。
 pub(crate) fn block_to_json(block: &Block) -> Result<String, String> {
     let mut out = String::from("[");
@@ -229,7 +262,6 @@ pub(crate) fn block_to_json(block: &Block) -> Result<String, String> {
     out.push(']');
     Ok(out)
 }
-
 /// 函数定义（忽略泛型形参/返回类型标注，只取名/参数名/体）。
 pub(crate) fn fn_to_json(func: &FnStmt) -> Result<String, String> {
     let mut params = String::from("[");
@@ -247,7 +279,6 @@ pub(crate) fn fn_to_json(func: &FnStmt) -> Result<String, String> {
         block_to_json(&func.body)?
     ))
 }
-
 /// 文件模式整程序（`fns` 为除 main 外顶层 fn；`main` 为 main 体或顶层非 fn 语句）。
 pub fn program_to_json(program: &Program) -> Result<String, String> {
     let mut fns = String::from("[");
@@ -286,25 +317,17 @@ pub fn program_to_json(program: &Program) -> Result<String, String> {
     };
     Ok(format!("{{\"fns\":{fns},\"main\":{main}}}"))
 }
-
-/// 合成节点占位 span（JSON 丢弃位置）。
 fn synth_span(stmt: Stmt) -> huzi_ast::Spanned<Stmt> {
     huzi_ast::Spanned::with_span(stmt, huzi_ast::Span::new(1, 1))
 }
-
-/// 单语句块。
 fn synth_block(stmt: Stmt) -> Block {
     Block {
         statements: vec![synth_span(stmt)],
     }
 }
-
-/// `num` 快捷构造。
 fn synth_num(n: i64) -> Expr {
     Expr::Literal(Literal::Int(n))
 }
-
-/// 二元快捷构造。
 fn synth_bin(op: BinOp, l: Expr, r: Expr) -> Expr {
     Expr::Binary(huzi_ast::BinaryExpr {
         left: Box::new(l),
@@ -312,8 +335,6 @@ fn synth_bin(op: BinOp, l: Expr, r: Expr) -> Expr {
         right: Box::new(r),
     })
 }
-
-/// 赋值语句（`x = v` 的 Stmt::Expr 包裹，与 Huzi `assign` 同形）。
 fn synth_assign(name: &str, value: Expr) -> Stmt {
     Stmt::Expr(huzi_ast::ExprStmt {
         expr: Expr::Assign(huzi_ast::AssignExpr {
@@ -323,8 +344,6 @@ fn synth_assign(name: &str, value: Expr) -> Stmt {
         }),
     })
 }
-
-/// `let` 语句快捷构造。
 fn synth_let(name: &str, value: Expr) -> Stmt {
     Stmt::Let(huzi_ast::LetStmt {
         name: name.to_string(),
@@ -334,8 +353,7 @@ fn synth_let(name: &str, value: Expr) -> Stmt {
         value: Some(value),
     })
 }
-
-/// 向量 ID 的表达式 JSON（8+8 个，与 `vectors.hz` 同构；后 8 为 P3 复合）。
+/// 向量 ID 的表达式 JSON（8+8+6 个，与 `vectors.hz` 同构；中 8 为 P3 复合，后 6 为 P3b 结构类型）。
 fn test_expr_json(id: &str) -> Option<Result<String, String>> {
     match id {
         "expr_num" => Some(expr_to_json(&synth_num(42))),
@@ -365,10 +383,15 @@ fn test_expr_json(id: &str) -> Option<Result<String, String>> {
         "expr_enum_ok" => Some(expr_to_json(&Expr::EnumConstruct(huzi_ast::EnumConstructExpr { enum_name: "Result".to_string(), variant: "Ok".to_string(), args: vec![synth_num(99)], type_args: vec![] }))),
         "expr_enum_err" => Some(expr_to_json(&Expr::EnumConstruct(huzi_ast::EnumConstructExpr { enum_name: "Result".to_string(), variant: "Err".to_string(), args: vec![Expr::Literal(Literal::String("oops".to_string()))], type_args: vec![] }))),
         "expr_try" => Some(expr_to_json(&Expr::Try(huzi_ast::TryExpr { inner: Box::new(Expr::Ident("x".to_string())) }))),
+        "expr_struct" => Some(expr_to_json(&Expr::StructLiteral(huzi_ast::StructLiteralExpr { name: "Point".to_string(), fields: vec![("x".to_string(), synth_num(10)), ("y".to_string(), synth_num(20))], type_args: vec![] }))),
+        "expr_field" => Some(expr_to_json(&Expr::FieldAccess(huzi_ast::FieldAccessExpr { base: Box::new(Expr::Ident("p".to_string())), field: "x".to_string() }))),
+        "expr_method" => Some(expr_to_json(&Expr::MethodCall(huzi_ast::MethodCallExpr { receiver: Box::new(Expr::Ident("p".to_string())), method: "sum".to_string(), arguments: vec![] }))),
+        "expr_fstring" => Some(expr_to_json(&Expr::FString(huzi_ast::FStringExpr { template: "hi {}!".to_string(), args: vec![Expr::Ident("name".to_string())] }))),
+        "type_atom" => Some(type_to_json(&Type::I32)),
+        "type_applied" => Some(type_to_json(&Type::Applied("Pair".to_string(), vec![Type::I32, Type::Str]))),
         _ => None,
     }
 }
-
 /// 向量 ID 的语句 JSON（7 个，与 `vectors.hz` 同构）。
 fn test_stmt_json(id: &str) -> Option<Result<String, String>> {
     match id {
@@ -410,7 +433,6 @@ fn test_stmt_json(id: &str) -> Option<Result<String, String>> {
         _ => None,
     }
 }
-
 /// fact 函数体（与 `vectors.hz` 同构：if 空 else + 递归 return）。
 fn synth_fact_fn() -> FnStmt {
     let cond = synth_bin(BinOp::Le, Expr::Ident("n".to_string()), synth_num(1));
@@ -448,7 +470,6 @@ fn synth_fact_fn() -> FnStmt {
         },
     }
 }
-
 /// 向量 ID 分发（表达式 → 语句 → 程序；未知返回 `None`）。
 pub fn test_vector(id: &str) -> Option<Result<String, String>> {
     if let Some(r) = test_expr_json(id) {

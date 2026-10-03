@@ -78,3 +78,28 @@ fn p1_enum_json(full: str, args: vec<str>) -> str {
 fn p1_try_json(inner: str) -> str {
     return concat("{\"kind\":\"try\",\"expr\":", inner, "}")
 }
+
+# P3b 结构/字段/方法/fstring JSON 形状（键序与 hzast json.hz + ast_json.rs 同序）。
+fn p1_struct_json(name: str, fields: vec<str>) -> str {
+    return concat("{\"kind\":\"struct\",\"name\":", p1_quoted(name), ",\"fields\":", p1_join(fields), "}")
+}
+
+fn p1_field_entry(fname: str, val: str) -> str {
+    return concat("{\"name\":", p1_quoted(fname), ",\"value\":", val, "}")
+}
+
+fn p1_field_json(base: str, field: str) -> str {
+    return concat("{\"kind\":\"field\",\"base\":", base, ",\"field\":", p1_quoted(field), "}")
+}
+
+fn p1_method_json(recv: str, method: str, args: vec<str>) -> str {
+    return concat("{\"kind\":\"method\",\"receiver\":", recv, ",\"method\":", p1_quoted(method), ",\"args\":", p1_join(args), "}")
+}
+
+fn p1_fstring_json(tpl: str, args: vec<str>) -> str {
+    return concat("{\"kind\":\"fstring\",\"template\":", p1_quoted(tpl), ",\"args\":", p1_join(args), "}")
+}
+
+fn p1_type_json(name: str, args: vec<str>) -> str {
+    return concat("{\"kind\":\"type\",\"name\":", p1_quoted(name), ",\"args\":", p1_join(args), "}")
+}

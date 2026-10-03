@@ -1,0 +1,244 @@
+# jparse_p3b —— P3b 逆解析（struct/field/method/fstring/type，键序与 json.hz 同序）。
+# 超集返 false，由上层 panic 非零退出；与 jparse_expr 互递归（沿用 atom/expr 循环模式）。
+import ast
+import jparse_base
+import jparse_expr
+
+fn j_parse_expr_struct_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, ast::expr_num(0))
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "fields") {
+        return (false, ast::expr_num(0))
+    }
+    let fr = j_parse_struct_fields(s, pos)
+    if !fr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_struct(nr.1, fr.1, fr.2))
+}
+
+fn j_parse_struct_fields(s: str, pos: vec<i32>) -> (bool, vec<str>, vec<Box<Expr>>) {
+    let mut names = vec<str>()
+    let mut vals = vec<Box<Expr>>()
+    if !jparse_base::j_expect(s, pos, "[") {
+        return (false, names, vals)
+    }
+    if jparse_base::j_expect(s, pos, "]") {
+        return (true, names, vals)
+    }
+    let f0 = j_parse_struct_field(s, pos)
+    if !f0.0 {
+        return (false, names, vals)
+    }
+    push(names, f0.1)
+    push(vals, f0.2)
+    while jparse_base::j_expect(s, pos, ",") {
+        let f = j_parse_struct_field(s, pos)
+        if !f.0 {
+            return (false, names, vals)
+        }
+        push(names, f.1)
+        push(vals, f.2)
+    }
+    if !jparse_base::j_expect(s, pos, "]") {
+        return (false, names, vals)
+    }
+    return (true, names, vals)
+}
+
+fn j_parse_struct_field(s: str, pos: vec<i32>) -> (bool, str, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, "{") {
+        return (false, "", ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, "", ast::expr_num(0))
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, "", ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, "", ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "value") {
+        return (false, "", ast::expr_num(0))
+    }
+    let er = jparse_expr::j_parse_expr(s, pos)
+    if !er.0 {
+        return (false, "", ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, "", ast::expr_num(0))
+    }
+    return (true, nr.1, er.1)
+}
+
+fn j_parse_expr_field_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "base") {
+        return (false, ast::expr_num(0))
+    }
+    let br = jparse_expr::j_parse_expr(s, pos)
+    if !br.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "field") {
+        return (false, ast::expr_num(0))
+    }
+    let fr = jparse_base::j_parse_string(s, pos)
+    if !fr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_field(br.1, fr.1))
+}
+
+fn j_parse_expr_method_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "receiver") {
+        return (false, ast::expr_num(0))
+    }
+    let rr = jparse_expr::j_parse_expr(s, pos)
+    if !rr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "method") {
+        return (false, ast::expr_num(0))
+    }
+    let mr = jparse_base::j_parse_string(s, pos)
+    if !mr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "args") {
+        return (false, ast::expr_num(0))
+    }
+    let ar = jparse_expr::j_parse_expr_array(s, pos)
+    if !ar.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_method(rr.1, mr.1, ar.1))
+}
+
+fn j_parse_expr_fstring_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "template") {
+        return (false, ast::expr_num(0))
+    }
+    let tr = jparse_base::j_parse_string(s, pos)
+    if !tr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "args") {
+        return (false, ast::expr_num(0))
+    }
+    let ar = jparse_expr::j_parse_expr_array(s, pos)
+    if !ar.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_fstring(tr.1, ar.1))
+}
+
+# P3b 类型逆解析：`{"kind":"type","name":STRING,"args":[...]}`（只存名+参）。
+fn j_parse_type(s: str, pos: vec<i32>) -> (bool, Box<TypeRef>) {
+    let dummy = ast::type_atom("")
+    if !jparse_base::j_expect(s, pos, "{") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "kind") {
+        return (false, dummy)
+    }
+    let kr = jparse_base::j_parse_string(s, pos)
+    if !kr.0 || kr.1 != "type" {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, dummy)
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "args") {
+        return (false, dummy)
+    }
+    let ar = j_parse_type_array(s, pos)
+    if !ar.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    return (true, ast::type_applied(nr.1, ar.1))
+}
+
+fn j_parse_type_array(s: str, pos: vec<i32>) -> (bool, vec<Box<TypeRef>>) {
+    if !jparse_base::j_expect(s, pos, "[") {
+        return (false, vec<Box<TypeRef>>())
+    }
+    let mut out = vec<Box<TypeRef>>()
+    if jparse_base::j_expect(s, pos, "]") {
+        return (true, out)
+    }
+    let e0 = j_parse_type(s, pos)
+    if !e0.0 {
+        return (false, vec<Box<TypeRef>>())
+    }
+    push(out, e0.1)
+    while jparse_base::j_expect(s, pos, ",") {
+        let e = j_parse_type(s, pos)
+        if !e.0 {
+            return (false, vec<Box<TypeRef>>())
+        }
+        push(out, e.1)
+    }
+    if !jparse_base::j_expect(s, pos, "]") {
+        return (false, vec<Box<TypeRef>>())
+    }
+    return (true, out)
+}

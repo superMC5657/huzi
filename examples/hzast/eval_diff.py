@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# eval_diff.py —— hzast --dump-eval 与原生 eval_ref.hz 的 6 行对拍（C1）。
+# eval_diff.py —— hzast --dump-eval 与原生 eval_ref.hz 的 20 行对拍（C1）。
 #
 # 用法:
 #   python examples/hzast/eval_diff.py <huzc-bin> <hzast-bin>
@@ -8,12 +8,12 @@
 #   python examples/hzast/eval_diff.py ./huzc/target/debug/huzc /tmp/hzast
 #
 # 对拍口径 (P3 扩展，见 examples/hzast/RFC.md §1 + P3 增补):
-#   hzast 侧 `hzast --dump-eval` 打印 14 行 `name=value`（顺序固定）；
+#   hzast 侧 `hzast --dump-eval` 打印 20 行 `name=value`（顺序固定）；
 #   原生侧由 huzc 即时编译 `examples/hzast/eval_ref.hz`（直写算式，不经 eval）
-#   并执行得同样 14 行；两侧按 b'\n' 切分、二进制安全比较，不 strip。
+#   并执行得同样 20 行；两侧按 b'\n' 切分、二进制安全比较，不 strip。
 #   任一侧非零退出即记 FAIL，不比较内容。
 #
-# 退出码: 用法/路径错误返回 2; 14/14 PASS 返回 0; 有 FAIL 返回 1.
+# 退出码: 用法/路径错误返回 2; 20/20 PASS 返回 0; 有 FAIL 返回 1.
 
 import os
 import subprocess
@@ -104,8 +104,8 @@ def main(argv):
             return 1
         la = split_lines(pa.stdout)
         lb = split_lines(pb.stdout)
-        names = [b"arithmetic=", b"variables=", b"conditional=", b"while=", b"fact=", b"str=", b"tuple=", b"array=", b"index=", b"option_some=", b"option_none=", b"result_ok=", b"result_err=", b"result_try="]
-        if len(la) != 14 or len(lb) != 14:
+        names = [b"arithmetic=", b"variables=", b"conditional=", b"while=", b"fact=", b"str=", b"tuple=", b"array=", b"index=", b"option_some=", b"option_none=", b"result_ok=", b"result_err=", b"result_try=", b"struct=", b"field=", b"method=", b"fstring=", b"type_atom=", b"type_applied="]
+        if len(la) != 20 or len(lb) != 20:
             print("FAIL(len): hzast=%d ref=%d" % (len(la), len(lb)))
             return 1
         passed = failed = 0

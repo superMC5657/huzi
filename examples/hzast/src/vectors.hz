@@ -144,6 +144,41 @@ fn vector_prog_json(id: str) -> (bool, str) {
     return (false, "")
 }
 
+# P3b 结构/方法/fstring/类型向量：每形状一向量 ID（struct/field/method/fstring/type×2，共 6）。
+fn vector_p3b_json(id: str) -> (bool, str) {
+    if id == "expr_struct" {
+        let mut fnames = vec<str>()
+        push(fnames, "x")
+        push(fnames, "y")
+        let mut fexprs = vec<Box<Expr>>()
+        push(fexprs, ast::expr_num(10))
+        push(fexprs, ast::expr_num(20))
+        return (true, json::expr_to_json(ast::expr_struct("Point", fnames, fexprs)))
+    }
+    if id == "expr_field" {
+        return (true, json::expr_to_json(ast::expr_field(ast::expr_var("p"), "x")))
+    }
+    if id == "expr_method" {
+        let mut margs = vec<Box<Expr>>()
+        return (true, json::expr_to_json(ast::expr_method(ast::expr_var("p"), "sum", margs)))
+    }
+    if id == "expr_fstring" {
+        let mut fargs = vec<Box<Expr>>()
+        push(fargs, ast::expr_var("name"))
+        return (true, json::expr_to_json(ast::expr_fstring("hi {}!", fargs)))
+    }
+    if id == "type_atom" {
+        return (true, json::type_to_json(ast::type_atom("i32")))
+    }
+    if id == "type_applied" {
+        let mut targs = vec<Box<TypeRef>>()
+        push(targs, ast::type_atom("i32"))
+        push(targs, ast::type_atom("str"))
+        return (true, json::type_to_json(ast::type_applied("Pair", targs)))
+    }
+    return (false, "")
+}
+
 fn vector_json(id: str) -> (bool, str) {
     let r = vector_expr_json(id)
     if r.0 {
@@ -152,6 +187,10 @@ fn vector_json(id: str) -> (bool, str) {
     let c = vector_comp_json(id)
     if c.0 {
         return c
+    }
+    let b = vector_p3b_json(id)
+    if b.0 {
+        return b
     }
     let s = vector_stmt_json(id)
     if s.0 {
