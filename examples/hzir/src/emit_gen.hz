@@ -1,0 +1,40 @@
+// emit_gen: P4-d single-shape templates (s12/s13, no constraint solving)
+// s12: generic call-site copy with i32 filled in (id<T> -> id_i32)
+// s13: method direct call by mangled name (Wrap__get, struct by value)
+// both stay on plain i32/struct value IR, no new block kinds
+fn emit_s12() -> str {
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
+    ir = concat(ir, "define i32 @id_i32(i32 %x) {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  ret i32 %x\n")
+    ir = concat(ir, "}\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
+    ir = concat(ir, "  %a = call i32 @id_i32(i32 42)\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %a)\n")
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}
+
+fn emit_s13() -> str {
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
+    ir = concat(ir, "%struct.Wrap = type { i32 }\n")
+    ir = concat(ir, "define i32 @Wrap__get(%struct.Wrap %self) {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %v = extractvalue %struct.Wrap %self, 0\n")
+    ir = concat(ir, "  ret i32 %v\n")
+    ir = concat(ir, "}\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
+    ir = concat(ir, "  %w0 = insertvalue %struct.Wrap undef, i32 7, 0\n")
+    ir = concat(ir, "  %r = call i32 @Wrap__get(%struct.Wrap %w0)\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %r)\n")
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}

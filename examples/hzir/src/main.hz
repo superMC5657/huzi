@@ -4,6 +4,10 @@
 // range: i32 arithmetic fn let while if print plus str glue
 import jlower
 import jlower_cases
+import emit_for
+import emit_fns
+import emit_vec
+import emit_gen
 
 fn hz_prefix() -> str {
     if read_file_ok("huzc/test/cases/01_variables_ops.hz") {
@@ -203,89 +207,6 @@ fn emit_s6() -> str {
     return ir
 }
 
-fn emit_s7() -> str {
-    let mut ir = "declare i32 @printf(ptr, ...)\n"
-    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
-    ir = concat(ir, "define i32 @add(i32 %a, i32 %b) {\n")
-    ir = concat(ir, "entry:\n")
-    ir = concat(ir, "  %r = add i32 %a, %b\n")
-    ir = concat(ir, "  ret i32 %r\n")
-    ir = concat(ir, "}\n")
-    ir = concat(ir, "define i32 @mul(i32 %a, i32 %b) {\n")
-    ir = concat(ir, "entry:\n")
-    ir = concat(ir, "  %r = mul i32 %a, %b\n")
-    ir = concat(ir, "  ret i32 %r\n")
-    ir = concat(ir, "}\n")
-    ir = concat(ir, "define i32 @add_mul(i32 %a, i32 %b, i32 %c) {\n")
-    ir = concat(ir, "entry:\n")
-    ir = concat(ir, "  %m = call i32 @mul(i32 %a, i32 %b)\n")
-    ir = concat(ir, "  %r = call i32 @add(i32 %m, i32 %c)\n")
-    ir = concat(ir, "  ret i32 %r\n")
-    ir = concat(ir, "}\n")
-    ir = concat(ir, "define i32 @main() {\n")
-    ir = concat(ir, "entry:\n")
-    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
-    ir = concat(ir, "  %c0 = call i32 @add(i32 3, i32 4)\n")
-    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %c0)\n")
-    ir = concat(ir, "  %c1 = call i32 @mul(i32 3, i32 4)\n")
-    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %c1)\n")
-    ir = concat(ir, "  %c2 = call i32 @add_mul(i32 3, i32 4, i32 5)\n")
-    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %c2)\n")
-    ir = concat(ir, "  ret i32 0\n")
-    ir = concat(ir, "}\n")
-    return ir
-}
-
-fn emit_s8() -> str {
-    let mut ir = "declare i32 @printf(ptr, ...)\n"
-    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
-    ir = concat(ir, "define i32 @fib(i32 %n) {\n")
-    ir = concat(ir, "entry:\n")
-    ir = concat(ir, "  %cmp = icmp sle i32 %n, 1\n")
-    ir = concat(ir, "  br i1 %cmp, label %early, label %setup\n")
-    ir = concat(ir, "early:\n")
-    ir = concat(ir, "  ret i32 %n\n")
-    ir = concat(ir, "setup:\n")
-    ir = concat(ir, "  %a = alloca i32\n")
-    ir = concat(ir, "  store i32 0, ptr %a\n")
-    ir = concat(ir, "  %b = alloca i32\n")
-    ir = concat(ir, "  store i32 1, ptr %b\n")
-    ir = concat(ir, "  %i = alloca i32\n")
-    ir = concat(ir, "  store i32 2, ptr %i\n")
-    ir = concat(ir, "  br label %loop.cond\n")
-    ir = concat(ir, "loop.cond:\n")
-    ir = concat(ir, "  %iv = load i32, ptr %i\n")
-    ir = concat(ir, "  %cc = icmp sle i32 %iv, %n\n")
-    ir = concat(ir, "  br i1 %cc, label %loop.body, label %loop.end\n")
-    ir = concat(ir, "loop.body:\n")
-    ir = concat(ir, "  %av = load i32, ptr %a\n")
-    ir = concat(ir, "  %bv = load i32, ptr %b\n")
-    ir = concat(ir, "  %t = add i32 %av, %bv\n")
-    ir = concat(ir, "  %bv2 = load i32, ptr %b\n")
-    ir = concat(ir, "  store i32 %bv2, ptr %a\n")
-    ir = concat(ir, "  store i32 %t, ptr %b\n")
-    ir = concat(ir, "  %iv2 = load i32, ptr %i\n")
-    ir = concat(ir, "  %ni = add i32 %iv2, 1\n")
-    ir = concat(ir, "  store i32 %ni, ptr %i\n")
-    ir = concat(ir, "  br label %loop.cond\n")
-    ir = concat(ir, "loop.end:\n")
-    ir = concat(ir, "  %res = load i32, ptr %b\n")
-    ir = concat(ir, "  ret i32 %res\n")
-    ir = concat(ir, "}\n")
-    ir = concat(ir, "define i32 @main() {\n")
-    ir = concat(ir, "entry:\n")
-    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
-    ir = concat(ir, "  %c0 = call i32 @fib(i32 0)\n")
-    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %c0)\n")
-    ir = concat(ir, "  %c1 = call i32 @fib(i32 1)\n")
-    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %c1)\n")
-    ir = concat(ir, "  %c2 = call i32 @fib(i32 10)\n")
-    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %c2)\n")
-    ir = concat(ir, "  ret i32 0\n")
-    ir = concat(ir, "}\n")
-    return ir
-}
-
 fn check_one(name: str, ir: str, ll: str, exe: str, want: str) -> i32 {
     let ok = write_file(ll, ir)
     if ok {
@@ -371,15 +292,47 @@ fn run_case(prefix: str, n: i32) -> i32 {
         let exe = concat(concat(base, "6"), ".exe")
         return check_one("s6 fact", ir, ll, exe, "120")
     } elif n == 7 {
-        let ir = emit_s7()
+        let ir = emit_fns::emit_s7
         let ll = concat(concat(base, "7"), ".ll")
         let exe = concat(concat(base, "7"), ".exe")
         return check_one("s7 call", ir, ll, exe, "7\n12\n17")
     } elif n == 8 {
-        let ir = emit_s8()
+        let ir = emit_fns::emit_s8
         let ll = concat(concat(base, "8"), ".ll")
         let exe = concat(concat(base, "8"), ".exe")
         return check_one("s8 fib", ir, ll, exe, "0\n1\n55")
+    } else {
+        return run_case_extra(prefix, n)
+    }
+}
+
+fn run_case_extra(prefix: str, n: i32) -> i32 {
+    let base = concat(prefix, "target/hzir_s")
+    if n == 9 {
+        let ir = emit_for::emit_s9
+        let ll = concat(concat(base, "9"), ".ll")
+        let exe = concat(concat(base, "9"), ".exe")
+        return check_one("s9 for_range", ir, ll, exe, "0\n1\n2\n3\n4")
+    } elif n == 10 {
+        let ir = emit_for::emit_s10
+        let ll = concat(concat(base, "10"), ".ll")
+        let exe = concat(concat(base, "10"), ".exe")
+        return check_one("s10 for_sum", ir, ll, exe, "55")
+    } elif n == 11 {
+        let ir = emit_vec::emit_s11
+        let ll = concat(concat(base, "11"), ".ll")
+        let exe = concat(concat(base, "11"), ".exe")
+        return check_one("s11 vec", ir, ll, exe, "3\n20\n60")
+    } elif n == 12 {
+        let ir = emit_gen::emit_s12
+        let ll = concat(concat(base, "12"), ".ll")
+        let exe = concat(concat(base, "12"), ".exe")
+        return check_one("s12 generic", ir, ll, exe, "42")
+    } elif n == 13 {
+        let ir = emit_gen::emit_s13
+        let ll = concat(concat(base, "13"), ".ll")
+        let exe = concat(concat(base, "13"), ".exe")
+        return check_one("s13 get", ir, ll, exe, "7")
     } else {
         print("bad n ", n)
         return 1
@@ -465,7 +418,7 @@ fn main() -> i32 {
     }
     let mut n = 1
     let mut fails = 0
-    while n <= 8 {
+    while n <= 13 {
         let rc = run_case(prefix, n)
         if rc != 0 {
             fails = fails + 1
@@ -476,7 +429,7 @@ fn main() -> i32 {
     fails = fails + jf
     print("fails: ", fails)
     if fails == 0 {
-        print("hzir all 8 pass")
+        print("hzir all 13 pass")
         print("hzir json 3 pass")
         return 0
     } else {

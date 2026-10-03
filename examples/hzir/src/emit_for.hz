@@ -1,0 +1,61 @@
+// emit_for: P4-b range loop templates (sugar over while triple)
+// for i in a..b lowers to init + loop.cond + loop.body + loop.end
+// upper bound stays exclusive: 0..5 tests slt 5, 1..11 tests slt 11
+// block labels match while exactly, no new block kinds
+fn emit_s9() -> str {
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
+    ir = concat(ir, "  %i = alloca i32\n")
+    ir = concat(ir, "  store i32 0, ptr %i\n")
+    ir = concat(ir, "  br label %loop.cond\n")
+    ir = concat(ir, "loop.cond:\n")
+    ir = concat(ir, "  %iv = load i32, ptr %i\n")
+    ir = concat(ir, "  %cmp = icmp slt i32 %iv, 5\n")
+    ir = concat(ir, "  br i1 %cmp, label %loop.body, label %loop.end\n")
+    ir = concat(ir, "loop.body:\n")
+    ir = concat(ir, "  %v = load i32, ptr %i\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %v)\n")
+    ir = concat(ir, "  %iv2 = load i32, ptr %i\n")
+    ir = concat(ir, "  %ni = add i32 %iv2, 1\n")
+    ir = concat(ir, "  store i32 %ni, ptr %i\n")
+    ir = concat(ir, "  br label %loop.cond\n")
+    ir = concat(ir, "loop.end:\n")
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}
+
+fn emit_s10() -> str {
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
+    ir = concat(ir, "  %sum = alloca i32\n")
+    ir = concat(ir, "  store i32 0, ptr %sum\n")
+    ir = concat(ir, "  %i = alloca i32\n")
+    ir = concat(ir, "  store i32 1, ptr %i\n")
+    ir = concat(ir, "  br label %loop.cond\n")
+    ir = concat(ir, "loop.cond:\n")
+    ir = concat(ir, "  %iv = load i32, ptr %i\n")
+    ir = concat(ir, "  %cmp = icmp slt i32 %iv, 11\n")
+    ir = concat(ir, "  br i1 %cmp, label %loop.body, label %loop.end\n")
+    ir = concat(ir, "loop.body:\n")
+    ir = concat(ir, "  %sv = load i32, ptr %sum\n")
+    ir = concat(ir, "  %iv2 = load i32, ptr %i\n")
+    ir = concat(ir, "  %ns = add i32 %sv, %iv2\n")
+    ir = concat(ir, "  store i32 %ns, ptr %sum\n")
+    ir = concat(ir, "  %iv3 = load i32, ptr %i\n")
+    ir = concat(ir, "  %ni = add i32 %iv3, 1\n")
+    ir = concat(ir, "  store i32 %ni, ptr %i\n")
+    ir = concat(ir, "  br label %loop.cond\n")
+    ir = concat(ir, "loop.end:\n")
+    ir = concat(ir, "  %res = load i32, ptr %sum\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %res)\n")
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}

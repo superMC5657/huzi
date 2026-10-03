@@ -1,0 +1,9 @@
+fn id<T>(x: T) -> T {
+    return x
+}
+
+fn main() -> i32 {
+    let a = id<i32>(42)
+    print(a)
+    return 0
+}

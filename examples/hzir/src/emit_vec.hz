@@ -1,0 +1,40 @@
+// emit_vec: P4-c vec<i32> heap template (one frozen shape, s11)
+// header mirrors STATUS: malloc(16 + cap*4); [raw+0] weak i64 = 1
+// [raw+8] strong i64 = 1; user data at raw+16; cap locks 4
+// pushes lock 10/20/30; prints lock len/index/sum; free raw once
+// no aliases and no weak refs here, counts stay 1, one free reclaims all
+// only this i32 shape is open; all other heap kinds stay closed
+fn emit_s11() -> str {
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "declare ptr @malloc(i64)\n")
+    ir = concat(ir, "declare void @free(ptr)\n")
+    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
+    ir = concat(ir, "  %raw = call ptr @malloc(i64 32)\n")
+    ir = concat(ir, "  store i64 1, ptr %raw\n")
+    ir = concat(ir, "  %strong.ptr = getelementptr i8, ptr %raw, i32 8\n")
+    ir = concat(ir, "  store i64 1, ptr %strong.ptr\n")
+    ir = concat(ir, "  %data = getelementptr i8, ptr %raw, i32 16\n")
+    ir = concat(ir, "  %e0 = getelementptr i32, ptr %data, i32 0\n")
+    ir = concat(ir, "  store i32 10, ptr %e0\n")
+    ir = concat(ir, "  %e1 = getelementptr i32, ptr %data, i32 1\n")
+    ir = concat(ir, "  store i32 20, ptr %e1\n")
+    ir = concat(ir, "  %e2 = getelementptr i32, ptr %data, i32 2\n")
+    ir = concat(ir, "  store i32 30, ptr %e2\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 3)\n")
+    ir = concat(ir, "  %v1 = load i32, ptr %e1\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %v1)\n")
+    ir = concat(ir, "  %a0 = load i32, ptr %e0\n")
+    ir = concat(ir, "  %a1 = load i32, ptr %e1\n")
+    ir = concat(ir, "  %a2 = load i32, ptr %e2\n")
+    ir = concat(ir, "  %s01 = add i32 %a0, %a1\n")
+    ir = concat(ir, "  %sum = add i32 %s01, %a2\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %sum)\n")
+    ir = concat(ir, "  %raw2 = getelementptr i8, ptr %data, i32 -16\n")
+    ir = concat(ir, "  call void @free(ptr %raw2)\n")
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}
