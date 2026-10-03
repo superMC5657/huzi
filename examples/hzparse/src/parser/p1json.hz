@@ -1,0 +1,59 @@
+# parser/p1json —— P1 落盘 JSON 转义/拼装（对标 hzast json.hz + ast_json.rs:10-28）。
+# 仅 5 种转义，键序固定，紧凑无空白；超子集由调用方判非零，本文件不判子集。
+fn p1_escape(s: str) -> str {
+    let n = len(s)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if ch == "\"" {
+            res = concat(res, "\\\"")
+        } elif ch == "\\" {
+            res = concat(res, "\\\\")
+        } elif ch == "\n" {
+            res = concat(res, "\\n")
+        } elif ch == "\r" {
+            res = concat(res, "\\r")
+        } elif ch == "\t" {
+            res = concat(res, "\\t")
+        } else {
+            res = concat(res, ch)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn p1_quoted(s: str) -> str {
+    return concat("\"", p1_escape(s), "\"")
+}
+
+# 字符串向量拼装 `["a","b",...]`（空即 `[]`）。
+fn p1_strs(ss: vec<str>) -> str {
+    let n = len(ss)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        res = concat(res, p1_quoted(ss[i]))
+        i = i + 1
+    }
+    return concat(res, "]")
+}
+
+# 已成形 JSON 片段向量拼装 `[ {...}, {...} ]`（调用方保证片段合法）。
+fn p1_join(parts: vec<str>) -> str {
+    let n = len(parts)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        res = concat(res, parts[i])
+        i = i + 1
+    }
+    return concat(res, "]")
+}

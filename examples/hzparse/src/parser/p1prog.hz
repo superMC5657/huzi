@@ -1,0 +1,135 @@
+# parser/p1prog —— P1 程序/函数（JSON 直出，对标 ast_json.rs:228-283 program_to_json）。
+# `fns` 为除 `main` 外顶层 fn；`main` 为 main 体或顶层非 fn 语句（有 main 体则优先）。
+import cursor
+import typ
+import p1expr
+import p1stmt
+import p1json
+
+# 形参表（调用时位于 `(`）：只收名、跳过类型；`self` 亦收名为 `self`。
+fn p1_params(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, out: vec<str>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, ")") {
+        cursor::pz_next(pos)
+        return true
+    }
+    if !p1_one_param(kinds, texts, pos, errs, out, lines, cols) {
+        return false
+    }
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ")") {
+            break
+        }
+        if !p1_one_param(kinds, texts, pos, errs, out, lines, cols) {
+            return false
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, ")") {
+        return false
+    }
+    cursor::pz_next(pos)
+    return true
+}
+
+fn p1_one_param(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, out: vec<str>, lines: vec<i32>, cols: vec<i32>) -> bool {
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return false
+    }
+    let nm = texts[pos[0]]
+    cursor::pz_next(pos)
+    if nm == "self" && !cursor::pz_at(kinds, texts, pos, ":") {
+        push(out, nm)
+        return true
+    }
+    if !cursor::pz_at(kinds, texts, pos, ":") {
+        return false
+    }
+    cursor::pz_next(pos)
+    if !typ::pz_type(kinds, texts, pos, errs, lines, cols) {
+        return false
+    }
+    push(out, nm)
+    return true
+}
+
+# 顶层 `fn`（调用时位于 `fn`）：返回 (ok, name, body, fn_json)。
+fn p1_fn(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str, str, str) {
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return (false, "", "", "")
+    }
+    let name = texts[pos[0]]
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "<") {
+        let saved = pos[0]
+        let mark = cursor::pz_mark(errs)
+        cursor::pz_next(pos)
+        if !typ::pz_typarams(kinds, texts, pos, errs, lines, cols) {
+            pos[0] = saved
+            cursor::pz_rollback(errs, mark)
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "(") {
+        return (false, "", "", "")
+    }
+    let mut params = vec<str>()
+    if !p1_params(kinds, texts, pos, errs, params, lines, cols) {
+        return (false, "", "", "")
+    }
+    if cursor::pz_at(kinds, texts, pos, "->") {
+        cursor::pz_next(pos)
+        if !typ::pz_type(kinds, texts, pos, errs, lines, cols) {
+            return (false, "", "", "")
+        }
+    }
+    let b = p1stmt::p1_block(kinds, texts, pos, errs, lines, cols)
+    if !b.0 {
+        return (false, "", "", "")
+    }
+    let pj = p1json::p1_strs(params)
+    let fj = concat("{\"name\":", p1json::p1_quoted(name), ",\"params\":", pj, ",\"body\":", b.1, "}")
+    return (true, name, b.1, fj)
+}
+
+# 整程序（调用方已备好 kinds/texts/lines/cols）：返回 (ok, prog_json)。
+fn p1_program(kinds: vec<str>, texts: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    let mut errs = vec<str>()
+    let mut pos = vec(0)
+    let mut fns = vec<str>()
+    let mut mains = vec<str>()
+    let mut main_body = "[]"
+    let mut has_main = false
+    let n = len(kinds)
+    while pos[0] < n {
+        if cursor::pz_at_kind(kinds, pos, "eof") {
+            break
+        }
+        if cursor::pz_kw(kinds, texts, pos, "fn") {
+            let f = p1_fn(kinds, texts, pos, errs, lines, cols)
+            if !f.0 {
+                return (false, "")
+            }
+            if f.1 == "main" {
+                has_main = true
+                main_body = f.2
+            } else {
+                push(fns, f.3)
+            }
+        } elif p1stmt::p1_is_stmt_start(kinds, texts, pos) {
+            let s = p1stmt::p1_stmt(kinds, texts, pos, errs, lines, cols)
+            if !s.0 {
+                return (false, "")
+            }
+            push(mains, s.1)
+        } else {
+            return (false, "")
+        }
+    }
+    let fns_json = p1json::p1_join(fns)
+    if has_main {
+        return (true, concat("{\"fns\":", fns_json, ",\"main\":", main_body, "}"))
+    }
+    let main_json = p1json::p1_join(mains)
+    return (true, concat("{\"fns\":", fns_json, ",\"main\":", main_json, "}"))
+}

@@ -1,0 +1,244 @@
+# parser/p1stmt —— P1 子集语句/块（JSON 直出，仅 Stmt7，对标 ast_json.rs:125-226）。
+# `assign/print` 折叠与 Rust 同形；`elif/for/裸块/复赋值` 等一律失败（超集非零）。
+import cursor
+import typ
+import p1expr
+import p1json
+
+fn p1_is_stmt_start(kinds: vec<str>, texts: vec<str>, pos: vec<i32>) -> bool {
+    if cursor::pz_kw(kinds, texts, pos, "let") {
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "return") {
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "if") {
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "while") {
+        return true
+    }
+    if cursor::pz_is_ident(kinds, texts, pos) {
+        return true
+    }
+    if cursor::pz_at_kind(kinds, pos, "int") || cursor::pz_at_kind(kinds, pos, "string") {
+        return true
+    }
+    if cursor::pz_kw(kinds, texts, pos, "true") || cursor::pz_kw(kinds, texts, pos, "false") {
+        return true
+    }
+    if cursor::pz_at(kinds, texts, pos, "!") || cursor::pz_at(kinds, texts, pos, "-") || cursor::pz_at(kinds, texts, pos, "*") || cursor::pz_at(kinds, texts, pos, "(") {
+        return true
+    }
+    return false
+}
+
+# `{ stmt* }`（调用时位于 `{`）：空即 `[]`，与 huzc 同口径拒 `;` 空语句。
+fn p1_block(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    let mut parts = vec<str>()
+    while !cursor::pz_at(kinds, texts, pos, "}") && !cursor::pz_at_kind(kinds, pos, "eof") {
+        if p1_is_stmt_start(kinds, texts, pos) {
+            let s = p1_stmt(kinds, texts, pos, errs, lines, cols)
+            if !s.0 {
+                return s
+            }
+            push(parts, s.1)
+        } else {
+            return (false, "")
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    return (true, p1json::p1_join(parts))
+}
+
+fn p1_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    if cursor::pz_kw(kinds, texts, pos, "let") {
+        return p1_let(kinds, texts, pos, errs, lines, cols)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "return") {
+        return p1_return(kinds, texts, pos, errs, lines, cols)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "if") {
+        return p1_if(kinds, texts, pos, errs, lines, cols)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "while") {
+        return p1_while(kinds, texts, pos, errs, lines, cols)
+    }
+    if cursor::pz_kw(kinds, texts, pos, "import") || cursor::pz_kw(kinds, texts, pos, "export") || cursor::pz_kw(kinds, texts, pos, "fn") || cursor::pz_kw(kinds, texts, pos, "struct") || cursor::pz_kw(kinds, texts, pos, "enum") || cursor::pz_kw(kinds, texts, pos, "trait") || cursor::pz_kw(kinds, texts, pos, "impl") || cursor::pz_kw(kinds, texts, pos, "for") || cursor::pz_kw(kinds, texts, pos, "break") || cursor::pz_kw(kinds, texts, pos, "continue") || cursor::pz_kw(kinds, texts, pos, "defer") {
+        return (false, "")
+    }
+    if cursor::pz_at(kinds, texts, pos, "{") {
+        return (false, "")
+    }
+    if cursor::pz_is_ident(kinds, texts, pos) {
+        return p1_ident_stmt(kinds, texts, pos, errs, lines, cols)
+    }
+    return p1_expr_stmt(kinds, texts, pos, errs, lines, cols)
+}
+
+fn p1_let(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    if cursor::pz_kw(kinds, texts, pos, "mut") {
+        cursor::pz_next(pos)
+    }
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        return (false, "")
+    }
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return (false, "")
+    }
+    let name = texts[pos[0]]
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, ":") {
+        cursor::pz_next(pos)
+        if !typ::pz_type(kinds, texts, pos, errs, lines, cols) {
+            return (false, "")
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "=") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    let v = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !v.0 {
+        return v
+    }
+    if cursor::pz_at(kinds, texts, pos, "=") || cursor::pz_at(kinds, texts, pos, "+=") || cursor::pz_at(kinds, texts, pos, "-=") || cursor::pz_at(kinds, texts, pos, "*=") || cursor::pz_at(kinds, texts, pos, "/=") || cursor::pz_at(kinds, texts, pos, "%=") {
+        return (false, "")
+    }
+    return (true, concat("{\"kind\":\"let\",\"name\":", p1json::p1_quoted(name), ",\"expr\":", v.1, "}"))
+}
+
+fn p1_return(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "}") || cursor::pz_at_kind(kinds, pos, "eof") || cursor::pz_at(kinds, texts, pos, ";") {
+        return (false, "")
+    }
+    let v = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !v.0 {
+        return v
+    }
+    return (true, concat("{\"kind\":\"return\",\"expr\":", v.1, "}"))
+}
+
+fn p1_if(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    let c = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !c.0 {
+        return c
+    }
+    let t = p1_block(kinds, texts, pos, errs, lines, cols)
+    if !t.0 {
+        return t
+    }
+    if cursor::pz_kw(kinds, texts, pos, "elif") {
+        return (false, "")
+    }
+    let mut els = "[]"
+    if cursor::pz_kw(kinds, texts, pos, "else") {
+        cursor::pz_next(pos)
+        if cursor::pz_kw(kinds, texts, pos, "if") {
+            return (false, "")
+        }
+        let e = p1_block(kinds, texts, pos, errs, lines, cols)
+        if !e.0 {
+            return e
+        }
+        els = e.1
+    }
+    return (true, concat("{\"kind\":\"if\",\"cond\":", c.1, ",\"then\":", t.1, ",\"else\":", els, "}"))
+}
+
+fn p1_while(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    let c = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !c.0 {
+        return c
+    }
+    let b = p1_block(kinds, texts, pos, errs, lines, cols)
+    if !b.0 {
+        return b
+    }
+    return (true, concat("{\"kind\":\"while\",\"cond\":", c.1, ",\"body\":", b.1, "}"))
+}
+
+# `x = v`（仅裸标识单赋值）/ `print(e)` 单参折叠 / 其余走 `p1_expr` 普通表达式语句。
+fn p1_ident_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    let name = texts[pos[0]]
+    if cursor::pz_next_at(kinds, texts, pos, 1, "=") {
+        cursor::pz_next(pos)
+        cursor::pz_next(pos)
+        let v = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+        if !v.0 {
+            return v
+        }
+        if cursor::pz_at(kinds, texts, pos, "=") {
+            return (false, "")
+        }
+        return (true, concat("{\"kind\":\"assign\",\"name\":", p1json::p1_quoted(name), ",\"expr\":", v.1, "}"))
+    }
+    if name == "print" && cursor::pz_next_at(kinds, texts, pos, 1, "(") {
+        return p1_print_stmt(kinds, texts, pos, errs, lines, cols)
+    }
+    return p1_expr_stmt(kinds, texts, pos, errs, lines, cols)
+}
+
+fn p1_print_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    cursor::pz_next(pos)
+    let mut args = vec<str>()
+    if cursor::pz_at(kinds, texts, pos, ")") {
+        cursor::pz_next(pos)
+        let call = concat("{\"kind\":\"call\",\"name\":\"print\",\"args\":", p1json::p1_join(args), "}")
+        return (true, concat("{\"kind\":\"expr\",\"expr\":", call, "}"))
+    }
+    let a0 = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !a0.0 {
+        return a0
+    }
+    push(args, a0.1)
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ")") {
+            break
+        }
+        let a = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+        if !a.0 {
+            return a
+        }
+        push(args, a.1)
+    }
+    if !cursor::pz_at(kinds, texts, pos, ")") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    if len(args) == 1 {
+        return (true, concat("{\"kind\":\"print\",\"expr\":", args[0], "}"))
+    }
+    let call = concat("{\"kind\":\"call\",\"name\":\"print\",\"args\":", p1json::p1_join(args), "}")
+    return (true, concat("{\"kind\":\"expr\",\"expr\":", call, "}"))
+}
+
+fn p1_expr_stmt(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    let e = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !e.0 {
+        return e
+    }
+    if cursor::pz_at(kinds, texts, pos, "=") || cursor::pz_at(kinds, texts, pos, "+=") || cursor::pz_at(kinds, texts, pos, "-=") || cursor::pz_at(kinds, texts, pos, "*=") || cursor::pz_at(kinds, texts, pos, "/=") || cursor::pz_at(kinds, texts, pos, "%=") || cursor::pz_at(kinds, texts, pos, "[") || cursor::pz_at(kinds, texts, pos, ".") || cursor::pz_at(kinds, texts, pos, "?") {
+        return (false, "")
+    }
+    if cursor::pz_at(kinds, texts, pos, "::") {
+        return (false, "")
+    }
+    if cursor::pz_at(kinds, texts, pos, "<") && p1expr::p1_is_generic(kinds, texts, pos, errs, lines, cols) {
+        return (false, "")
+    }
+    return (true, concat("{\"kind\":\"expr\",\"expr\":", e.1, "}"))
+}
