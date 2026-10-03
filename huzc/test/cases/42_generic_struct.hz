@@ -19,7 +19,7 @@ fn main() -> i32 {
     let p2 = make_pair<str, bool>("active", true)
     print(p2.key)
     print(p2.val)
-    let s = Stack<i32> { v: vec<i32>(), top: 10 }
+    let s: Box<Stack<i32>> = box(Stack<i32> { v: vec<i32>(), top: 10 })
     print(s.top)
     let b = box(Pair<i32, i32> { key: 7, val: 8 })
     print(b.key)
