@@ -57,88 +57,88 @@ struct Expr {
     str_val: str,
     left: Box<Expr>,
     right: Box<Expr>,
-    args: vec<Expr>,
+    args: vec<Box<Expr>>,
 }
 
-fn expr_num(n: i32) -> Expr {
-    return Expr { kind: "num", op: "", name: "", num_val: n, bool_val: false, str_val: "", left: null, right: null, args: vec<Expr>() }
+fn expr_num(n: i32) -> Box<Expr> {
+    return box(Expr { kind: "num", op: "", name: "", num_val: n, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>() })
 }
 
-fn expr_bool(b: bool) -> Expr {
-    return Expr { kind: "bool", op: "", name: "", num_val: 0, bool_val: b, str_val: "", left: null, right: null, args: vec<Expr>() }
+fn expr_bool(b: bool) -> Box<Expr> {
+    return box(Expr { kind: "bool", op: "", name: "", num_val: 0, bool_val: b, str_val: "", left: null, right: null, args: vec<Box<Expr>>() })
 }
 
-fn expr_str(s: str) -> Expr {
-    return Expr { kind: "str", op: "", name: "", num_val: 0, bool_val: false, str_val: s, left: null, right: null, args: vec<Expr>() }
+fn expr_str(s: str) -> Box<Expr> {
+    return box(Expr { kind: "str", op: "", name: "", num_val: 0, bool_val: false, str_val: s, left: null, right: null, args: vec<Box<Expr>>() })
 }
 
-fn expr_var(name: str) -> Expr {
-    return Expr { kind: "var", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: vec<Expr>() }
+fn expr_var(name: str) -> Box<Expr> {
+    return box(Expr { kind: "var", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>() })
 }
 
-fn expr_bin(op: str, left: Expr, right: Expr) -> Expr {
-    return Expr { kind: "bin", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: box(left), right: box(right), args: vec<Expr>() }
+fn expr_bin(op: str, left: Box<Expr>, right: Box<Expr>) -> Box<Expr> {
+    return box(Expr { kind: "bin", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: left, right: right, args: vec<Box<Expr>>() })
 }
 
-fn expr_un(op: str, operand: Expr) -> Expr {
-    return Expr { kind: "un", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: box(operand), right: null, args: vec<Expr>() }
+fn expr_un(op: str, operand: Box<Expr>) -> Box<Expr> {
+    return box(Expr { kind: "un", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: operand, right: null, args: vec<Box<Expr>>() })
 }
 
-fn expr_call(name: str, args: vec<Expr>) -> Expr {
-    return Expr { kind: "call", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args }
+fn expr_call(name: str, args: vec<Box<Expr>>) -> Box<Expr> {
+    return box(Expr { kind: "call", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args })
 }
 
 struct Stmt {
     kind: str,
     name: str,
     expr: Box<Expr>,
-    body: vec<Stmt>,
-    else_body: vec<Stmt>,
+    body: vec<Box<Stmt>>,
+    else_body: vec<Box<Stmt>>,
 }
 
-fn stmt_let(name: str, e: Expr) -> Stmt {
-    return Stmt { kind: "let", name: name, expr: box(e), body: vec<Stmt>(), else_body: vec<Stmt>() }
+fn stmt_let(name: str, e: Box<Expr>) -> Box<Stmt> {
+    return box(Stmt { kind: "let", name: name, expr: e, body: vec<Box<Stmt>>(), else_body: vec<Box<Stmt>>() })
 }
 
-fn stmt_assign(name: str, e: Expr) -> Stmt {
-    return Stmt { kind: "assign", name: name, expr: box(e), body: vec<Stmt>(), else_body: vec<Stmt>() }
+fn stmt_assign(name: str, e: Box<Expr>) -> Box<Stmt> {
+    return box(Stmt { kind: "assign", name: name, expr: e, body: vec<Box<Stmt>>(), else_body: vec<Box<Stmt>>() })
 }
 
-fn stmt_if(cond: Expr, then_b: vec<Stmt>, else_b: vec<Stmt>) -> Stmt {
-    return Stmt { kind: "if", name: "", expr: box(cond), body: then_b, else_body: else_b }
+fn stmt_if(cond: Box<Expr>, then_b: vec<Box<Stmt>>, else_b: vec<Box<Stmt>>) -> Box<Stmt> {
+    return box(Stmt { kind: "if", name: "", expr: cond, body: then_b, else_body: else_b })
 }
 
-fn stmt_while(cond: Expr, body: vec<Stmt>) -> Stmt {
-    return Stmt { kind: "while", name: "", expr: box(cond), body: body, else_body: vec<Stmt>() }
+fn stmt_while(cond: Box<Expr>, body: vec<Box<Stmt>>) -> Box<Stmt> {
+    return box(Stmt { kind: "while", name: "", expr: cond, body: body, else_body: vec<Box<Stmt>>() })
 }
 
-fn stmt_return(e: Expr) -> Stmt {
-    return Stmt { kind: "return", name: "", expr: box(e), body: vec<Stmt>(), else_body: vec<Stmt>() }
+fn stmt_return(e: Box<Expr>) -> Box<Stmt> {
+    return box(Stmt { kind: "return", name: "", expr: e, body: vec<Box<Stmt>>(), else_body: vec<Box<Stmt>>() })
 }
 
-fn stmt_print(e: Expr) -> Stmt {
-    return Stmt { kind: "print", name: "", expr: box(e), body: vec<Stmt>(), else_body: vec<Stmt>() }
+fn stmt_print(e: Box<Expr>) -> Box<Stmt> {
+    return box(Stmt { kind: "print", name: "", expr: e, body: vec<Box<Stmt>>(), else_body: vec<Box<Stmt>>() })
 }
 
-fn stmt_expr(e: Expr) -> Stmt {
-    return Stmt { kind: "expr", name: "", expr: box(e), body: vec<Stmt>(), else_body: vec<Stmt>() }
+fn stmt_expr(e: Box<Expr>) -> Box<Stmt> {
+    return box(Stmt { kind: "expr", name: "", expr: e, body: vec<Box<Stmt>>(), else_body: vec<Box<Stmt>>() })
 }
 
 struct FnDef {
     name: str,
     params: vec<str>,
-    body: vec<Stmt>,
+    body: vec<Box<Stmt>>,
 }
 
-fn fn_def(name: str, params: vec<str>, body: vec<Stmt>) -> FnDef {
-    return FnDef { name: name, params: params, body: body }
+fn fn_def(name: str, params: vec<str>, body: vec<Box<Stmt>>) -> Box<FnDef> {
+    return box(FnDef { name: name, params: params, body: body })
 }
 
 struct Program {
-    fns: vec<FnDef>,
-    main_body: vec<Stmt>,
+    fns: vec<Box<FnDef>>,
+    main_body: vec<Box<Stmt>>,
 }
 
-fn program_new(fns: vec<FnDef>, main_body: vec<Stmt>) -> Program {
-    return Program { fns: fns, main_body: main_body }
+fn program_new(fns: vec<Box<FnDef>>, main_body: vec<Box<Stmt>>) -> Box<Program> {
+    return box(Program { fns: fns, main_body: main_body })
 }

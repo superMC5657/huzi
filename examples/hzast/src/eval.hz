@@ -5,19 +5,24 @@ struct Env {
     vals: vec<Value>,
 }
 
-fn env_new() -> Env {
-    return Env { names: vec<str>(), vals: vec<Value>() }
+fn env_new() -> Box<Env> {
+    return box(Env { names: vec<str>(), vals: vec<Value>() })
 }
 
-fn define_var(env: Env, name: str, val: Value) -> Env {
+fn env_grow(env: Box<Env>, name: str, val: Value) -> (vec<str>, vec<Value>) {
     let mut names = env.names
     let mut vals = env.vals
     push(names, name)
     push(vals, val)
-    return Env { names: names, vals: vals }
+    return (names, vals)
 }
 
-fn lookup_var(env: Env, name: str) -> (bool, Value) {
+fn define_var(env: Box<Env>, name: str, val: Value) -> Box<Env> {
+    let grown = env_grow(env, name, val)
+    return box(Env { names: grown.0, vals: grown.1 })
+}
+
+fn lookup_var(env: Box<Env>, name: str) -> (bool, Value) {
     let names = env.names
     let vals = env.vals
     let total = len(names)
@@ -31,7 +36,7 @@ fn lookup_var(env: Env, name: str) -> (bool, Value) {
     return (false, Value::Nil)
 }
 
-fn assign_var(env: Env, name: str, val: Value) -> Env {
+fn assign_var(env: Box<Env>, name: str, val: Value) -> Box<Env> {
     let mut names = env.names
     let mut vals = env.vals
     let total = len(names)
@@ -39,25 +44,25 @@ fn assign_var(env: Env, name: str, val: Value) -> Env {
     while i >= 0 {
         if names[i] == name {
             vals[i] = val
-            return Env { names: names, vals: vals }
+            return box(Env { names: names, vals: vals })
         }
         i = i - 1
     }
-    push(names, name)
-    push(vals, val)
-    return Env { names: names, vals: vals }
+    let grown = env_grow(env, name, val)
+    return box(Env { names: grown.0, vals: grown.1 })
 }
 
-fn find_fn(fns: vec<FnDef>, name: str) -> (bool, FnDef) {
+fn find_fn(fns: vec<Box<FnDef>>, name: str) -> (bool, Box<FnDef>) {
     let total = len(fns)
     let mut i = 0
     while i < total {
-        if fns[i].name == name {
-            return (true, fns[i])
+        let item: Box<FnDef> = fns[i]
+        if item.name == name {
+            return (true, item)
         }
         i = i + 1
     }
-    let dummy = ast::fn_def("", vec<str>(), vec<Stmt>())
+    let dummy = ast::fn_def("", vec<str>(), vec<Box<Stmt>>())
     return (false, dummy)
 }
 
@@ -105,7 +110,7 @@ fn eval_binary_num(op: str, a: i32, b: i32) -> Value {
     return Value::Nil
 }
 
-fn eval_expr(e: Expr, env: Env, fns: vec<FnDef>) -> Value {
+fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     if e.kind == "num" {
         return Value::Num(e.num_val)
     }
@@ -123,7 +128,7 @@ fn eval_expr(e: Expr, env: Env, fns: vec<FnDef>) -> Value {
         return r.1
     }
     if e.kind == "un" {
-        let operand = eval_expr(*e.left, env, fns)
+        let operand = eval_expr(e.left, env, fns)
         if e.op == "-" {
             return Value::Num(-ast::val_to_int(operand))
         }
@@ -132,8 +137,8 @@ fn eval_expr(e: Expr, env: Env, fns: vec<FnDef>) -> Value {
         }
     }
     if e.kind == "bin" {
-        let v1 = eval_expr(*e.left, env, fns)
-        let v2 = eval_expr(*e.right, env, fns)
+        let v1 = eval_expr(e.left, env, fns)
+        let v2 = eval_expr(e.right, env, fns)
         if e.op == "+" {
             return match v1 {
     Value::StrVal(s1) => Value::StrVal(concat(s1, ast::val_to_string(v2))),
@@ -150,12 +155,12 @@ fn eval_expr(e: Expr, env: Env, fns: vec<FnDef>) -> Value {
     return Value::Nil
 }
 
-fn eval_call(name: str, args: vec<Expr>, env: Env, fns: vec<FnDef>) -> Value {
+fn eval_call(name: str, args: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     let fn_lookup = find_fn(fns, name)
     if !fn_lookup.0 {
         panic(concat("eval: undefined function '", name, "'"))
     }
-    let target_fn = fn_lookup.1
+    let target_fn: Box<FnDef> = fn_lookup.1
     let mut call_env = env_new()
     let total_args = len(args)
     let total_params = len(target_fn.params)
@@ -169,19 +174,19 @@ fn eval_call(name: str, args: vec<Expr>, env: Env, fns: vec<FnDef>) -> Value {
     return res.1
 }
 
-fn eval_stmt(s: Stmt, env: Env, fns: vec<FnDef>) -> (bool, Value, Env) {
+fn eval_stmt(s: Box<Stmt>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool, Value, Box<Env>) {
     if s.kind == "let" {
-        let val = eval_expr(*s.expr, env, fns)
+        let val = eval_expr(s.expr, env, fns)
         let new_env = define_var(env, s.name, val)
         return (false, Value::Nil, new_env)
     }
     if s.kind == "assign" {
-        let val = eval_expr(*s.expr, env, fns)
+        let val = eval_expr(s.expr, env, fns)
         let new_env = assign_var(env, s.name, val)
         return (false, Value::Nil, new_env)
     }
     if s.kind == "if" {
-        let cond_val = eval_expr(*s.expr, env, fns)
+        let cond_val = eval_expr(s.expr, env, fns)
         if ast::val_to_bool(cond_val) {
             return eval_block(s.body, env, fns)
         } else {
@@ -191,7 +196,7 @@ fn eval_stmt(s: Stmt, env: Env, fns: vec<FnDef>) -> (bool, Value, Env) {
     if s.kind == "while" {
         let mut cur_env = env
         while true {
-            let cond_val = eval_expr(*s.expr, cur_env, fns)
+            let cond_val = eval_expr(s.expr, cur_env, fns)
             if !ast::val_to_bool(cond_val) {
                 break
             }
@@ -204,22 +209,22 @@ fn eval_stmt(s: Stmt, env: Env, fns: vec<FnDef>) -> (bool, Value, Env) {
         return (false, Value::Nil, cur_env)
     }
     if s.kind == "return" {
-        let val = eval_expr(*s.expr, env, fns)
+        let val = eval_expr(s.expr, env, fns)
         return (true, val, env)
     }
     if s.kind == "print" {
-        let val = eval_expr(*s.expr, env, fns)
+        let val = eval_expr(s.expr, env, fns)
         print(ast::val_to_string(val))
         return (false, Value::Nil, env)
     }
     if s.kind == "expr" {
-        eval_expr(*s.expr, env, fns)
+        eval_expr(s.expr, env, fns)
         return (false, Value::Nil, env)
     }
     return (false, Value::Nil, env)
 }
 
-fn eval_block(stmts: vec<Stmt>, env: Env, fns: vec<FnDef>) -> (bool, Value, Env) {
+fn eval_block(stmts: vec<Box<Stmt>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool, Value, Box<Env>) {
     let total = len(stmts)
     let mut cur_env = env
     let mut i = 0
@@ -234,7 +239,7 @@ fn eval_block(stmts: vec<Stmt>, env: Env, fns: vec<FnDef>) -> (bool, Value, Env)
     return (false, Value::Nil, cur_env)
 }
 
-fn eval_program(prog: Program) -> Value {
+fn eval_program(prog: Box<Program>) -> Value {
     let env = env_new()
     let res = eval_block(prog.main_body, env, prog.fns)
     return res.1

@@ -30,7 +30,7 @@ fn j_parse_str_array(s: str, pos: vec<i32>) -> (bool, vec<str>) {
     return (true, out)
 }
 
-fn j_parse_stmt_let_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+fn j_parse_stmt_let_rest(s: str, pos: vec<i32>) -> (bool, Box<Stmt>) {
     let dummy = ast::stmt_expr(ast::expr_num(0))
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, dummy)
@@ -58,7 +58,7 @@ fn j_parse_stmt_let_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
     return (true, ast::stmt_let(nr.1, er.1))
 }
 
-fn j_parse_stmt_assign_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+fn j_parse_stmt_assign_rest(s: str, pos: vec<i32>) -> (bool, Box<Stmt>) {
     let dummy = ast::stmt_expr(ast::expr_num(0))
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, dummy)
@@ -86,7 +86,7 @@ fn j_parse_stmt_assign_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
     return (true, ast::stmt_assign(nr.1, er.1))
 }
 
-fn j_parse_stmt_if_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+fn j_parse_stmt_if_rest(s: str, pos: vec<i32>) -> (bool, Box<Stmt>) {
     let dummy = ast::stmt_expr(ast::expr_num(0))
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, dummy)
@@ -124,7 +124,7 @@ fn j_parse_stmt_if_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
     return (true, ast::stmt_if(cr.1, tr.1, er.1))
 }
 
-fn j_parse_stmt_while_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+fn j_parse_stmt_while_rest(s: str, pos: vec<i32>) -> (bool, Box<Stmt>) {
     let dummy = ast::stmt_expr(ast::expr_num(0))
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, dummy)
@@ -152,7 +152,7 @@ fn j_parse_stmt_while_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
     return (true, ast::stmt_while(cr.1, br.1))
 }
 
-fn j_parse_stmt_single_expr_rest(s: str, pos: vec<i32>, kind: str) -> (bool, Stmt) {
+fn j_parse_stmt_single_expr_rest(s: str, pos: vec<i32>, kind: str) -> (bool, Box<Stmt>) {
     let dummy = ast::stmt_expr(ast::expr_num(0))
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, dummy)
@@ -176,33 +176,33 @@ fn j_parse_stmt_single_expr_rest(s: str, pos: vec<i32>, kind: str) -> (bool, Stm
     return (true, ast::stmt_expr(er.1))
 }
 
-fn j_parse_stmt_array(s: str, pos: vec<i32>) -> (bool, vec<Stmt>) {
+fn j_parse_stmt_array(s: str, pos: vec<i32>) -> (bool, vec<Box<Stmt>>) {
     if !jparse_base::j_expect(s, pos, "[") {
-        return (false, vec<Stmt>())
+        return (false, vec<Box<Stmt>>())
     }
-    let mut out = vec<Stmt>()
+    let mut out = vec<Box<Stmt>>()
     if jparse_base::j_expect(s, pos, "]") {
         return (true, out)
     }
     let e0 = j_parse_stmt(s, pos)
     if !e0.0 {
-        return (false, vec<Stmt>())
+        return (false, vec<Box<Stmt>>())
     }
     push(out, e0.1)
     while jparse_base::j_expect(s, pos, ",") {
         let e = j_parse_stmt(s, pos)
         if !e.0 {
-            return (false, vec<Stmt>())
+            return (false, vec<Box<Stmt>>())
         }
         push(out, e.1)
     }
     if !jparse_base::j_expect(s, pos, "]") {
-        return (false, vec<Stmt>())
+        return (false, vec<Box<Stmt>>())
     }
     return (true, out)
 }
 
-fn j_parse_stmt(s: str, pos: vec<i32>) -> (bool, Stmt) {
+fn j_parse_stmt(s: str, pos: vec<i32>) -> (bool, Box<Stmt>) {
     let dummy = ast::stmt_expr(ast::expr_num(0))
     if !jparse_base::j_expect(s, pos, "{") {
         return (false, dummy)
@@ -238,8 +238,8 @@ fn j_parse_stmt(s: str, pos: vec<i32>) -> (bool, Stmt) {
     return (false, dummy)
 }
 
-fn j_parse_fn(s: str, pos: vec<i32>) -> (bool, FnDef) {
-    let dummy = ast::fn_def("", vec<str>(), vec<Stmt>())
+fn j_parse_fn(s: str, pos: vec<i32>) -> (bool, Box<FnDef>) {
+    let dummy = ast::fn_def("", vec<str>(), vec<Box<Stmt>>())
     if !jparse_base::j_expect(s, pos, "{") {
         return (false, dummy)
     }
@@ -276,34 +276,34 @@ fn j_parse_fn(s: str, pos: vec<i32>) -> (bool, FnDef) {
     return (true, ast::fn_def(nr.1, pr.1, br.1))
 }
 
-fn j_parse_fn_array(s: str, pos: vec<i32>) -> (bool, vec<FnDef>) {
+fn j_parse_fn_array(s: str, pos: vec<i32>) -> (bool, vec<Box<FnDef>>) {
     if !jparse_base::j_expect(s, pos, "[") {
-        return (false, vec<FnDef>())
+        return (false, vec<Box<FnDef>>())
     }
-    let mut out = vec<FnDef>()
+    let mut out = vec<Box<FnDef>>()
     if jparse_base::j_expect(s, pos, "]") {
         return (true, out)
     }
     let e0 = j_parse_fn(s, pos)
     if !e0.0 {
-        return (false, vec<FnDef>())
+        return (false, vec<Box<FnDef>>())
     }
     push(out, e0.1)
     while jparse_base::j_expect(s, pos, ",") {
         let e = j_parse_fn(s, pos)
         if !e.0 {
-            return (false, vec<FnDef>())
+            return (false, vec<Box<FnDef>>())
         }
         push(out, e.1)
     }
     if !jparse_base::j_expect(s, pos, "]") {
-        return (false, vec<FnDef>())
+        return (false, vec<Box<FnDef>>())
     }
     return (true, out)
 }
 
-fn j_parse_program(s: str, pos: vec<i32>) -> (bool, Program) {
-    let dummy = ast::program_new(vec<FnDef>(), vec<Stmt>())
+fn j_parse_program(s: str, pos: vec<i32>) -> (bool, Box<Program>) {
+    let dummy = ast::program_new(vec<Box<FnDef>>(), vec<Box<Stmt>>())
     if !jparse_base::j_expect(s, pos, "{") {
         return (false, dummy)
     }
@@ -330,8 +330,8 @@ fn j_parse_program(s: str, pos: vec<i32>) -> (bool, Program) {
     return (true, ast::program_new(fr.1, mr.1))
 }
 
-fn j_parse_program_text(text: str) -> (bool, Program) {
-    let dummy = ast::program_new(vec<FnDef>(), vec<Stmt>())
+fn j_parse_program_text(text: str) -> (bool, Box<Program>) {
+    let dummy = ast::program_new(vec<Box<FnDef>>(), vec<Box<Stmt>>())
     let mut pos = vec(0)
     let r = j_parse_program(text, pos)
     if !r.0 {

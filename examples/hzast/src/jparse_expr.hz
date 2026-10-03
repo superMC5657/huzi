@@ -3,7 +3,7 @@
 import ast
 import jparse_base
 
-fn j_parse_expr_num_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr_num_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, ast::expr_num(0))
     }
@@ -20,7 +20,7 @@ fn j_parse_expr_num_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
     return (true, ast::expr_num(nr.1))
 }
 
-fn j_parse_expr_bool_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr_bool_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, ast::expr_num(0))
     }
@@ -37,7 +37,7 @@ fn j_parse_expr_bool_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
     return (true, ast::expr_bool(br.1))
 }
 
-fn j_parse_expr_str_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr_str_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, ast::expr_num(0))
     }
@@ -54,7 +54,7 @@ fn j_parse_expr_str_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
     return (true, ast::expr_str(sr.1))
 }
 
-fn j_parse_expr_var_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr_var_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, ast::expr_num(0))
     }
@@ -71,7 +71,7 @@ fn j_parse_expr_var_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
     return (true, ast::expr_var(nr.1))
 }
 
-fn j_parse_expr_bin_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr_bin_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, ast::expr_num(0))
     }
@@ -111,7 +111,7 @@ fn j_parse_expr_bin_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
     return (true, ast::expr_bin(opr.1, lr.1, rr.1))
 }
 
-fn j_parse_expr_un_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr_un_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, ast::expr_num(0))
     }
@@ -141,7 +141,7 @@ fn j_parse_expr_un_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
     return (true, ast::expr_un(opr.1, or.1))
 }
 
-fn j_parse_expr_call_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr_call_rest(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, ",") {
         return (false, ast::expr_num(0))
     }
@@ -168,33 +168,33 @@ fn j_parse_expr_call_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
     return (true, ast::expr_call(nr.1, ar.1))
 }
 
-fn j_parse_expr_array(s: str, pos: vec<i32>) -> (bool, vec<Expr>) {
+fn j_parse_expr_array(s: str, pos: vec<i32>) -> (bool, vec<Box<Expr>>) {
     if !jparse_base::j_expect(s, pos, "[") {
-        return (false, vec<Expr>())
+        return (false, vec<Box<Expr>>())
     }
-    let mut out = vec<Expr>()
+    let mut out = vec<Box<Expr>>()
     if jparse_base::j_expect(s, pos, "]") {
         return (true, out)
     }
     let e0 = j_parse_expr(s, pos)
     if !e0.0 {
-        return (false, vec<Expr>())
+        return (false, vec<Box<Expr>>())
     }
     push(out, e0.1)
     while jparse_base::j_expect(s, pos, ",") {
         let e = j_parse_expr(s, pos)
         if !e.0 {
-            return (false, vec<Expr>())
+            return (false, vec<Box<Expr>>())
         }
         push(out, e.1)
     }
     if !jparse_base::j_expect(s, pos, "]") {
-        return (false, vec<Expr>())
+        return (false, vec<Box<Expr>>())
     }
     return (true, out)
 }
 
-fn j_parse_expr(s: str, pos: vec<i32>) -> (bool, Expr) {
+fn j_parse_expr(s: str, pos: vec<i32>) -> (bool, Box<Expr>) {
     if !jparse_base::j_expect(s, pos, "{") {
         return (false, ast::expr_num(0))
     }

@@ -28,7 +28,7 @@ fn vector_expr_json(id: str) -> (bool, str) {
         return (true, json::expr_to_json(e))
     }
     if id == "expr_call" {
-        let mut args = vec<Expr>()
+        let mut args = vec<Box<Expr>>()
         push(args, ast::expr_num(5))
         let e = ast::expr_call("fact", args)
         return (true, json::expr_to_json(e))
@@ -46,15 +46,15 @@ fn vector_stmt_json(id: str) -> (bool, str) {
     }
     if id == "stmt_if" {
         let cond = ast::expr_bin(">", ast::expr_var("a"), ast::expr_num(10))
-        let mut then_b = vec<Stmt>()
+        let mut then_b = vec<Box<Stmt>>()
         push(then_b, ast::stmt_assign("r", ast::expr_num(100)))
-        let mut else_b = vec<Stmt>()
+        let mut else_b = vec<Box<Stmt>>()
         push(else_b, ast::stmt_assign("r", ast::expr_num(200)))
         return (true, json::stmt_to_json(ast::stmt_if(cond, then_b, else_b)))
     }
     if id == "stmt_while" {
         let cond = ast::expr_bin("<=", ast::expr_var("i"), ast::expr_num(10))
-        let mut body = vec<Stmt>()
+        let mut body = vec<Box<Stmt>>()
         let step = ast::expr_bin("+", ast::expr_var("i"), ast::expr_num(1))
         push(body, ast::stmt_assign("i", step))
         return (true, json::stmt_to_json(ast::stmt_while(cond, body)))
@@ -66,7 +66,7 @@ fn vector_stmt_json(id: str) -> (bool, str) {
         return (true, json::stmt_to_json(ast::stmt_print(ast::expr_str("hi"))))
     }
     if id == "stmt_expr" {
-        let args = vec<Expr>()
+        let args = vec<Box<Expr>>()
         return (true, json::stmt_to_json(ast::stmt_expr(ast::expr_call("f", args))))
     }
     return (false, "")
@@ -76,23 +76,23 @@ fn vector_prog_json(id: str) -> (bool, str) {
     if id == "prog_fact" {
         let mut params = vec<str>()
         push(params, "n")
-        let mut body = vec<Stmt>()
+        let mut body = vec<Box<Stmt>>()
         let cond = ast::expr_bin("<=", ast::expr_var("n"), ast::expr_num(1))
-        let mut then_b = vec<Stmt>()
+        let mut then_b = vec<Box<Stmt>>()
         push(then_b, ast::stmt_return(ast::expr_num(1)))
-        let else_b = vec<Stmt>()
+        let else_b = vec<Box<Stmt>>()
         push(body, ast::stmt_if(cond, then_b, else_b))
-        let mut cargs = vec<Expr>()
+        let mut cargs = vec<Box<Expr>>()
         let sub = ast::expr_bin("-", ast::expr_var("n"), ast::expr_num(1))
         push(cargs, sub)
         let recur = ast::expr_call("fact", cargs)
         let ret = ast::expr_bin("*", ast::expr_var("n"), recur)
         push(body, ast::stmt_return(ret))
         let f = ast::fn_def("fact", params, body)
-        let mut fns = vec<FnDef>()
+        let mut fns = vec<Box<FnDef>>()
         push(fns, f)
-        let mut main_b = vec<Stmt>()
-        let mut margs = vec<Expr>()
+        let mut main_b = vec<Box<Stmt>>()
+        let mut margs = vec<Box<Expr>>()
         push(margs, ast::expr_num(5))
         push(main_b, ast::stmt_return(ast::expr_call("fact", margs)))
         let prog = ast::program_new(fns, main_b)
