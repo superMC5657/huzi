@@ -55,6 +55,7 @@ mod rc;
 mod stmt;
 mod stmt_branch;
 mod stmt_for;
+mod struct_value_guard;
 mod try_op;
 #[cfg(test)]
 mod tests;
@@ -207,6 +208,9 @@ pub struct CodeGen<'ctx> {
     /// 当前语句位置(由 `set_current_debug_span` 逐语句回填),供名字类
     /// 诊断 `with_position` 使用;无语句上下文时为 None。
     current_span: Option<Span>,
+    /// `box(...)` 内层编译计数;结构体字面量门卫在计数内放行,
+    /// 以保留 `box(Env { ... })` 的合法堆构造路径(零 IR 影响)。
+    pub(super) in_box_alloc: u32,
 }
 impl<'ctx> CodeGen<'ctx> {
     pub fn new(context: &'ctx Context, name: &str) -> Self {
@@ -238,6 +242,7 @@ impl<'ctx> CodeGen<'ctx> {
             closure_counter: 0,
             thunk_cache: HashMap::new(),
             current_span: None,
+            in_box_alloc: 0,
         }
     }
 

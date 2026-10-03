@@ -201,6 +201,9 @@ impl<'ctx> CodeGen<'ctx> {
         if let Some(ast_params) = self.fn_param_ast.get(&lookup_key).cloned() {
             for (arg_expr, expected) in expr.arguments.iter().zip(ast_params.iter()) {
                 self.check_box_assignable(arg_expr, expected)?;
+                // 门卫:含堆结构体禁按值传参(含行列)。
+                self.reject_heap_struct_byvalue(expected, "按值传参")?;
+                self.reject_heap_value_expr(arg_expr, "按值传参")?;
             }
         }
         let ast_params_opt = self.fn_param_ast.get(&lookup_key).cloned();

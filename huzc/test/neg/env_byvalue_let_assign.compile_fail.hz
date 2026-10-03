@@ -1,0 +1,14 @@
+# 负例:含 vec 字段结构体按值 let/赋值/字面量构造,编译必须失败(exit != 0)。
+struct Env {
+    names: vec<str>,
+    vals: vec<i32>,
+}
+
+fn main() -> i32 {
+    let e = Env { names: vec<str>(), vals: vec<i32>() }
+    print(len(e.names))
+    let mut e2 = e
+    e2 = e
+    print(len(e2.vals))
+    return 0
+}

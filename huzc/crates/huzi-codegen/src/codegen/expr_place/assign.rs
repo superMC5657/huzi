@@ -21,6 +21,10 @@ impl<'ctx> CodeGen<'ctx> {
                 name
             )));
         }
+        // 门卫:按值含堆结构体变量禁整体赋值,引导改 `Box` 或拆参。
+        if let Some(ty) = self.local_ast.get(name).cloned() {
+            self.reject_heap_struct_byvalue(&ty, "按值赋值")?;
+        }
 
         let is_weak = self.is_weak_var(name);
         let is_box = Self::is_box_slot(&slot);
@@ -77,6 +81,8 @@ impl<'ctx> CodeGen<'ctx> {
         let mut is_weak_field = false;
         if let Some(expected) = self.field_ast_type(&fa.base, &fa.field) {
             self.check_box_assignable(&expr.value, &expected)?;
+            // 门卫:含堆结构体字段禁按值整体赋值。
+            self.reject_heap_struct_byvalue(&expected, "按值赋值")?;
             is_box_field = Self::is_box_ast(&expected);
             is_weak_field = Self::is_weak_ast(&expected);
         }
@@ -176,6 +182,8 @@ impl<'ctx> CodeGen<'ctx> {
         if let Some(bin_op) = expr.operator.to_bin_op() {
             return self.compile_compound_assign(expr, bin_op);
         }
+        // 门卫:右值按值含堆结构体禁赋值(含行列;`box`/`null` 已放行)。
+        self.reject_heap_value_expr(&expr.value, "按值赋值")?;
         let value = self.compile_expr(&expr.value)?;
 
         match &*expr.target {

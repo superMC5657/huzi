@@ -21,7 +21,12 @@ impl<'ctx> CodeGen<'ctx> {
                 "box(null) is meaningless; use `null` directly for an empty Box slot",
             ));
         }
-        let mut val = self.compile_expr(inner)?;
+        // 门卫放行窗:`box(Env { ... })` 内层按值字面量为合法堆构造,
+        // 计数内 `compile_struct_literal` 跳过按值门卫(零 IR 改动)。
+        self.in_box_alloc += 1;
+        let compiled = self.compile_expr(inner);
+        self.in_box_alloc = self.in_box_alloc.saturating_sub(1);
+        let mut val = compiled?;
         let nest = match expected {
             Some(exp) => {
                 let (coerced, nest) = self.resolve_box_alloc_expected(exp, val)?;

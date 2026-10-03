@@ -86,6 +86,8 @@ impl<'ctx> CodeGen<'ctx> {
         self.local_ast.clear();
 
         for (i, param) in stmt.params.iter().enumerate() {
+            // 门卫:体侧二次确认按值形参(签名侧已拦,此处补行列兜底)。
+            self.reject_heap_struct_byvalue(&param.param_type, "按值形参")?;
             let arg = function.get_nth_param(i as u32).unwrap();
             let arg_type = arg.get_type();
             let box_inner = self.box_nest_of_ast(&param.param_type)?;
@@ -176,6 +178,11 @@ impl<'ctx> CodeGen<'ctx> {
                 if let Some(ast) = self.current_return_ast.clone() {
                     self.check_box_assignable(value_expr, &ast)?;
                 }
+                // 门卫:声明返回与右值按值含堆结构体均禁(含行列)。
+                if let Some(ast) = self.current_return_ast.clone() {
+                    self.reject_heap_struct_byvalue(&ast, "按值返回")?;
+                }
+                self.reject_heap_value_expr(value_expr, "按值返回")?;
                 let value = self.compile_expr(value_expr)?;
                 let value = self.coerce_value(ret_type, value)?;
                 self.emit_defers()?;

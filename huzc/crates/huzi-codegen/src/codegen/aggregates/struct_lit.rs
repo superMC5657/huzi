@@ -25,6 +25,16 @@ impl<'ctx> CodeGen<'ctx> {
 
         self.check_struct_literal_fields(expr, &fields)?;
 
+        // 门卫:含堆结构体字面量禁按值构造;`box(Env { ... })` 计数内放行。
+        if self.in_box_alloc == 0 {
+            let lit_ty = if expr.type_args.is_empty() {
+                Type::Named(expr.name.clone())
+            } else {
+                Type::Applied(expr.name.clone(), expr.type_args.clone())
+            };
+            self.reject_heap_struct_byvalue(&lit_ty, "按值构造结构体字面量")?;
+        }
+
         let tmp = self.build_alloca(struct_ty.into(), "struct_val")?;
         for (field_name, field_expr) in &expr.fields {
             let (index, info) = fields

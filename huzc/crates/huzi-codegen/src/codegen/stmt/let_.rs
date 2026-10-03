@@ -71,6 +71,11 @@ impl<'ctx> CodeGen<'ctx> {
                 name
             )));
         }
+        // 门卫:含 vec/Box 字段结构体禁按值 let(标注或右值任一命中即错)。
+        if let Some(ann) = &stmt.type_annotation {
+            self.reject_heap_struct_byvalue(ann, "按值 let 绑定")?;
+        }
+        self.reject_heap_value_expr(value_expr, "按值 let 绑定")?;
         // 有标注时先做 `box`/`null` 的 AST 校验(LLVM 指针无法区分 Box 内外层)。
         if let Some(ann) = &stmt.type_annotation {
             self.check_box_assignable(value_expr, ann)?;
@@ -249,6 +254,10 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// `let name: T;` — 无初值声明，初始化为零值。
     fn compile_let_uninitialized(&mut self, stmt: &LetStmt, span: Span) -> Result<()> {
+        // 门卫:无初值声明同样禁按值含堆结构体。
+        if let Some(ann) = &stmt.type_annotation {
+            self.reject_heap_struct_byvalue(ann, "按值 let 绑定")?;
+        }
         // 必须提供类型注解。
         let ty = match &stmt.type_annotation {
             Some(t) => self.type_to_llvm(t)?,

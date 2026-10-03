@@ -1,0 +1,26 @@
+# 负例:Env 含 vec 字段却按值链式传递(env_new/define_var 按值返回/形参),
+# 按值拷贝别名化堆缓冲且 RC 未跟进,编译必须失败(exit != 0)。
+struct Env {
+    names: vec<str>,
+    vals: vec<i32>,
+}
+
+fn env_new() -> Env {
+    return Env { names: vec<str>(), vals: vec<i32>() }
+}
+
+fn define_var(env: Env, name: str, val: i32) -> Env {
+    let mut names = env.names
+    let mut vals = env.vals
+    push(names, name)
+    push(vals, val)
+    return Env { names: names, vals: vals }
+}
+
+fn main() -> i32 {
+    let e0 = env_new()
+    let e1 = define_var(e0, "x", 1)
+    let e2 = define_var(e1, "y", 2)
+    print(len(e2.names))
+    return 0
+}

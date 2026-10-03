@@ -1,0 +1,27 @@
+# 正例对照:同形 Env 改走 Box<Env> 指针传递,不触发按值门卫,编译必须成功。
+struct Env {
+    names: vec<str>,
+    vals: vec<i32>,
+}
+
+fn make_env(names: vec<str>, vals: vec<i32>) -> Box<Env> {
+    return box(Env { names: names, vals: vals })
+}
+
+fn env_len(e: Box<Env>) -> i32 {
+    return len(e.names) + len(e.vals)
+}
+
+fn main() -> i32 {
+    let mut names = vec<str>()
+    push(names, "x")
+    push(names, "y")
+    let mut vals = vec<i32>()
+    push(vals, 1)
+    push(vals, 2)
+    let e: Box<Env> = make_env(names, vals)
+    print(env_len(e))
+    print(len(e.names))
+    print(len(e.vals))
+    return 0
+}

@@ -209,6 +209,21 @@ impl<'ctx> CodeGen<'ctx> {
                 qualified_name
             )));
         }
+        // 门卫:含 vec/Box 字段结构体禁按值形参/返回(声明侧先拦,带行列)。
+        for p in &stmt.params {
+            if let Some(name) = self.heap_struct_of_type(&p.param_type) {
+                return Err(
+                    Self::heap_struct_error(&name, "按值形参").with_position(span.line, span.column),
+                );
+            }
+        }
+        if let Some(ret) = &stmt.return_type {
+            if let Some(name) = self.heap_struct_of_type(ret) {
+                return Err(
+                    Self::heap_struct_error(&name, "按值返回").with_position(span.line, span.column),
+                );
+            }
+        }
 
         let param_llvm_types: Vec<inkwell::types::BasicTypeEnum<'ctx>> = stmt
             .params
