@@ -1,6 +1,11 @@
 import core
 import alloc
-import std
+import std.csv
+import std.path
+import std.fsx
+import std.log
+import std.timex
+import std.json
 
 fn main() -> i32 {
     // 1. core 测试: 通配重导出 (core::*) 与子模块重导出 (core::assert::*)
@@ -43,31 +48,31 @@ fn main() -> i32 {
     let popped = alloc::queue::queue_pop(q)
     core::assert_eq_i32(popped.1, 10)
 
-    // 3. std 测试: 通配重导出与子模块重导出
-    let escaped = std::escape_quotes("hello")
+    // 3. std 测试: 细粒度导入(避开含堆 Command 的 std.process 聚合)
+    let escaped = csv::escape_quotes("hello")
     core::assert_eq_str(escaped, "hello")
     let mut row = vec<str>()
     push(row, "x")
     push(row, "y")
-    let csv_row = std::csv::stringify(row)
+    let csv_row = csv::stringify(row)
     core::assert_eq_str(csv_row, "x,y")
 
-    let joined = std::path_join("foo", "bar.txt")
+    let joined = path::path_join("foo", "bar.txt")
     core::assert_eq_str(joined, "foo/bar.txt")
-    core::assert_eq_str(std::fsx::ext_name("foo/bar.txt"), "txt")
+    core::assert_eq_str(fsx::ext_name("foo/bar.txt"), "txt")
 
-    let record = std::log::format_record("INFO", "2026", "ok")
+    let record = log::format_record("INFO", "2026", "ok")
     core::assert_eq_str(record, "[INFO] 2026 - ok")
 
-    let now = std::now_ts()
+    let now = timex::now_ts()
     core::assert_true(now > 0)
-    let elapsed = std::timex::elapsed_ms(now)
+    let elapsed = timex::elapsed_ms(now)
     core::assert_true(elapsed >= 0)
 
     let mut jm = map_new()
     map_put(jm, "k1", 123)
-    let json_str = std::json::stringify_i32_map(jm)
-    let parse_res = std::parse_i32_map(json_str)
+    let json_str = json::stringify_i32_map(jm)
+    let parse_res = json::parse_i32_map(json_str)
     core::assert_true(parse_res.0)
     let parsed_map: Map = parse_res.1
     core::assert_eq_i32(map_get(parsed_map, "k1").1, 123)
