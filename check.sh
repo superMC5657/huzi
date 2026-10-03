@@ -10,6 +10,7 @@
 # 跳过 parse-ast 对拍：SKIP_PARSEASTDIFF=1 bash check.sh 或 bash check.sh --skip-parseastdiff
 # 跳过 P3 文件模式：SKIP_P3FILEMODE=1 bash check.sh 或 bash check.sh --skip-p3filemode
 # 跳过 hzir 对拍：SKIP_HZIR=1 bash check.sh 或 bash check.sh --skip-hzir
+# 跳过 eval 对拍：SKIP_EVALDIFF=1 bash check.sh 或 bash check.sh --skip-evaldiff
 #
 # 聚合十项门禁（顺序即执行顺序，失败即停）：
 #   1. huzc/test.sh          编译器回归（含负例；交互用例 10_guess_number_game 跳过，
@@ -49,7 +50,11 @@
 #                            口径见 examples/hzir/RFC.md §4；
 #                            hzir 经 `huzc build` 构建，产物固定在
 #                            examples/hzir/target/hzir.exe（**/target/ 已忽略））
-#   7b. eval_diff.py          暂缓（仅注释，不执行，见阶段 7 末尾说明）
+#   注：[n/10] 编号保持不动，7b 为例外编号（执行顺序紧随阶段 7，即 7→7b→8，不占 1-10 计数）。
+#   7b. eval_diff.py         自举 eval 对拍 C1（huzc 即时编译 eval_ref.hz vs 自举 hzast --dump-eval，
+#                            6 行 name=value 逐字节一致，6/6；
+#                            口径见 examples/hzast/RFC.md §1；
+#                            hzast 经 `huzc build` 构建复用 examples/hzast/hzast.exe（*.exe 已被 gitignore 覆盖））
 #
 # 注意：huzc/test.sh 自带 RUN_BENCH=1/--bench 开关可顺带跑性能门禁；
 # 本入口为避免重复耗时，调用它时不传 --bench，性能抽查统一放在第 4 阶段。
@@ -84,6 +89,10 @@ fi
 SKIP_HZIR="${SKIP_HZIR:-0}"
 if [ "${1:-}" = "--skip-hzir" ] || [ "${2:-}" = "--skip-hzir" ] || [ "${3:-}" = "--skip-hzir" ] || [ "${4:-}" = "--skip-hzir" ] || [ "${5:-}" = "--skip-hzir" ] || [ "${6:-}" = "--skip-hzir" ] || [ "${7:-}" = "--skip-hzir" ]; then
   SKIP_HZIR=1
+fi
+SKIP_EVALDIFF="${SKIP_EVALDIFF:-0}"
+if [ "${1:-}" = "--skip-evaldiff" ] || [ "${2:-}" = "--skip-evaldiff" ] || [ "${3:-}" = "--skip-evaldiff" ] || [ "${4:-}" = "--skip-evaldiff" ] || [ "${5:-}" = "--skip-evaldiff" ] || [ "${6:-}" = "--skip-evaldiff" ] || [ "${7:-}" = "--skip-evaldiff" ] || [ "${8:-}" = "--skip-evaldiff" ]; then
+  SKIP_EVALDIFF=1
 fi
 
 # 分阶段执行：标题 + 结果汇总，失败即停（set -e 生效处直接退出，
@@ -219,6 +228,33 @@ else
   "$PY" examples/hzast/ast_diff.py "$HUZC_BIN" "$HZAST_BIN" || { echo "FAIL [7/10]: 自举 ast 对拍未通过"; exit 1; }
   echo "PASS [7/10]: 自举 ast 对拍"
   PASS_LIST="$PASS_LIST 7.自举ast对拍"
+fi
+
+# 阶段 7b：自举 eval 对拍 C1（huzc 即时编译 eval_ref.hz vs 自举 hzast --dump-eval；6/6）
+echo "===== [7b/10] 自举 eval 对拍 eval_diff.py ====="
+if [ "$SKIP_EVALDIFF" = "1" ]; then
+  echo "SKIP [7b/10]: 已按要求跳过自举 eval 对拍"
+else
+  # 复用阶段 3 已定位的 huzc（debug 优先），此处不重编编译器
+  if [ ! -f "$HUZC_BIN" ]; then
+    echo "FAIL [7b/10]: 未找到 huzc 可执行文件（阶段 1/3 已应构建过）"
+    exit 1
+  fi
+  # 经 huzc build 构建自举 hzast：复用阶段 7 产物路径 examples/hzast/hzast.exe
+  # （*.exe 已被 gitignore 覆盖，不脏工作区；伴生 .ll/.obj 同理被忽略）
+  HZAST_BIN="examples/hzast/hzast.exe"
+  "$HUZC_BIN" build --path examples/hzast --output "$HZAST_BIN" || { echo "FAIL [7b/10]: hzast 构建失败"; exit 1; }
+  PY=""
+  for cand in python3 python py; do
+    if "$cand" -c "import sys; exit(0 if sys.version_info[0] >= 3 else 1)" >/dev/null 2>&1; then
+      PY="$cand"
+      break
+    fi
+  done
+  [ -n "$PY" ] || { echo "FAIL [7b/10]: 未检测到有效的 Python 3 环境"; exit 1; }
+  "$PY" examples/hzast/eval_diff.py "$HUZC_BIN" "$HZAST_BIN" || { echo "FAIL [7b/10]: 自举 eval 对拍未通过"; exit 1; }
+  echo "PASS [7b/10]: 自举 eval 对拍"
+  PASS_LIST="$PASS_LIST 7b.自举eval对拍"
 fi
 
 # 阶段 8：自举 parse-ast 对拍 P2-b（huzc --dump-ast-json -i vs 自举 hzparse --dump-ast-json -i；仅 P1 子集 + 超集双非零）
@@ -368,20 +404,6 @@ else
   echo "PASS [10/10]: P4-a hzir 对拍"
   PASS_LIST="$PASS_LIST 10.P4a对拍"
 fi
-
-# 阶段 7b：自举 eval 对拍 C1（暂缓，仅注释不执行，避免常红污染 P0 门）。
-#   暂缓原因：C1 红系已知编译器 defect，hz 侧无法绕，按 oracle 结论暂缓。
-#   已知 defect 行号（均在 huzc/crates/huzi-codegen/src/codegen/ 内，不在本门禁修复）：
-#     - stmt/let_.rs:119-128（Env 值拷贝别名化）
-#     - stmt/mod.rs:94-116,198-308（作用域 Env 处理未跟进 RC）
-#     - aggregates/struct_lit.rs:39-52（结构体字面量 RC 未跟进）
-#     - expr_place/assign.rs:8-67（赋值路径 RC 未跟进）
-#     - drop.rs:28-139（RAII 析构与上述别名化冲突）
-#   另 eval_diff.py:37-51 的 build_ref 用 tempfile.mkstemp 无 .exe 后缀，
-#   Windows 下 huzc 生成 <path>.exe 致 subprocess.run 报 WinError 193，
-#   与 eval.hz 堆损坏（0xC0000374）一并另起提交修复，本次不碰 eval_diff.py 逻辑。
-#   预留集成命令（暂缓未启用）：
-#     "$PY" examples/hzast/eval_diff.py "$HUZC_BIN" "$HZAST_BIN"
 
 # 汇总：能执行到此即前序阶段全部通过（任一失败已提前非零退出）
 echo "-----------------------------"
