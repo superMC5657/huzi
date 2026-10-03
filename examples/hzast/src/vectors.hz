@@ -179,6 +179,65 @@ fn vector_p3b_json(id: str) -> (bool, str) {
     return (false, "")
 }
 
+# P3c match/closure 向量：每形状一向量 ID（lit/guard/enum/enum_guard/closure/zero，共 6）。
+fn vector_p3c_json(id: str) -> (bool, str) {
+    if id == "expr_match_lit" {
+        let mut arms = vec<Box<MatchArm>>()
+        let mut b1 = vec<Box<Stmt>>()
+        push(b1, ast::stmt_expr(ast::expr_num(10)))
+        push(arms, ast::match_arm(ast::expr_num(1), ast::expr_bool(true), b1))
+        let mut b2 = vec<Box<Stmt>>()
+        push(b2, ast::stmt_expr(ast::expr_num(20)))
+        push(arms, ast::match_arm(ast::expr_num(2), ast::expr_bool(true), b2))
+        return (true, json::expr_to_json(ast::expr_match(ast::expr_var("x"), arms)))
+    }
+    if id == "expr_match_guard" {
+        let mut arms = vec<Box<MatchArm>>()
+        let g = ast::expr_bin(">", ast::expr_var("x"), ast::expr_num(0))
+        let mut b1 = vec<Box<Stmt>>()
+        push(b1, ast::stmt_expr(ast::expr_num(10)))
+        push(arms, ast::match_arm(ast::expr_num(1), g, b1))
+        let mut b2 = vec<Box<Stmt>>()
+        push(b2, ast::stmt_expr(ast::expr_num(20)))
+        push(arms, ast::match_arm(ast::expr_num(2), ast::expr_bool(true), b2))
+        return (true, json::expr_to_json(ast::expr_match(ast::expr_var("x"), arms)))
+    }
+    if id == "expr_match_enum" {
+        let mut arms = vec<Box<MatchArm>>()
+        let mut vb = vec<str>()
+        push(vb, "v")
+        let mut b1 = vec<Box<Stmt>>()
+        push(b1, ast::stmt_expr(ast::expr_num(1)))
+        push(arms, ast::match_arm(ast::expr_variant_pat("Option::Some", vb), ast::expr_bool(true), b1))
+        let mut b2 = vec<Box<Stmt>>()
+        push(b2, ast::stmt_expr(ast::expr_num(0)))
+        push(arms, ast::match_arm(ast::expr_variant_pat("Option::None", vec<str>()), ast::expr_bool(true), b2))
+        return (true, json::expr_to_json(ast::expr_match(ast::expr_var("opt"), arms)))
+    }
+    if id == "expr_match_enum_guard" {
+        let mut arms = vec<Box<MatchArm>>()
+        let mut vb = vec<str>()
+        push(vb, "v")
+        let mut b1 = vec<Box<Stmt>>()
+        push(b1, ast::stmt_expr(ast::expr_num(1)))
+        push(arms, ast::match_arm(ast::expr_variant_pat("Option::Some", vb), ast::expr_var("flag"), b1))
+        let mut b2 = vec<Box<Stmt>>()
+        push(b2, ast::stmt_expr(ast::expr_num(0)))
+        push(arms, ast::match_arm(ast::expr_variant_pat("Option::None", vec<str>()), ast::expr_bool(true), b2))
+        return (true, json::expr_to_json(ast::expr_match(ast::expr_var("opt"), arms)))
+    }
+    if id == "expr_closure" {
+        let mut ps = vec<str>()
+        push(ps, "x")
+        let bd = ast::expr_bin("+", ast::expr_var("x"), ast::expr_num(1))
+        return (true, json::expr_to_json(ast::expr_closure(ps, bd)))
+    }
+    if id == "expr_closure_zero" {
+        return (true, json::expr_to_json(ast::expr_closure(vec<str>(), ast::expr_num(42))))
+    }
+    return (false, "")
+}
+
 fn vector_json(id: str) -> (bool, str) {
     let r = vector_expr_json(id)
     if r.0 {
@@ -191,6 +250,10 @@ fn vector_json(id: str) -> (bool, str) {
     let b = vector_p3b_json(id)
     if b.0 {
         return b
+    }
+    let p = vector_p3c_json(id)
+    if p.0 {
+        return p
     }
     let s = vector_stmt_json(id)
     if s.0 {

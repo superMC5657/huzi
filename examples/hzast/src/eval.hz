@@ -1,5 +1,6 @@
 import ast
 import eval_p3b
+import eval_p3c
 
 struct Env {
     names: vec<str>,
@@ -166,6 +167,7 @@ fn eval_index_val(arr_e: Box<Expr>, idx_e: Box<Expr>, env: Box<Env>, fns: vec<Bo
     Value::ResOk(s) => Value::StrVal(s),
     Value::ResErr(e) => Value::StrVal(e),
     Value::Struct(sname, joined, count) => Value::Struct(sname, joined, count),
+    Value::Closure(_) => Value::Nil,
 }
 }
 
@@ -210,6 +212,7 @@ fn eval_try_val(inner_e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Valu
     Value::OptSome(s) => v,
     Value::OptNone => v,
     Value::Struct(_, _, _) => v,
+    Value::Closure(_) => v,
 }
 }
 
@@ -243,7 +246,19 @@ fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
         let v1 = eval_expr(e.left, env, fns)
         let v2 = eval_expr(e.right, env, fns)
         if e.op == "+" {
-            return match v1 {
+            return eval_plus(v1, v2)
+        }
+        return eval_binary_num(e.op, ast::val_to_int(v1), ast::val_to_int(v2))
+    }
+    if e.kind == "call" {
+        return eval_call(e.name, e.args, env, fns)
+    }
+    return eval_expr_comp(e, env, fns)
+}
+
+# `+` 兼字符串拼接与数值加（其余二元走 eval_binary_num）。
+fn eval_plus(v1: Value, v2: Value) -> Value {
+    return match v1 {
     Value::StrVal(s1) => Value::StrVal(concat(s1, ast::val_to_string(v2))),
     Value::Num(n1) => Value::Num(n1 + ast::val_to_int(v2)),
     Value::Bool(b1) => Value::Num(ast::val_to_int(v1) + ast::val_to_int(v2)),
@@ -255,13 +270,12 @@ fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     Value::ResOk(s) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
     Value::ResErr(e) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
     Value::Struct(_, _, _) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
+    Value::Closure(_) => Value::StrVal(concat(ast::val_to_string(v1), ast::val_to_string(v2))),
 }
-        }
-        return eval_binary_num(e.op, ast::val_to_int(v1), ast::val_to_int(v2))
-    }
-    if e.kind == "call" {
-        return eval_call(e.name, e.args, env, fns)
-    }
+}
+
+# 复合形分发（P3 tuple/array/index/enum/try + P3b + P3c match/closure）。
+fn eval_expr_comp(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     if e.kind == "tuple" {
         return ast::val_tuple(eval_elem_strs(e.args, env, fns))
     }
@@ -279,6 +293,15 @@ fn eval_expr(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     }
     if e.kind == "struct" || e.kind == "field" || e.kind == "method" || e.kind == "fstring" {
         return eval_p3b::eval_p3b_val(e, env, fns)
+    }
+    if e.kind == "match" {
+        return eval_p3c::eval_match_val(e.left, e.match_arms, env, fns)
+    }
+    if e.kind == "closure" {
+        return eval_p3c::eval_closure_val(e.field_names, e.left, env)
+    }
+    if e.kind == "variant" {
+        return Value::Nil
     }
     return Value::Nil
 }
@@ -299,12 +322,35 @@ fn eval_expr_checked(e: Box<Expr>, env: Box<Env>, fns: vec<Box<FnDef>>) -> (bool
     Value::OptSome(s) => (false, v),
     Value::OptNone => (false, v),
     Value::Struct(_, _, _) => (false, v),
+    Value::Closure(_) => (false, v),
 }
     }
     return (false, eval_expr(e, env, fns))
 }
 
 fn eval_call(name: str, args: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let vr = lookup_var(env, name)
+    if vr.0 {
+        return match vr.1 {
+        Value::Closure(c) => eval_p3c::eval_closure_call(c, args, env, fns),
+        Value::Num(_) => eval_fn_call(name, args, env, fns),
+        Value::Bool(_) => eval_fn_call(name, args, env, fns),
+        Value::StrVal(_) => eval_fn_call(name, args, env, fns),
+        Value::Nil => eval_fn_call(name, args, env, fns),
+        Value::Tuple(_, _) => eval_fn_call(name, args, env, fns),
+        Value::Arr(_, _) => eval_fn_call(name, args, env, fns),
+        Value::OptSome(_) => eval_fn_call(name, args, env, fns),
+        Value::OptNone => eval_fn_call(name, args, env, fns),
+        Value::ResOk(_) => eval_fn_call(name, args, env, fns),
+        Value::ResErr(_) => eval_fn_call(name, args, env, fns),
+        Value::Struct(_, _, _) => eval_fn_call(name, args, env, fns),
+        }
+    }
+    return eval_fn_call(name, args, env, fns)
+}
+
+# 顶层函数调用（原 eval_call 体，闭包优先后回落至此）。
+fn eval_fn_call(name: str, args: vec<Box<Expr>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
     let fn_lookup = find_fn(fns, name)
     if !fn_lookup.0 {
         panic(concat("eval: undefined function '", name, "'"))

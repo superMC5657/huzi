@@ -1,0 +1,287 @@
+# parser/p1p3c —— P3c 落盘（match/closure，JSON 直出，对标 ast_json.rs match_closure）。
+# 字面量/变体形状臂 + 守卫 + 无捕获闭包；变量/通配/空臂/类型/块体一律失败（超集非零）。
+# 与 p1expr/p1stmt 互递归（沿用 atom/expr 循环模式）。
+import cursor
+import p1json
+import p1expr
+import p1stmt
+
+# 变体模式白名单（仅 Option/Result × Some/None/Ok/Err，与 Rust 同口径）。
+fn p1_is_p3c_enum(name: str) -> bool {
+    if name == "Option" {
+        return true
+    }
+    if name == "Result" {
+        return true
+    }
+    return false
+}
+
+fn p1_is_p3c_variant(v: str) -> bool {
+    if v == "Some" {
+        return true
+    }
+    if v == "None" {
+        return true
+    }
+    if v == "Ok" {
+        return true
+    }
+    if v == "Err" {
+        return true
+    }
+    return false
+}
+
+# 模式：int（含负）/bool/string 字面量 + 变体形；其余（变量/通配/float/char）失败。
+fn p1_pattern(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    if cursor::pz_at(kinds, texts, pos, "-") {
+        cursor::pz_next(pos)
+        if !cursor::pz_at_kind(kinds, pos, "int") {
+            return (false, "")
+        }
+        let t = texts[pos[0]]
+        let pr = parse_int(t)
+        if !pr.0 {
+            return (false, "")
+        }
+        cursor::pz_next(pos)
+        return (true, concat("{\"kind\":\"num\",\"value\":", to_string(-pr.1), "}"))
+    }
+    if cursor::pz_at_kind(kinds, pos, "int") {
+        let t = texts[pos[0]]
+        let pr = parse_int(t)
+        if !pr.0 {
+            return (false, "")
+        }
+        cursor::pz_next(pos)
+        return (true, concat("{\"kind\":\"num\",\"value\":", to_string(pr.1), "}"))
+    }
+    if cursor::pz_kw(kinds, texts, pos, "true") {
+        cursor::pz_next(pos)
+        return (true, "{\"kind\":\"bool\",\"value\":true}")
+    }
+    if cursor::pz_kw(kinds, texts, pos, "false") {
+        cursor::pz_next(pos)
+        return (true, "{\"kind\":\"bool\",\"value\":false}")
+    }
+    if cursor::pz_at_kind(kinds, pos, "string") {
+        let s = texts[pos[0]]
+        cursor::pz_next(pos)
+        return (true, concat("{\"kind\":\"str\",\"value\":", p1json::p1_quoted(s), "}"))
+    }
+    if cursor::pz_at_kind(kinds, pos, "float") || cursor::pz_at_kind(kinds, pos, "char") {
+        return (false, "")
+    }
+    if cursor::pz_is_ident(kinds, texts, pos) {
+        return p1_variant_pat(kinds, texts, pos, errs, lines, cols)
+    }
+    return (false, "")
+}
+
+# `Enum::Var` / `Enum::Var(a, b)`（无泛型；绑定为 ident 含 `_`，空即无载）。
+fn p1_variant_pat(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    let ename = texts[pos[0]]
+    if !p1_is_p3c_enum(ename) {
+        return (false, "")
+    }
+    if !cursor::pz_next_at(kinds, texts, pos, 1, "::") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    cursor::pz_next(pos)
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return (false, "")
+    }
+    let variant = texts[pos[0]]
+    if !p1_is_p3c_variant(variant) {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    let full = concat(ename, "::", variant)
+    let mut bindings = vec<str>()
+    if cursor::pz_at(kinds, texts, pos, "(") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ")") {
+            cursor::pz_next(pos)
+            return (true, p1json::p1_variant_pat_json(full, bindings))
+        }
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return (false, "")
+        }
+        push(bindings, texts[pos[0]])
+        cursor::pz_next(pos)
+        while cursor::pz_at(kinds, texts, pos, ",") {
+            cursor::pz_next(pos)
+            if cursor::pz_at(kinds, texts, pos, ")") {
+                break
+            }
+            if !cursor::pz_is_ident(kinds, texts, pos) {
+                return (false, "")
+            }
+            push(bindings, texts[pos[0]])
+            cursor::pz_next(pos)
+        }
+        if !cursor::pz_at(kinds, texts, pos, ")") {
+            return (false, "")
+        }
+        cursor::pz_next(pos)
+    }
+    return (true, p1json::p1_variant_pat_json(full, bindings))
+}
+
+# 单臂 `pat [if guard] => body`（体为块或单表达式糖，与 Rust expr_block 同构）。
+fn p1_arm(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    let p = p1_pattern(kinds, texts, pos, errs, lines, cols)
+    if !p.0 {
+        return p
+    }
+    let mut guard = "{\"kind\":\"bool\",\"value\":true}"
+    if cursor::pz_kw(kinds, texts, pos, "if") {
+        cursor::pz_next(pos)
+        let g = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+        if !g.0 {
+            return g
+        }
+        guard = g.1
+    }
+    if !cursor::pz_at(kinds, texts, pos, "=>") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    let b = p1_arm_body(kinds, texts, pos, errs, lines, cols)
+    if !b.0 {
+        return b
+    }
+    return (true, p1json::p1_arm_json(p.1, guard, b.1))
+}
+
+# 臂体：`{ stmts }` 经 p1_block；否则单表达式包 `[{"kind":"expr",...}]`。
+fn p1_arm_body(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    if cursor::pz_at(kinds, texts, pos, "{") {
+        return p1stmt::p1_block(kinds, texts, pos, errs, lines, cols)
+    }
+    let e = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !e.0 {
+        return e
+    }
+    let one = concat("{\"kind\":\"expr\",\"expr\":", e.1, "}")
+    let mut parts = vec<str>()
+    push(parts, one)
+    return (true, p1json::p1_join(parts))
+}
+
+# `match scrutinee { arms }`（调用时位于 `match`；空臂失败）。
+fn p1_match(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    cursor::pz_next(pos)
+    let s = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !s.0 {
+        return s
+    }
+    if !cursor::pz_at(kinds, texts, pos, "{") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "}") {
+        return (false, "")
+    }
+    let mut arms = vec<str>()
+    let a0 = p1_arm(kinds, texts, pos, errs, lines, cols)
+    if !a0.0 {
+        return a0
+    }
+    push(arms, a0.1)
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "}") {
+            break
+        }
+        if cursor::pz_at_kind(kinds, pos, "eof") {
+            return (false, "")
+        }
+        if cursor::pz_at(kinds, texts, pos, "}") {
+            break
+        }
+        let a = p1_arm(kinds, texts, pos, errs, lines, cols)
+        if !a.0 {
+            return a
+        }
+        push(arms, a.1)
+    }
+    if !cursor::pz_at(kinds, texts, pos, "}") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    return (true, p1json::p1_match_json(s.1, arms))
+}
+
+# 闭包 `|| expr` / `|x, y| expr`（仅无类型无返回单表达式体；块/`:`/`->`失败）。
+fn p1_closure(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    if cursor::pz_at(kinds, texts, pos, "||") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "->") {
+            return (false, "")
+        }
+        if cursor::pz_at(kinds, texts, pos, "{") {
+            return (false, "")
+        }
+        let b = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+        if !b.0 {
+            return b
+        }
+        return (true, p1json::p1_closure_json(vec<str>(), b.1))
+    }
+    cursor::pz_next(pos)
+    let mut params = vec<str>()
+    if cursor::pz_at(kinds, texts, pos, "|") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "->") {
+            return (false, "")
+        }
+        if cursor::pz_at(kinds, texts, pos, "{") {
+            return (false, "")
+        }
+        let b0 = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+        if !b0.0 {
+            return b0
+        }
+        return (true, p1json::p1_closure_json(params, b0.1))
+    }
+    if !cursor::pz_is_ident(kinds, texts, pos) {
+        return (false, "")
+    }
+    push(params, texts[pos[0]])
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, ":") {
+        return (false, "")
+    }
+    while cursor::pz_at(kinds, texts, pos, ",") {
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, "|") {
+            break
+        }
+        if !cursor::pz_is_ident(kinds, texts, pos) {
+            return (false, "")
+        }
+        push(params, texts[pos[0]])
+        cursor::pz_next(pos)
+        if cursor::pz_at(kinds, texts, pos, ":") {
+            return (false, "")
+        }
+    }
+    if !cursor::pz_at(kinds, texts, pos, "|") {
+        return (false, "")
+    }
+    cursor::pz_next(pos)
+    if cursor::pz_at(kinds, texts, pos, "->") {
+        return (false, "")
+    }
+    if cursor::pz_at(kinds, texts, pos, "{") {
+        return (false, "")
+    }
+    let b = p1expr::p1_expr(kinds, texts, pos, errs, lines, cols)
+    if !b.0 {
+        return b
+    }
+    return (true, p1json::p1_closure_json(params, b.1))
+}

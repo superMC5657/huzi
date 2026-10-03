@@ -1,9 +1,10 @@
-# parser/p1expr —— P1 子集表达式 + P3 复合值 + P3b 结构（JSON 直出）。
-# 链：or → and → eq → cmp → add → mul → unary → suffix → atom；后缀转调 p1p3b。
+# parser/p1expr —— P1 子集表达式 + P3 复合值 + P3b 结构 + P3c match/closure（JSON 直出）。
+# 链：or → and → eq → cmp → add → mul → unary → suffix → atom；后缀转调 p1p3b，原子转调 p1p3c。
 import cursor
 import typ
 import p1json
 import p1p3b
+import p1p3c
 
 fn p1_bin(op: str, left: str, right: str) -> str {
     return concat("{\"kind\":\"bin\",\"op\":", p1json::p1_quoted(op), ",\"left\":", left, ",\"right\":", right, "}")
@@ -414,6 +415,20 @@ fn p1_array_lit(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>,
 }
 
 fn p1_atom(kinds: vec<str>, texts: vec<str>, pos: vec<i32>, errs: vec<str>, lines: vec<i32>, cols: vec<i32>) -> (bool, str) {
+    if cursor::pz_kw(kinds, texts, pos, "match") {
+        let m = p1p3c::p1_match(kinds, texts, pos, errs, lines, cols)
+        if !m.0 {
+            return m
+        }
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, m.1, lines, cols)
+    }
+    if cursor::pz_at(kinds, texts, pos, "|") || cursor::pz_at(kinds, texts, pos, "||") {
+        let c = p1p3c::p1_closure(kinds, texts, pos, errs, lines, cols)
+        if !c.0 {
+            return c
+        }
+        return p1p3b::p1_postfix(kinds, texts, pos, errs, c.1, lines, cols)
+    }
     if cursor::pz_at_kind(kinds, pos, "int") {
         let t = texts[pos[0]]
         let pr = parse_int(t)

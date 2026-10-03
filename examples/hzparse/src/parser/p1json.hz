@@ -103,3 +103,20 @@ fn p1_fstring_json(tpl: str, args: vec<str>) -> str {
 fn p1_type_json(name: str, args: vec<str>) -> str {
     return concat("{\"kind\":\"type\",\"name\":", p1_quoted(name), ",\"args\":", p1_join(args), "}")
 }
+
+# P3c match/closure JSON 形状（键序与 hzast json.hz + ast_json.rs 同序；只拼装不判子集）。
+fn p1_variant_pat_json(full: str, bindings: vec<str>) -> str {
+    return concat("{\"kind\":\"variant\",\"name\":", p1_quoted(full), ",\"bindings\":", p1_strs(bindings), "}")
+}
+
+fn p1_arm_json(pat: str, guard: str, body: str) -> str {
+    return concat("{\"pattern\":", pat, ",\"guard\":", guard, ",\"body\":", body, "}")
+}
+
+fn p1_match_json(scr: str, arms: vec<str>) -> str {
+    return concat("{\"kind\":\"match\",\"scrutinee\":", scr, ",\"arms\":", p1_join(arms), "}")
+}
+
+fn p1_closure_json(params: vec<str>, body: str) -> str {
+    return concat("{\"kind\":\"closure\",\"params\":", p1_strs(params), ",\"body\":", body, "}")
+}

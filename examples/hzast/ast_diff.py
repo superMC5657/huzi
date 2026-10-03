@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ast_diff.py —— huzc --ast-json-test 与 hzast --dump-json 的 30 向量对拍（C2+P3+P3b）。
+# ast_diff.py —— huzc --ast-json-test 与 hzast --dump-json 的 36 向量对拍（C2+P3+P3b+P3c）。
 #
 # 用法:
 #   python examples/hzast/ast_diff.py <huzc-bin> <hzast-bin>
@@ -8,10 +8,11 @@
 #   python examples/hzast/ast_diff.py ./huzc/target/debug/huzc /tmp/hzast
 #
 # 对拍口径 (P3 扩展，见 examples/hzast/RFC.md §2 + P3 增补):
-#   语料为 30 个固定向量 ID（非 .hz 文件；Huzi 侧无通用解析器）：
+#   语料为 36 个固定向量 ID（非 .hz 文件；Huzi 侧无通用解析器）：
 #     expr_num/expr_bool/expr_str/expr_str_esc/expr_var/expr_bin/expr_un/expr_call/
 #     expr_tuple/expr_array/expr_index/expr_enum_some/expr_enum_none/expr_enum_ok/expr_enum_err/expr_try/
 #     expr_struct/expr_field/expr_method/expr_fstring/type_atom/type_applied/
+#     expr_match_lit/expr_match_guard/expr_match_enum/expr_match_enum_guard/expr_closure/expr_closure_zero/
 #     stmt_let/stmt_assign/stmt_if/stmt_while/stmt_return/stmt_print/stmt_expr/prog_fact
 #   Rust 侧 `huzc --ast-json-test <id>` 与 Huzi 侧 `hzast --dump-json <id>`
 #   各打印单行紧凑 JSON；按 b'\n' 切分、二进制安全比较，不 strip。
@@ -46,6 +47,12 @@ IDS = [
     "expr_fstring",
     "type_atom",
     "type_applied",
+    "expr_match_lit",
+    "expr_match_guard",
+    "expr_match_enum",
+    "expr_match_enum_guard",
+    "expr_closure",
+    "expr_closure_zero",
     "stmt_let",
     "stmt_assign",
     "stmt_if",

@@ -1,0 +1,188 @@
+# eval_p3c —— P3c 求值（match 字面量/变体形状臂 + 守卫 + 无捕获闭包）。
+# 与 eval 互递归（沿用 parser atom/expr 循环模式）；缺臂 panic 双非零，不做穷尽证明。
+import ast
+import eval
+
+# 字面量形状匹配（同类型同值；类型不同即不匹配）。
+fn pat_lit_match(sv: Value, pat: Box<Expr>) -> bool {
+    if pat.kind == "num" {
+        return match sv {
+        Value::Num(n) => n == pat.num_val,
+        Value::Bool(_) => false,
+        Value::StrVal(_) => false,
+        Value::Nil => false,
+        Value::Tuple(_, _) => false,
+        Value::Arr(_, _) => false,
+        Value::OptSome(_) => false,
+        Value::OptNone => false,
+        Value::ResOk(_) => false,
+        Value::ResErr(_) => false,
+        Value::Struct(_, _, _) => false,
+        Value::Closure(_) => false,
+        }
+    }
+    if pat.kind == "bool" {
+        return match sv {
+        Value::Num(_) => false,
+        Value::Bool(b) => b == pat.bool_val,
+        Value::StrVal(_) => false,
+        Value::Nil => false,
+        Value::Tuple(_, _) => false,
+        Value::Arr(_, _) => false,
+        Value::OptSome(_) => false,
+        Value::OptNone => false,
+        Value::ResOk(_) => false,
+        Value::ResErr(_) => false,
+        Value::Struct(_, _, _) => false,
+        Value::Closure(_) => false,
+        }
+    }
+    if pat.kind == "str" {
+        return match sv {
+        Value::Num(_) => false,
+        Value::Bool(_) => false,
+        Value::StrVal(s) => s == pat.str_val,
+        Value::Nil => false,
+        Value::Tuple(_, _) => false,
+        Value::Arr(_, _) => false,
+        Value::OptSome(_) => false,
+        Value::OptNone => false,
+        Value::ResOk(_) => false,
+        Value::ResErr(_) => false,
+        Value::Struct(_, _, _) => false,
+        Value::Closure(_) => false,
+        }
+    }
+    return false
+}
+
+# 变体形状匹配（仅 Option/Result；绑定数须合形，不实际绑定负载）。
+fn pat_variant_match(sv: Value, pat: Box<Expr>) -> bool {
+    let full = pat.name
+    let nb = len(pat.field_names)
+    if full == "Option::Some" {
+        return match sv {
+        Value::OptSome(_) => nb == 1,
+        Value::Num(_) => false,
+        Value::Bool(_) => false,
+        Value::StrVal(_) => false,
+        Value::Nil => false,
+        Value::Tuple(_, _) => false,
+        Value::Arr(_, _) => false,
+        Value::OptNone => false,
+        Value::ResOk(_) => false,
+        Value::ResErr(_) => false,
+        Value::Struct(_, _, _) => false,
+        Value::Closure(_) => false,
+        }
+    }
+    if full == "Option::None" {
+        return match sv {
+        Value::OptNone => nb == 0,
+        Value::Num(_) => false,
+        Value::Bool(_) => false,
+        Value::StrVal(_) => false,
+        Value::Nil => false,
+        Value::Tuple(_, _) => false,
+        Value::Arr(_, _) => false,
+        Value::OptSome(_) => false,
+        Value::ResOk(_) => false,
+        Value::ResErr(_) => false,
+        Value::Struct(_, _, _) => false,
+        Value::Closure(_) => false,
+        }
+    }
+    if full == "Result::Ok" {
+        return match sv {
+        Value::ResOk(_) => nb == 1,
+        Value::Num(_) => false,
+        Value::Bool(_) => false,
+        Value::StrVal(_) => false,
+        Value::Nil => false,
+        Value::Tuple(_, _) => false,
+        Value::Arr(_, _) => false,
+        Value::OptSome(_) => false,
+        Value::OptNone => false,
+        Value::ResErr(_) => false,
+        Value::Struct(_, _, _) => false,
+        Value::Closure(_) => false,
+        }
+    }
+    if full == "Result::Err" {
+        return match sv {
+        Value::ResErr(_) => nb == 1,
+        Value::Num(_) => false,
+        Value::Bool(_) => false,
+        Value::StrVal(_) => false,
+        Value::Nil => false,
+        Value::Tuple(_, _) => false,
+        Value::Arr(_, _) => false,
+        Value::OptSome(_) => false,
+        Value::OptNone => false,
+        Value::ResOk(_) => false,
+        Value::Struct(_, _, _) => false,
+        Value::Closure(_) => false,
+        }
+    }
+    return false
+}
+
+fn pat_matches(sv: Value, pat: Box<Expr>) -> bool {
+    if pat.kind == "num" || pat.kind == "bool" || pat.kind == "str" {
+        return pat_lit_match(sv, pat)
+    }
+    if pat.kind == "variant" {
+        return pat_variant_match(sv, pat)
+    }
+    return false
+}
+
+# 单臂体求值（单 expr/return 直接取值；多语句经 block 取末值，忽略环境写回）。
+fn eval_arm_body(body: vec<Box<Stmt>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    if len(body) == 1 {
+        let s: Box<Stmt> = body[0]
+        if s.kind == "expr" || s.kind == "return" {
+            return eval::eval_expr(s.expr, env, fns)
+        }
+    }
+    let r = eval::eval_block(body, env, fns)
+    return r.1
+}
+
+# match 求值（形状臂 + 守卫；缺臂 panic，与 Rust 空臂 Err 同为双非零）。
+fn eval_match_val(scrutinee: Box<Expr>, arms: vec<Box<MatchArm>>, env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let sv = eval::eval_expr(scrutinee, env, fns)
+    let n = len(arms)
+    let mut i = 0
+    while i < n {
+        let a: Box<MatchArm> = arms[i]
+        if pat_matches(sv, a.pat) {
+            let g = eval::eval_expr(a.guard, env, fns)
+            if ast::val_to_bool(g) {
+                return eval_arm_body(a.body, env, fns)
+            }
+        }
+        i = i + 1
+    }
+    panic("eval: no matching arm")
+    return Value::Nil
+}
+
+# 无捕获闭包值（定义点快照本批砍，仅存参名 + 体，不做逃逸分析）。
+fn eval_closure_val(params: vec<str>, body: Box<Expr>, env: Box<Env>) -> Value {
+    return ast::val_closure(params, body)
+}
+
+# 无捕获闭包调用（新环境只绑形参；体引用外层即未定义 panic，捕获砍整项）。
+fn eval_closure_call(c: Box<ClosureVal>, args: vec<Box<Expr>>, call_env: Box<Env>, fns: vec<Box<FnDef>>) -> Value {
+    let mut new_env = eval::env_new()
+    let n = len(c.params)
+    let m = len(args)
+    let mut i = 0
+    while i < n && i < m {
+        let v = eval::eval_expr(args[i], call_env, fns)
+        new_env = eval::define_var(new_env, c.params[i], v)
+        i = i + 1
+    }
+    return eval::eval_expr(c.body, new_env, fns)
+}

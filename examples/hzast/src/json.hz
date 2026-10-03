@@ -99,6 +99,11 @@ fn expr_to_json(e: Box<Expr>) -> str {
         let a = exprs_to_json(e.args)
         return concat("{\"kind\":\"call\",\"name\":", json_quoted(e.name), ",\"args\":", a, "}")
     }
+    return expr_comp_to_json(e)
+}
+
+# 复合形分发（P3 tuple/array/index/enum/try + P3b struct/field/method/fstring + P3c match/closure/variant）。
+fn expr_comp_to_json(e: Box<Expr>) -> str {
     if e.kind == "tuple" {
         let t = exprs_to_json(e.args)
         return concat("{\"kind\":\"tuple\",\"elems\":", t, "}")
@@ -136,7 +141,110 @@ fn expr_to_json(e: Box<Expr>) -> str {
         let fa = exprs_to_json(e.args)
         return concat("{\"kind\":\"fstring\",\"template\":", json_quoted(e.str_val), ",\"args\":", fa, "}")
     }
+    if e.kind == "match" {
+        return match_to_json(e.left, e.match_arms)
+    }
+    if e.kind == "closure" {
+        return closure_to_json(e.field_names, e.left)
+    }
+    if e.kind == "variant" {
+        return concat("{\"kind\":\"variant\",\"name\":", json_quoted(e.name), ",\"bindings\":", strs_to_json(e.field_names), "}")
+    }
     return ""
+}
+
+# P3c match 单臂：`{"pattern":pat,"guard":g,"body":[stmts]}`（键序固定，无守卫即 true）。
+# 非形状臂（var/非 Option-Result 变体等）即 "" 双非零，与 Rust Err 同口径。
+fn is_p3c_variant(full: str) -> bool {
+    if full == "Option::Some" {
+        return true
+    }
+    if full == "Option::None" {
+        return true
+    }
+    if full == "Result::Ok" {
+        return true
+    }
+    if full == "Result::Err" {
+        return true
+    }
+    return false
+}
+
+fn is_p3c_pat(pat: Box<Expr>) -> bool {
+    if pat.kind == "num" {
+        return true
+    }
+    if pat.kind == "bool" {
+        return true
+    }
+    if pat.kind == "str" {
+        return true
+    }
+    if pat.kind == "variant" {
+        return is_p3c_variant(pat.name)
+    }
+    return false
+}
+
+fn match_arm_to_json(pat: Box<Expr>, guard: Box<Expr>, body: vec<Box<Stmt>>) -> str {
+    if !is_p3c_pat(pat) {
+        return ""
+    }
+    let p = expr_to_json(pat)
+    if p == "" {
+        return ""
+    }
+    let g = expr_to_json(guard)
+    if g == "" {
+        return ""
+    }
+    let b = stmts_to_json(body)
+    return concat("{\"pattern\":", p, ",\"guard\":", g, ",\"body\":", b, "}")
+}
+
+fn match_arms_to_json(arms: vec<Box<MatchArm>>) -> str {
+    let n = len(arms)
+    let mut res = "["
+    let mut i = 0
+    while i < n {
+        if i > 0 {
+            res = concat(res, ",")
+        }
+        let a: Box<MatchArm> = arms[i]
+        let one = match_arm_to_json(a.pat, a.guard, a.body)
+        if one == "" {
+            return ""
+        }
+        res = concat(res, one)
+        i = i + 1
+    }
+    return concat(res, "]")
+}
+
+# P3c match：`{"kind":"match","scrutinee":e,"arms":[...]}`（空臂/非形状臂即 "" 双非零）。
+fn match_to_json(scrutinee: Box<Expr>, arms: vec<Box<MatchArm>>) -> str {
+    if len(arms) == 0 {
+        return ""
+    }
+    let s = expr_to_json(scrutinee)
+    if s == "" {
+        return ""
+    }
+    let a = match_arms_to_json(arms)
+    if a == "" {
+        return ""
+    }
+    return concat("{\"kind\":\"match\",\"scrutinee\":", s, ",\"arms\":", a, "}")
+}
+
+# P3c 闭包：`{"kind":"closure","params":[...],"body":e}`（仅单表达式体，块体无字段存即 ""）。
+fn closure_to_json(params: vec<str>, body: Box<Expr>) -> str {
+    let b = expr_to_json(body)
+    if b == "" {
+        return ""
+    }
+    return concat("{\"kind\":\"closure\",\"params\":", strs_to_json(params), ",\"body\":", b, "}")
 }
 
 # P3b 结构字段数组：`[{"name":"x","value":expr},...]`（键序固定 name/value）。

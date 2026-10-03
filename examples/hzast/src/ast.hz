@@ -1,6 +1,12 @@
 # P3 复合值：扁平字符串化存储（Huzi match 绑定 vec 传参受限，故 Tuple/Arr 存
 # 已拼接串 + 个数，不存 vec；Some/Ok 存内层串；索引经 split 重建 let 绑定 vec）。
 # P3b 结构体：扁平存名 + 已拼接 `k=v` 串 + 字段数（field 经 split 查名，method 按名静态分发直调）。
+# P3c 闭包值：无捕获 MPEM 优先，存参名 + 体（定义点快照，有捕获本批砍，见 RFC）。
+struct ClosureVal {
+    params: vec<str>,
+    body: Box<Expr>,
+}
+
 enum Value {
     Num(i32),
     Bool(bool),
@@ -13,6 +19,7 @@ enum Value {
     ResOk(str),
     ResErr(str),
     Struct(str, str, i32),
+    Closure(Box<ClosureVal>),
 }
 
 fn val_num(n: i32) -> Value {
@@ -83,6 +90,11 @@ fn val_struct(sname: str, names: vec<str>, vals: vec<str>) -> Value {
     return Value::Struct(sname, strs_join(pairs), n)
 }
 
+# P3c 无捕获闭包值：存参名 + 体（有捕获砍整项，不做逃逸分析）。
+fn val_closure(params: vec<str>, body: Box<Expr>) -> Value {
+    return Value::Closure(box(ClosureVal { params: params, body: body }))
+}
+
 fn strs_join(vs: vec<str>) -> str {
     let n = len(vs)
     let mut res = ""
@@ -114,6 +126,7 @@ fn val_to_string(v: Value) -> str {
     Value::ResOk(s) => concat("Ok(", s, ")"),
     Value::ResErr(e) => concat("Err(", e, ")"),
     Value::Struct(sname, joined, count) => concat(concat(sname, "{"), concat(joined, "}")),
+    Value::Closure(_) => "<closure>",
 }
 }
 
@@ -130,6 +143,7 @@ fn val_to_int(v: Value) -> i32 {
     Value::ResOk(s) => parse_int(s).1,
     Value::ResErr(e) => 0,
     Value::Struct(sname, joined, count) => count,
+    Value::Closure(_) => 0,
 }
 }
 
@@ -146,7 +160,19 @@ fn val_to_bool(v: Value) -> bool {
     Value::ResOk(s) => true,
     Value::ResErr(e) => false,
     Value::Struct(sname, joined, count) => count > 0,
+    Value::Closure(_) => true,
 }
+}
+
+# P3c match：左存 scrutinee + match_arms 新字段；closure 复用 field_names 作 params + left 作体。
+struct MatchArm {
+    pat: Box<Expr>,
+    guard: Box<Expr>,
+    body: vec<Box<Stmt>>,
+}
+
+fn match_arm(pat: Box<Expr>, guard: Box<Expr>, body: vec<Box<Stmt>>) -> Box<MatchArm> {
+    return box(MatchArm { pat: pat, guard: guard, body: body })
 }
 
 struct Expr {
@@ -160,73 +186,89 @@ struct Expr {
     right: Box<Expr>,
     args: vec<Box<Expr>>,
     field_names: vec<str>,
+    match_arms: vec<Box<MatchArm>>,
 }
 
 fn expr_num(n: i32) -> Box<Expr> {
-    return box(Expr { kind: "num", op: "", name: "", num_val: n, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "num", op: "", name: "", num_val: n, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_bool(b: bool) -> Box<Expr> {
-    return box(Expr { kind: "bool", op: "", name: "", num_val: 0, bool_val: b, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "bool", op: "", name: "", num_val: 0, bool_val: b, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_str(s: str) -> Box<Expr> {
-    return box(Expr { kind: "str", op: "", name: "", num_val: 0, bool_val: false, str_val: s, left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "str", op: "", name: "", num_val: 0, bool_val: false, str_val: s, left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_var(name: str) -> Box<Expr> {
-    return box(Expr { kind: "var", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "var", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_bin(op: str, left: Box<Expr>, right: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "bin", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: left, right: right, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "bin", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: left, right: right, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_un(op: str, operand: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "un", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: operand, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "un", op: op, name: "", num_val: 0, bool_val: false, str_val: "", left: operand, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_call(name: str, args: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "call", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args, field_names: vec<str>() })
+    return box(Expr { kind: "call", op: "", name: name, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args, field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 # P3 复合值形状：复用既有字段（args 作 elems，left/right 作 array/index，name+args 作 enum，left 作 try 内层）。
 fn expr_tuple(elems: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "tuple", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems, field_names: vec<str>() })
+    return box(Expr { kind: "tuple", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems, field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_array(elems: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "array", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems, field_names: vec<str>() })
+    return box(Expr { kind: "array", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: elems, field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_index(arr: Box<Expr>, idx: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "index", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: arr, right: idx, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "index", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: arr, right: idx, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_enum(enum_name: str, variant: str, args: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "enum", op: "", name: concat(enum_name, "::", variant), num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args, field_names: vec<str>() })
+    return box(Expr { kind: "enum", op: "", name: concat(enum_name, "::", variant), num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: args, field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_try(inner: Box<Expr>) -> Box<Expr> {
-    return box(Expr { kind: "try", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: inner, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "try", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: inner, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 # P3b 结构/方法/fstring：struct 用 name+field_names+args；field 用 left+name；
 # method 用 left+name+args；fstring 用 str_val+args（沿用扁平复用方法学）。
 fn expr_struct(sname: str, fnames: vec<str>, fexprs: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "struct", op: "", name: sname, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: fexprs, field_names: fnames })
+    return box(Expr { kind: "struct", op: "", name: sname, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: fexprs, field_names: fnames, match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_field(base: Box<Expr>, field: str) -> Box<Expr> {
-    return box(Expr { kind: "field", op: "", name: field, num_val: 0, bool_val: false, str_val: "", left: base, right: null, args: vec<Box<Expr>>(), field_names: vec<str>() })
+    return box(Expr { kind: "field", op: "", name: field, num_val: 0, bool_val: false, str_val: "", left: base, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_method(recv: Box<Expr>, method: str, margs: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "method", op: "", name: method, num_val: 0, bool_val: false, str_val: "", left: recv, right: null, args: margs, field_names: vec<str>() })
+    return box(Expr { kind: "method", op: "", name: method, num_val: 0, bool_val: false, str_val: "", left: recv, right: null, args: margs, field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
 }
 
 fn expr_fstring(tpl: str, fargs: vec<Box<Expr>>) -> Box<Expr> {
-    return box(Expr { kind: "fstring", op: "", name: "", num_val: 0, bool_val: false, str_val: tpl, left: null, right: null, args: fargs, field_names: vec<str>() })
+    return box(Expr { kind: "fstring", op: "", name: "", num_val: 0, bool_val: false, str_val: tpl, left: null, right: null, args: fargs, field_names: vec<str>(), match_arms: vec<Box<MatchArm>>() })
+}
+
+# P3c 变体模式：kind "variant" + name 全名 + field_names 作 bindings（复用扁平法）。
+fn expr_variant_pat(full: str, bindings: vec<str>) -> Box<Expr> {
+    return box(Expr { kind: "variant", op: "", name: full, num_val: 0, bool_val: false, str_val: "", left: null, right: null, args: vec<Box<Expr>>(), field_names: bindings, match_arms: vec<Box<MatchArm>>() })
+}
+
+# P3c match：left 作 scrutinee + match_arms 新字段（守卫 true 即无守卫）。
+fn expr_match(scrutinee: Box<Expr>, arms: vec<Box<MatchArm>>) -> Box<Expr> {
+    return box(Expr { kind: "match", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: scrutinee, right: null, args: vec<Box<Expr>>(), field_names: vec<str>(), match_arms: arms })
+}
+
+# P3c 无捕获闭包：field_names 作 params + left 作体（仅单表达式体，块体双非零）。
+fn expr_closure(params: vec<str>, body: Box<Expr>) -> Box<Expr> {
+    return box(Expr { kind: "closure", op: "", name: "", num_val: 0, bool_val: false, str_val: "", left: body, right: null, args: vec<Box<Expr>>(), field_names: params, match_arms: vec<Box<MatchArm>>() })
 }
 
 # P3b 类型：只存 name+args（不求解不检查，与 ast_json.rs type_to_json 同键序）。

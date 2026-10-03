@@ -273,6 +273,76 @@ fn json_type_of(t: Box<TypeRef>) -> str {
     return json::type_to_json(t)
 }
 
+# P3c match 字面量：`match x {1=>10,2=>20}` 双正例（缺臂 panic，不在自测内）。
+fn test_match_lit() -> i32 {
+    let mut arms = vec<Box<MatchArm>>()
+    let mut b1 = vec<Box<Stmt>>()
+    push(b1, ast::stmt_expr(ast::expr_num(10)))
+    push(arms, ast::match_arm(ast::expr_num(1), ast::expr_bool(true), b1))
+    let mut b2 = vec<Box<Stmt>>()
+    push(b2, ast::stmt_expr(ast::expr_num(20)))
+    push(arms, ast::match_arm(ast::expr_num(2), ast::expr_bool(true), b2))
+    let e1 = ast::expr_match(ast::expr_num(1), arms)
+    let r1 = eval::eval_expr(e1, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(r1), 10)
+    return 0
+}
+
+# P3c match 守卫：首臂 guard 真走 10，guard 假落第二同形臂走 20。
+fn test_match_guard() -> i32 {
+    let mut arms = vec<Box<MatchArm>>()
+    let mut b1 = vec<Box<Stmt>>()
+    push(b1, ast::stmt_expr(ast::expr_num(10)))
+    push(arms, ast::match_arm(ast::expr_num(1), ast::expr_bool(true), b1))
+    let mut b2 = vec<Box<Stmt>>()
+    push(b2, ast::stmt_expr(ast::expr_num(20)))
+    push(arms, ast::match_arm(ast::expr_num(1), ast::expr_bool(true), b2))
+    let e = ast::expr_match(ast::expr_num(1), arms)
+    let r = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(r), 10)
+    return 0
+}
+
+# P3c match 枚举变体：Some/None 形状臂各一（绑定数合形，不取负载）。
+fn test_match_enum() -> i32 {
+    let mut arms = vec<Box<MatchArm>>()
+    let mut vb = vec<str>()
+    push(vb, "v")
+    let mut b1 = vec<Box<Stmt>>()
+    push(b1, ast::stmt_expr(ast::expr_num(1)))
+    push(arms, ast::match_arm(ast::expr_variant_pat("Option::Some", vb), ast::expr_bool(true), b1))
+    let mut b2 = vec<Box<Stmt>>()
+    push(b2, ast::stmt_expr(ast::expr_num(0)))
+    push(arms, ast::match_arm(ast::expr_variant_pat("Option::None", vec<str>()), ast::expr_bool(true), b2))
+    let mut sa = vec<Box<Expr>>()
+    push(sa, ast::expr_num(42))
+    let e = ast::expr_match(ast::expr_enum("Option", "Some", sa), arms)
+    let r = eval::eval_expr(e, eval::env_new, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(r), 1)
+    return 0
+}
+
+# P3c 无捕获闭包 MPEM：`|x| x+1` 调 2 得 3；`||42` 得 42（有捕获砍整项）。
+fn test_closure_nocap() -> i32 {
+    let mut ps = vec<str>()
+    push(ps, "x")
+    let bd = ast::expr_bin("+", ast::expr_var("x"), ast::expr_num(1))
+    let cl = ast::expr_closure(ps, bd)
+    let env0 = eval::env_new
+    let cv = eval::eval_expr(cl, env0, vec<Box<FnDef>>())
+    let mut call_args = vec<Box<Expr>>()
+    push(call_args, ast::expr_num(2))
+    let call_env = eval::define_var(env0, "add", cv)
+    let r = eval::eval_expr(ast::expr_call("add", call_args), call_env, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(r), 3)
+    let cz = ast::expr_closure(vec<str>(), ast::expr_num(42))
+    let vz = eval::eval_expr(cz, eval::env_new, vec<Box<FnDef>>())
+    let zenv = eval::define_var(eval::env_new, "z", vz)
+    let rz = eval::eval_expr(ast::expr_call("z", vec<Box<Expr>>()), zenv, vec<Box<FnDef>>())
+    assert::assert_eq_i32(ast::val_to_int(rz), 42)
+    return 0
+}
+
 fn selftest() -> i32 {
     test_arithmetic()
     test_variables_and_assign()
@@ -293,6 +363,10 @@ fn selftest() -> i32 {
     test_method_sum()
     test_fstring_basic()
     test_type_shapes()
+    test_match_lit()
+    test_match_guard()
+    test_match_enum()
+    test_closure_nocap()
     print("hzast selftest passed")
     return 0
 }

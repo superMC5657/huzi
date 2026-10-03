@@ -52,6 +52,7 @@ fn eval_field_val(base_e: Box<Expr>, field: str, env: Box<Env>, fns: vec<Box<FnD
     Value::OptNone => Value::Nil,
     Value::ResOk(s) => Value::Nil,
     Value::ResErr(e) => Value::Nil,
+    Value::Closure(_) => Value::Nil,
 }
 }
 
@@ -92,6 +93,7 @@ fn eval_method_val(recv_e: Box<Expr>, method: str, margs: vec<Box<Expr>>, env: B
     Value::OptNone => eval_method_fallback(method, margs, env, fns),
     Value::ResOk(s) => eval_method_fallback(method, margs, env, fns),
     Value::ResErr(e) => eval_method_fallback(method, margs, env, fns),
+    Value::Closure(_) => eval_method_fallback(method, margs, env, fns),
 }
 }
 
