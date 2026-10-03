@@ -28,7 +28,7 @@
 
 ### 2.1 覆盖边界（现仅子集，非缺口）
 
-- Expr：`num/bool/str/var/bin/un/call`（7 种；BACKLOG 记 `5/19` 为旧数，现按 `ast.hz` 实际 7 种验）。
+- Expr：`num/bool/str/var/bin/un/call`（7 种；旧口径记 `5/19` 为旧数，现按 `ast.hz` 实际 7 种验）。
 - Stmt：`let/assign/if/while/return/print/expr`（7 种）。
 - Type：0/16，本期不做（`ast.hz` 无 Type 建模，JSON 不含类型字段）。
 - 其余 Rust 侧 `Expr/Stmt` 变体（`match/closure/struct` 等）本期遇到即 Rust 侧非零退出 + Huzi 侧 `""`，不对拍。

@@ -20,8 +20,7 @@ huzi/                  # 仓库根（cwd=仓库根执行本文件命令）
 │   └── test.sh        # 编译器回归脚本（cwd=huzc，或仓库根 `bash huzc/test.sh`）
 ├── huzi-src/          # 自举标准库（core/alloc/std + test 自测，见 huzi-src/README.md）
 ├── editors/           # 编辑器支持（README.md 矩阵 + vscode/ 官方插件工程）
-├── examples/          # 自举示例（hzlex/hzparse/hzast/hzir/task_engine）
-└── .omo/              # 已退役（2026-09）：未完成项见 docs/undo/BACKLOG.md（当前缺失，待重建）
+└── examples/          # 自举示例（hzlex/hzparse/hzast/hzir/task_engine）
 ```
 
 各模块归属文档：编译器工程见 `huzc/README.md`；标准库分层见 `huzi-src/README.md`；编辑器矩阵见 `editors/README.md`；用户手册入口见 `docs/USAGE.md`；状态快照见 `docs/STATUS.md`。
