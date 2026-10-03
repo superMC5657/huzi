@@ -1,7 +1,7 @@
 # Huzi 项目完成状态（STATUS）
 
 > 只回答“做完什么、没做什么”。实现细节见 `USAGE.md`（用户手册）与 `dev/开发文档.md`（技术架构）。
-> 更新日期：2026-09-29，分支 `master`。
+> 更新日期：2026-10-03，分支 `main`。
 
 ## 1. 总体结论
 
@@ -84,12 +84,24 @@
 - [x] 构建产物：Release 产物三平台自动化归档上传
 - [x] 规范门禁：单文件 ≤500 行、单函数 ≤70 行、零警告、中文一事一提交
 
+### 自举链封版（2026-10-03，`hzlex→hzparse→hzast→hzir` 子集链）
+
+- [x] P0 解析入门禁：`parse_diff.py` 九维计数 + 4 负例首错 + `fd==corpus` 覆盖率防假绿（`check.sh[6/6]`）
+- [x] P1/C2 语义锚点：`ast_diff.py` Canonical JSON（转义 5 种/固定键序/单换行）17→37 向量（`check.sh[7/7]`）；C1 `eval_diff.py` 6→20 行（`check.sh[7b/10]`，`Box<Env>` 迁移后转正）
+- [x] P2-a 错误恢复：`;`/`}`/换行同步继续计数，首错 `L:C` 不变，后续只计数（`stmt/atom` 纯搬移拆分）
+- [x] P2-b 前端落盘：`hzparse --dump-ast-json -i`（超子集双非零）+ `parse_ast_diff.py`（`check.sh[8/8]`）
+- [x] P3 变体三批：复合值（tuple/array/index/enum/`?`/Option/Result）→ struct/字段/方法/fstring/Type 形状 → match 字面量/变体/守卫臂 + 无捕获闭包（`check.sh[9/10]` 文件模式）
+- [x] P4 文本 IR：`hzir` JSON→IR（s1/s2/s5）+ `for` 脱糖（s9/s10）+ `vec<i32>` 堆版（s11）+ 单态化/trait 直调（s12/s13），`hzir_diff.py`（`check.sh[10/10]`）
+- [x] 含堆结构体按值使用改编译错（零 IR 改动门卫；47/42/`hzast`/`stdlib` 两用例已迁 Box/拆参；规则见 `reference.md §2`）
+- [x] 全量门禁 `bash check.sh [10/10]+7b` 实跑全绿（2026-10-03）：编译器回归 157、标准库 17、fmt 77、bench ≤2.0x、dump/parse/ast/eval/parse-ast/P3/hzir 全对拍通过
+
 ## 3. 明确不做（非缺失，是取舍）
 
 * 无精确 GC（不做 tracing 收集器）：采用确定性作用域析构（RAII Drop）与双计数引用计数（Swift 风格强弱引用）统一模型；`vec` 与 `Box` 出作用域自动确定性释放堆内存，别名赋值自动 retain 引用计数，零 GC 暂停开销；循环引用通过 `weak Box<T>` 弱引用彻底消除，访问失效对象自动置零（Auto-Zeroing），无需手动打破（用例 `74_weak_reference`）
 * 泛型无 `where` 约束、无特化
 * 包管理（当前快照）：仅本地 `vendor/` 离线 + `VersionReq` 最高满足求解 + `huzi.lock` 锁定；冲突直接报错，不自动升级。中心仓库 / 下载校验和 / 显式升级命令见 `docs/rfc/rfc_center_registry_draft.md`（草案未冻结；默认“不改写清单”语义不变）
 * 无 UDP/TLS、无 async/协程、无跨线程共享 `vec/map`
+* 自举链止步项（子集链已封版，深水不做）：P2-c 穷尽证明/泛型 arity 全检查；有捕获闭包；Type 求解与 `where`/特化；`Span` 落盘；`vec<i32>` 之外的堆容器与 realloc/retain 实战；多点泛型单态化与动态分发；`hzir` 编译 `hzir` 的真闭环；深 retain/drop（已被零 IR 改动的按值门卫替代，move/RC 矩阵未立）
 
 ## 4. 文档地图（去哪看什么）
 

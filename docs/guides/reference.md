@@ -155,6 +155,8 @@ Huzi 采用确定性作用域析构（RAII Drop）与双计数弱引用（Swift 
 
 **Box 循环引用与弱引用解决方案**：本语言无精确 GC（不做 tracing 收集）。过去若使用强引用 `Box<T>` 双向互指（A → B → A），RC 无法自动回收，需手动 `free_box` 打破环。**现推荐完全使用 `weak Box<T>`**（例如子节点持有父节点 `parent: weak Box<Node>`），强弱配合彻底消除循环引用，无需任何手动 `free_box` 或 `defer` 打破环，作用域结束 100% 全自动确定性回收（测试用例参见 `test/cases/74_weak_reference.hz`）。诊断时用 `ref_count` 与 `weak_count` 做快照。编译器仅在类型定义层面拦截按值无限递归（A → B → A 的结构体 / 枚举字段，负例 `box_cycle_value`）。
 
+**含堆结构体按值使用编译错**：含 `vec` / `Box` 字段的结构体禁止按值传递/返回/`let` 绑定/赋值/字面量构造（按值拷贝会导致堆内存别名且引用计数未跟进，曾致 `0xC0000374` 堆损坏）。顶层 `Box` / `weak` 与纯标量结构体不受影响。报错会给出 `Box<...>` 改法或拆参指引（负例 `env_byvalue_chain.compile_fail`、`env_byvalue_let_assign.compile_fail`，对照正例 `huzc/test/neg/env_box_ok.hz`）。
+
 ### 4.11 HTTP 客户端（自举标准库 `std.http`，基于 TCP）
 
 - `http_build_request(host: str, path: str) -> str`：构造 GET 请求报文（`path` 为空时取 `/`）。
