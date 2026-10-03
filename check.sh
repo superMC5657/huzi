@@ -5,8 +5,9 @@
 # 在仓库根目录执行：bash check.sh
 # 跳过性能抽查：SKIP_BENCH=1 bash check.sh 或 bash check.sh --skip-bench
 # 跳过自举对拍：SKIP_DUMPDIFF=1 bash check.sh 或 bash check.sh --skip-dumpdiff
+# 跳过 parser 对拍：SKIP_PARSEDIFF=1 bash check.sh 或 bash check.sh --skip-parsediff
 #
-# 聚合五项门禁（顺序即执行顺序，失败即停）：
+# 聚合六项门禁（顺序即执行顺序，失败即停）：
 #   1. huzc/test.sh          编译器回归（含负例；交互用例 10_guess_number_game 跳过，
 #                            24_pipe_read 喂管道数据；产物隔离在 huzc/test/out）
 #   2. huzi-src/test.sh      自举标准库自测（产物隔离在 huzi-src/test/out）
@@ -18,6 +19,11 @@
 #                            方法学见 examples/hzlex/dump_diff.py 头注释；
 #                            hzlex 经 `huzc build` 构建，产物固定在
 #                            examples/hzlex/hzlex.exe（*.exe 已被 gitignore 覆盖））
+#   6. parse_diff.py         自举 parser 对拍（huzc --dump-parse-stats vs 自举 hzparse，
+#                            九维统计逐字节一致 + 失败首错行列一致，另 4 内置负例；
+#                            语料只认 examples/hzparse/src/corpus.hz，首步做 fd/corpus
+#                            覆盖率校验防假绿；hzparse 经 `huzc build` 构建，产物固定在
+#                            examples/hzparse/hzparse.exe（*.exe 已被 gitignore 覆盖））
 #
 # 注意：huzc/test.sh 自带 RUN_BENCH=1/--bench 开关可顺带跑性能门禁；
 # 本入口为避免重复耗时，调用它时不传 --bench，性能抽查统一放在第 4 阶段。
@@ -33,25 +39,29 @@ SKIP_DUMPDIFF="${SKIP_DUMPDIFF:-0}"
 if [ "${1:-}" = "--skip-dumpdiff" ] || [ "${2:-}" = "--skip-dumpdiff" ]; then
   SKIP_DUMPDIFF=1
 fi
+SKIP_PARSEDIFF="${SKIP_PARSEDIFF:-0}"
+if [ "${1:-}" = "--skip-parsediff" ] || [ "${2:-}" = "--skip-parsediff" ] || [ "${3:-}" = "--skip-parsediff" ]; then
+  SKIP_PARSEDIFF=1
+fi
 
 # 分阶段执行：标题 + 结果汇总，失败即停（set -e 生效处直接退出，
 # 被 if 接管处显式 exit 1，保证 exit code 非零向上传递）
 PASS_LIST=""
 
 # 阶段 1：编译器回归（含 cargo build --workspace，由子脚本内部执行）
-echo "===== [1/5] 编译器回归 huzc/test.sh ====="
+echo "===== [1/6] 编译器回归 huzc/test.sh ====="
 bash huzc/test.sh
-echo "PASS [1/5]: 编译器回归"
+echo "PASS [1/6]: 编译器回归"
 PASS_LIST="$PASS_LIST 1.编译器回归"
 
 # 阶段 2：自举标准库自测（缺编译器时子脚本会自动构建）
-echo "===== [2/5] 标准库自测 huzi-src/test.sh ====="
+echo "===== [2/6] 标准库自测 huzi-src/test.sh ====="
 bash huzi-src/test.sh
-echo "PASS [2/5]: 标准库自测"
+echo "PASS [2/6]: 标准库自测"
 PASS_LIST="$PASS_LIST 2.标准库自测"
 
 # 阶段 3：格式化门禁（复用 test.sh 的平台自适应后缀逻辑）
-echo "===== [3/5] 格式化门禁 huzc fmt --check ====="
+echo "===== [3/6] 格式化门禁 huzc fmt --check ====="
 EXE_SUFFIX=""
 case "$(uname -s 2>/dev/null)" in
   MINGW*|MSYS*|CYGWIN*|Windows*) EXE_SUFFIX=".exe" ;;
@@ -62,17 +72,17 @@ if [ ! -f "$HUZC_BIN" ]; then
 fi
 if [ ! -f "$HUZC_BIN" ]; then
   echo "未找到 huzc 可执行文件，先执行 cargo build（阶段 1 已应构建过）..."
-  (cd huzc && cargo build --workspace) || { echo "FAIL [3/5]: 编译器构建失败"; exit 1; }
+  (cd huzc && cargo build --workspace) || { echo "FAIL [3/6]: 编译器构建失败"; exit 1; }
   HUZC_BIN="huzc/target/debug/huzc$EXE_SUFFIX"
 fi
-"$HUZC_BIN" fmt --check huzc/test/cases || { echo "FAIL [3/5]: fmt --check 未通过"; exit 1; }
-echo "PASS [3/5]: 格式化门禁"
+"$HUZC_BIN" fmt --check huzc/test/cases || { echo "FAIL [3/6]: fmt --check 未通过"; exit 1; }
+echo "PASS [3/6]: 格式化门禁"
 PASS_LIST="$PASS_LIST 3.格式化门禁"
 
 # 阶段 4：性能回归抽查（脚本按自身路径定位 huzc 根，与 cwd 无关）
-echo "===== [4/5] 性能抽查 bench_compare.py ====="
+echo "===== [4/6] 性能抽查 bench_compare.py ====="
 if [ "$SKIP_BENCH" = "1" ]; then
-  echo "SKIP [4/5]: 已按要求跳过性能抽查"
+  echo "SKIP [4/6]: 已按要求跳过性能抽查"
 else
   PY=""
   for cand in python3 python py; do
@@ -81,26 +91,26 @@ else
       break
     fi
   done
-  [ -n "$PY" ] || { echo "FAIL [4/5]: 未检测到有效的 Python 3 环境"; exit 1; }
-  "$PY" huzc/test/bench_compare.py || { echo "FAIL [4/5]: 性能回归门禁未通过"; exit 1; }
-  echo "PASS [4/5]: 性能抽查"
+  [ -n "$PY" ] || { echo "FAIL [4/6]: 未检测到有效的 Python 3 环境"; exit 1; }
+  "$PY" huzc/test/bench_compare.py || { echo "FAIL [4/6]: 性能回归门禁未通过"; exit 1; }
+  echo "PASS [4/6]: 性能抽查"
   PASS_LIST="$PASS_LIST 4.性能抽查"
 fi
 
 # 阶段 5：自举前端对拍（huzc --dump-tokens vs 自举 hzlex；M1-A dump 对拍接入门禁，防漂移）
-echo "===== [5/5] 自举对拍 dump_diff.py ====="
+echo "===== [5/6] 自举对拍 dump_diff.py ====="
 if [ "$SKIP_DUMPDIFF" = "1" ]; then
-  echo "SKIP [5/5]: 已按要求跳过自举对拍"
+  echo "SKIP [5/6]: 已按要求跳过自举对拍"
 else
   # 复用阶段 3 已定位的 huzc（debug 优先，含 --dump-tokens），此处不重编
   if [ ! -f "$HUZC_BIN" ]; then
-    echo "FAIL [5/5]: 未找到 huzc 可执行文件（阶段 1/3 已应构建过）"
+    echo "FAIL [5/6]: 未找到 huzc 可执行文件（阶段 1/3 已应构建过）"
     exit 1
   fi
   # 经 huzc build 构建自举 hzlex：固定输出到 examples/hzlex/hzlex.exe
   # （*.exe 已被 gitignore 覆盖，不脏工作区；伴生 .ll/.obj 同理被忽略）
   HZLEX_BIN="examples/hzlex/hzlex.exe"
-  "$HUZC_BIN" build --path examples/hzlex --output "$HZLEX_BIN" || { echo "FAIL [5/5]: hzlex 构建失败"; exit 1; }
+  "$HUZC_BIN" build --path examples/hzlex --output "$HZLEX_BIN" || { echo "FAIL [5/6]: hzlex 构建失败"; exit 1; }
   PY=""
   for cand in python3 python py; do
     if "$cand" -c "import sys; exit(0 if sys.version_info[0] >= 3 else 1)" >/dev/null 2>&1; then
@@ -108,11 +118,38 @@ else
       break
     fi
   done
-  [ -n "$PY" ] || { echo "FAIL [5/5]: 未检测到有效的 Python 3 环境"; exit 1; }
-  "$PY" examples/hzlex/dump_diff.py "$HUZC_BIN" "$HZLEX_BIN" huzc/test/cases || { echo "FAIL [5/5]: 自举对拍未通过（huzc/test/cases）"; exit 1; }
-  "$PY" examples/hzlex/dump_diff.py "$HUZC_BIN" "$HZLEX_BIN" huzi-src || { echo "FAIL [5/5]: 自举对拍未通过（huzi-src）"; exit 1; }
-  echo "PASS [5/5]: 自举对拍"
+  [ -n "$PY" ] || { echo "FAIL [5/6]: 未检测到有效的 Python 3 环境"; exit 1; }
+  "$PY" examples/hzlex/dump_diff.py "$HUZC_BIN" "$HZLEX_BIN" huzc/test/cases || { echo "FAIL [5/6]: 自举对拍未通过（huzc/test/cases）"; exit 1; }
+  "$PY" examples/hzlex/dump_diff.py "$HUZC_BIN" "$HZLEX_BIN" huzi-src || { echo "FAIL [5/6]: 自举对拍未通过（huzi-src）"; exit 1; }
+  echo "PASS [5/6]: 自举对拍"
   PASS_LIST="$PASS_LIST 5.自举对拍"
+fi
+
+# 阶段 6：自举 parser 对拍（huzc --dump-parse-stats vs 自举 hzparse；九维对拍接入门禁，防漂移）
+echo "===== [6/6] 自举 parser 对拍 parse_diff.py ====="
+if [ "$SKIP_PARSEDIFF" = "1" ]; then
+  echo "SKIP [6/6]: 已按要求跳过自举 parser 对拍"
+else
+  # 复用阶段 3 已定位的 huzc（debug 优先，含 --dump-parse-stats），此处不重编
+  if [ ! -f "$HUZC_BIN" ]; then
+    echo "FAIL [6/6]: 未找到 huzc 可执行文件（阶段 1/3 已应构建过）"
+    exit 1
+  fi
+  # 经 huzc build 构建自举 hzparse：固定输出到 examples/hzparse/hzparse.exe
+  # （*.exe 已被 gitignore 覆盖，不脏工作区；伴生 .ll/.obj 同理被忽略）
+  HZPARSE_BIN="examples/hzparse/hzparse.exe"
+  "$HUZC_BIN" build --path examples/hzparse --output "$HZPARSE_BIN" || { echo "FAIL [6/6]: hzparse 构建失败"; exit 1; }
+  PY=""
+  for cand in python3 python py; do
+    if "$cand" -c "import sys; exit(0 if sys.version_info[0] >= 3 else 1)" >/dev/null 2>&1; then
+      PY="$cand"
+      break
+    fi
+  done
+  [ -n "$PY" ] || { echo "FAIL [6/6]: 未检测到有效的 Python 3 环境"; exit 1; }
+  "$PY" examples/hzparse/parse_diff.py "$HUZC_BIN" "$HZPARSE_BIN" || { echo "FAIL [6/6]: 自举 parser 对拍未通过"; exit 1; }
+  echo "PASS [6/6]: 自举 parser 对拍"
+  PASS_LIST="$PASS_LIST 6.自举parser对拍"
 fi
 
 # 汇总：能执行到此即前序阶段全部通过（任一失败已提前非零退出）

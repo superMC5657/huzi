@@ -85,6 +85,8 @@ fn corpus_files(root: str) -> vec<str> {
     push(out, with_root(root, "huzc/test/cases/70_string_format_interpolation.hz"))
     push(out, with_root(root, "huzc/test/cases/71_compound_assign.hz"))
     push(out, with_root(root, "huzc/test/cases/72_process_run.hz"))
+    push(out, with_root(root, "huzc/test/cases/73_auto_drop_vec.hz"))
+    push(out, with_root(root, "huzc/test/cases/74_weak_reference.hz"))
     push(out, with_root(root, "huzc/test/cases/mods/calc_core.hz"))
     push(out, with_root(root, "huzc/test/cases/mods/calc_input.hz"))
     push(out, with_root(root, "huzc/test/cases/mods/helpers.hz"))
@@ -133,5 +135,9 @@ fn corpus_files(root: str) -> vec<str> {
     push(out, with_root(root, "examples/hzast/src/ast.hz"))
     push(out, with_root(root, "examples/hzast/src/eval.hz"))
     push(out, with_root(root, "examples/hzast/src/main.hz"))
+    push(out, with_root(root, "examples/hzast/src/dump.hz"))
+    push(out, with_root(root, "examples/hzast/src/json.hz"))
+    push(out, with_root(root, "examples/hzast/src/vectors.hz"))
+    push(out, with_root(root, "examples/hzast/eval_ref.hz"))
     return out
 }

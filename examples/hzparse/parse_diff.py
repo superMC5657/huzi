@@ -14,6 +14,11 @@
 #     `line L, column C`; hzparse 侧提行尾 `L:C`。
 #   语料清单只认 examples/hzparse/src/corpus.hz (仓库根相对路径),
 #   另加 4 个内置负例 (残缺输入) 验首错行列。
+#   首步做覆盖率校验: 文件系统真相 (fd -e hz 等价枚举, 见 expected_files)
+#   与 corpus 条数/集合逐项一致, 不等即 FAIL(防加了新 .hz 却忘更新
+#   corpus 的假绿)。覆盖域: huzc/test/cases 顶层 + mods, huzi-src 全量,
+#   examples/{hzlex,task_engine}/src, examples/hzast 全量;
+#   neg/pkg/bench/hzir/hzparse 自身按冻结边界排除在外。
 #
 # 退出码: 用法/路径错误返回 2; 全部 PASS 返回 0; 有 FAIL 返回 1.
 
@@ -33,6 +38,49 @@ def load_corpus(repo):
     with open(path, encoding="utf-8") as f:
         txt = f.read()
     return re.findall(r'"([^"]+\.hz)"', txt)
+
+
+def expected_files(repo):
+    out = []
+    cases = os.path.join(repo, "huzc", "test", "cases")
+    for f in sorted(os.listdir(cases)):
+        if f.endswith(".hz") and os.path.isfile(os.path.join(cases, f)):
+            out.append("huzc/test/cases/" + f)
+    mods = os.path.join(cases, "mods")
+    if os.path.isdir(mods):
+        for f in sorted(os.listdir(mods)):
+            if f.endswith(".hz"):
+                out.append("huzc/test/cases/mods/" + f)
+    for root_rel in (
+        "huzi-src",
+        os.path.join("examples", "hzlex", "src"),
+        os.path.join("examples", "task_engine", "src"),
+        os.path.join("examples", "hzast"),
+    ):
+        base = os.path.join(repo, root_rel)
+        for dp, _, fns in os.walk(base):
+            for f in sorted(fns):
+                if f.endswith(".hz"):
+                    full = os.path.join(dp, f)
+                    out.append(os.path.relpath(full, repo).replace(os.sep, "/"))
+    return sorted(out)
+
+
+def check_coverage(repo, files):
+    expected = expected_files(repo)
+    exp_set, got_set = set(expected), set(files)
+    if exp_set == got_set:
+        print("coverage: %d files (fd == corpus)" % len(files))
+        return True
+    print(
+        "FAIL(coverage): fd=%d corpus=%d" % (len(expected), len(files)),
+        file=sys.stderr,
+    )
+    for p in sorted(exp_set - got_set):
+        print("FAIL(coverage-missing): %s" % p)
+    for p in sorted(got_set - exp_set):
+        print("FAIL(coverage-extra): %s" % p)
+    return False
 
 
 def extract_stats_rust(out):
@@ -128,6 +176,8 @@ def main(argv):
             return 2
     repo = repo_root_of(argv[0])
     files = load_corpus(repo)
+    if not check_coverage(repo, files):
+        return 1
     passed = failed = 0
     for rel in files:
         full = os.path.join(repo, rel)
