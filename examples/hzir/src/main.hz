@@ -2,6 +2,55 @@
 // Huzi builds LLVM IR text with concat only
 // write with write_file, build with clang via process_run
 // range: i32 arithmetic fn let while if print plus str glue
+import jlower
+import jlower_cases
+
+fn hz_prefix() -> str {
+    if read_file_ok("huzc/test/cases/01_variables_ops.hz") {
+        return "examples/hzir/"
+    } elif read_file_ok("cases/s1_hello.hz") {
+        return ""
+    } else {
+        return "../../"
+    }
+}
+
+fn to_win_path(p: str) -> str {
+    let n = len(p)
+    let mut res = ""
+    let mut i = 0
+    while i < n {
+        let ch = substring(p, i, i + 1)
+        if ch == "/" {
+            res = concat(res, "\\")
+        } else {
+            res = concat(res, ch)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn ensure_target(prefix: str) -> i32 {
+    let d = concat(prefix, "target")
+    let cmd = concat("mkdir ", d)
+    let r = process_run(cmd)
+    let code = r.0
+    if code == 0 {
+        print("mkdir ok")
+        return 0
+    }
+    let w = to_win_path(d)
+    let cmd2 = concat("mkdir ", w)
+    let r2 = process_run(cmd2)
+    if r2.0 == 0 {
+        print("mkdir ok")
+    } else {
+        print("mkdir skip")
+    }
+    return 0
+}
+
 fn emit_s1() -> str {
     let mut ir = "declare i32 @printf(ptr, ...)\n"
     ir = concat(ir, "@.fmt.s = private constant [4 x i8] c\"%s\\0A\\00\"\n")
@@ -259,65 +308,176 @@ fn check_one(name: str, ir: str, ll: str, exe: str, want: str) -> i32 {
     let rr = process_run(exe)
     let rc = rr.0
     let oo = trim(rr.1)
-    if rc != 0 {
+    if rc == 0 {
+        if oo == want {
+            print("pass ", name)
+            return 0
+        } else {
+            print("diff ", name)
+            print(oo)
+            print(want)
+            return 1
+        }
+    }
+    let wexe = to_win_path(exe)
+    let rr2 = process_run(wexe)
+    let rc2 = rr2.0
+    let oo2 = trim(rr2.1)
+    if rc2 != 0 {
         print("run fail ", name)
         return 1
     }
-    if oo == want {
+    if oo2 == want {
         print("pass ", name)
         return 0
     } else {
         print("diff ", name)
-        print(oo)
+        print(oo2)
         print(want)
         return 1
     }
 }
 
-fn run_case(n: i32) -> i32 {
+fn run_case(prefix: str, n: i32) -> i32 {
+    let base = concat(prefix, "target/hzir_s")
     if n == 1 {
         let ir = emit_s1()
-        return check_one("s1 hello", ir, "/tmp/hzir_s1.ll", "/tmp/hzir_s1_exe", "hello hzir")
+        let ll = concat(concat(base, "1"), ".ll")
+        let exe = concat(concat(base, "1"), ".exe")
+        return check_one("s1 hello", ir, ll, exe, "hello hzir")
     } elif n == 2 {
         let ir = emit_s2()
-        return check_one("s2 arith", ir, "/tmp/hzir_s2.ll", "/tmp/hzir_s2_exe", "11\n14\n7\n1")
+        let ll = concat(concat(base, "2"), ".ll")
+        let exe = concat(concat(base, "2"), ".exe")
+        return check_one("s2 arith", ir, ll, exe, "11\n14\n7\n1")
     } elif n == 3 {
         let ir = emit_s3()
-        return check_one("s3 shadow", ir, "/tmp/hzir_s3.ll", "/tmp/hzir_s3_exe", "10\n20\n11")
+        let ll = concat(concat(base, "3"), ".ll")
+        let exe = concat(concat(base, "3"), ".exe")
+        return check_one("s3 shadow", ir, ll, exe, "10\n20\n11")
     } elif n == 4 {
         let ir = emit_s4()
-        return check_one("s4 max", ir, "/tmp/hzir_s4.ll", "/tmp/hzir_s4_exe", "20\n50\n7")
+        let ll = concat(concat(base, "4"), ".ll")
+        let exe = concat(concat(base, "4"), ".exe")
+        return check_one("s4 max", ir, ll, exe, "20\n50\n7")
     } elif n == 5 {
         let ir = emit_s5()
-        return check_one("s5 sum", ir, "/tmp/hzir_s5.ll", "/tmp/hzir_s5_exe", "55")
+        let ll = concat(concat(base, "5"), ".ll")
+        let exe = concat(concat(base, "5"), ".exe")
+        return check_one("s5 sum", ir, ll, exe, "55")
     } elif n == 6 {
         let ir = emit_s6()
-        return check_one("s6 fact", ir, "/tmp/hzir_s6.ll", "/tmp/hzir_s6_exe", "120")
+        let ll = concat(concat(base, "6"), ".ll")
+        let exe = concat(concat(base, "6"), ".exe")
+        return check_one("s6 fact", ir, ll, exe, "120")
     } elif n == 7 {
         let ir = emit_s7()
-        return check_one("s7 call", ir, "/tmp/hzir_s7.ll", "/tmp/hzir_s7_exe", "7\n12\n17")
+        let ll = concat(concat(base, "7"), ".ll")
+        let exe = concat(concat(base, "7"), ".exe")
+        return check_one("s7 call", ir, ll, exe, "7\n12\n17")
     } elif n == 8 {
         let ir = emit_s8()
-        return check_one("s8 fib", ir, "/tmp/hzir_s8.ll", "/tmp/hzir_s8_exe", "0\n1\n55")
+        let ll = concat(concat(base, "8"), ".ll")
+        let exe = concat(concat(base, "8"), ".exe")
+        return check_one("s8 fib", ir, ll, exe, "0\n1\n55")
     } else {
         print("bad n ", n)
         return 1
     }
 }
 
+fn run_json_case(prefix: str, n: i32) -> i32 {
+    let jbase = concat(prefix, "json/s")
+    let tbase = concat(prefix, "target/hzir_s")
+    if n == 1 {
+        let jp = concat(concat(jbase, "1_hello"), ".json")
+        if !read_file_ok(jp) {
+            print("missing json s1")
+            return 1
+        }
+        let js = read_file(jp)
+        let ir = jlower_cases::lower_s1_json(js)
+        if ir == "" {
+            print("lower fail s1-json")
+            return 1
+        }
+        let ll = concat(concat(tbase, "1j"), ".ll")
+        let exe = concat(concat(tbase, "1j"), ".exe")
+        return check_one("s1-json hello", ir, ll, exe, "hello hzir")
+    } elif n == 2 {
+        let jp = concat(concat(jbase, "2_arith"), ".json")
+        if !read_file_ok(jp) {
+            print("missing json s2")
+            return 1
+        }
+        let js = read_file(jp)
+        let ir = jlower_cases::lower_s2_json(js)
+        if ir == "" {
+            print("lower fail s2-json")
+            return 1
+        }
+        let ll = concat(concat(tbase, "2j"), ".ll")
+        let exe = concat(concat(tbase, "2j"), ".exe")
+        return check_one("s2-json arith", ir, ll, exe, "11\n14\n7\n1")
+    } elif n == 5 {
+        let jp = concat(concat(jbase, "5_sum"), ".json")
+        if !read_file_ok(jp) {
+            print("missing json s5")
+            return 1
+        }
+        let js = read_file(jp)
+        let ir = jlower_cases::lower_s5_json(js)
+        if ir == "" {
+            print("lower fail s5-json")
+            return 1
+        }
+        let ll = concat(concat(tbase, "5j"), ".ll")
+        let exe = concat(concat(tbase, "5j"), ".exe")
+        return check_one("s5-json sum", ir, ll, exe, "55")
+    } else {
+        print("bad json n ", n)
+        return 1
+    }
+}
+
+fn run_json_all(prefix: str) -> i32 {
+    let mut fails = 0
+    let r1 = run_json_case(prefix, 1)
+    if r1 != 0 {
+        fails = fails + 1
+    }
+    let r2 = run_json_case(prefix, 2)
+    if r2 != 0 {
+        fails = fails + 1
+    }
+    let r5 = run_json_case(prefix, 5)
+    if r5 != 0 {
+        fails = fails + 1
+    }
+    return fails
+}
+
 fn main() -> i32 {
+    let prefix = hz_prefix()
+    let mk = ensure_target(prefix)
+    if mk != 0 {
+        print("mkdir note")
+    }
     let mut n = 1
     let mut fails = 0
     while n <= 8 {
-        let rc = run_case(n)
+        let rc = run_case(prefix, n)
         if rc != 0 {
             fails = fails + 1
         }
         n = n + 1
     }
+    let jf = run_json_all(prefix)
+    fails = fails + jf
     print("fails: ", fails)
     if fails == 0 {
         print("hzir all 8 pass")
+        print("hzir json 3 pass")
         return 0
     } else {
         print("hzir fail")

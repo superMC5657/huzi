@@ -1,0 +1,266 @@
+// jlower core: P4-a JSON text IR lower (P1 subset, s1/s2/s5 only)
+// reads P2-b JSON via concat only; while loops only, no for
+// freeze: i32 arith + str glue, bool flags only in conditions
+fn jl_find(hay: str, needle: str, from: i32) -> i32 {
+    let n = len(hay)
+    let m = len(needle)
+    if m == 0 {
+        return from
+    }
+    if from < 0 {
+        return -1
+    }
+    let mut i = from
+    while i + m <= n {
+        let part = substring(hay, i, i + m)
+        if part == needle {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+fn jl_has(hay: str, needle: str) -> bool {
+    return jl_find(hay, needle, 0) >= 0
+}
+
+fn jl_skip_ws(s: str, p: i32) -> i32 {
+    let n = len(s)
+    let mut i = p
+    while i < n {
+        let c = s[i]
+        if c == 32 {
+            i = i + 1
+        } elif c == 10 {
+            i = i + 1
+        } elif c == 13 {
+            i = i + 1
+        } elif c == 9 {
+            i = i + 1
+        } else {
+            return i
+        }
+    }
+    return i
+}
+
+fn jl_expect(s: str, p: i32, lit: str) -> (bool, i32) {
+    let q = jl_skip_ws(s, p)
+    let m = len(lit)
+    let n = len(s)
+    if q + m > n {
+        return (false, p)
+    }
+    let part = substring(s, q, q + m)
+    if part == lit {
+        return (true, q + m)
+    }
+    return (false, p)
+}
+
+fn jl_parse_jstr(s: str, p: i32) -> (bool, str, i32) {
+    let n = len(s)
+    let q = jl_skip_ws(s, p)
+    if q >= n {
+        return (false, "", p)
+    }
+    if s[q] != 34 {
+        return (false, "", p)
+    }
+    let mut res = ""
+    let mut i = q + 1
+    while i < n {
+        let c = s[i]
+        if c == 34 {
+            return (true, res, i + 1)
+        } elif c == 92 {
+            if i + 1 >= n {
+                return (false, "", p)
+            }
+            let e = s[i + 1]
+            if e == 34 {
+                res = concat(res, "\"")
+                i = i + 2
+            } elif e == 92 {
+                res = concat(res, "\\")
+                i = i + 2
+            } elif e == 110 {
+                res = concat(res, "\n")
+                i = i + 2
+            } elif e == 114 {
+                res = concat(res, "\r")
+                i = i + 2
+            } elif e == 116 {
+                res = concat(res, "\t")
+                i = i + 2
+            } else {
+                return (false, "", p)
+            }
+        } else {
+            res = concat(res, substring(s, i, i + 1))
+            i = i + 1
+        }
+    }
+    return (false, "", p)
+}
+
+fn jl_parse_jnum(s: str, p: i32) -> (bool, i32, i32) {
+    let q = jl_skip_ws(s, p)
+    let n = len(s)
+    if q >= n {
+        return (false, 0, p)
+    }
+    let mut i = q
+    if s[i] == 45 {
+        i = i + 1
+    }
+    let dig = i
+    while i < n {
+        let c = s[i]
+        if c >= 48 && c <= 57 {
+            i = i + 1
+        } else {
+            break
+        }
+    }
+    if i == dig {
+        return (false, 0, p)
+    }
+    let numstr = substring(s, q, i)
+    let pr = parse_int(numstr)
+    if !pr.0 {
+        return (false, 0, p)
+    }
+    return (true, pr.1, i)
+}
+
+fn jl_op_mnemonic(op: str) -> str {
+    if op == "+" {
+        return "add"
+    } elif op == "-" {
+        return "sub"
+    } elif op == "*" {
+        return "mul"
+    } elif op == "/" {
+        return "sdiv"
+    } elif op == "%" {
+        return "srem"
+    } else {
+        return ""
+    }
+}
+
+fn jl_cmp_mnemonic(op: str) -> str {
+    if op == ">" {
+        return "sgt"
+    } elif op == "<" {
+        return "slt"
+    } elif op == ">=" {
+        return "sge"
+    } elif op == "<=" {
+        return "sle"
+    } elif op == "==" {
+        return "eq"
+    } elif op == "!=" {
+        return "ne"
+    } else {
+        return ""
+    }
+}
+
+fn jl_format_bin(lop: str, rop: str, mn: str, cur: i32) -> (str, str) {
+    let line1 = concat("  %t", to_string(cur))
+    let line2 = concat(line1, " = ")
+    let line3 = concat(line2, mn)
+    let line4 = concat(line3, " i32 ")
+    let line5 = concat(line4, lop)
+    let line6 = concat(line5, ", ")
+    let line7 = concat(line6, rop)
+    let line8 = concat(line7, "\n")
+    let res = concat("%t", to_string(cur))
+    return (line8, res)
+}
+
+fn jl_emit_arith(s: str, p: i32, tmp: i32) -> (bool, str, str, i32, i32) {
+    let mut q = jl_skip_ws(s, p)
+    let e1 = jl_expect(s, q, "{")
+    if !e1.0 {
+        return (false, "", "", tmp, p)
+    }
+    q = e1.1
+    let e2 = jl_expect(s, q, "\"kind\":")
+    if !e2.0 {
+        return (false, "", "", tmp, p)
+    }
+    q = e2.1
+    let k = jl_parse_jstr(s, q)
+    if !k.0 {
+        return (false, "", "", tmp, p)
+    }
+    let kind = k.1
+    q = k.2
+    if kind == "num" {
+        return jl_emit_num(s, q, tmp, p)
+    } elif kind == "bin" {
+        return jl_emit_bin(s, q, tmp, p)
+    } else {
+        return (false, "", "", tmp, p)
+    }
+}
+
+fn jl_emit_num(s: str, q: i32, tmp: i32, p: i32) -> (bool, str, str, i32, i32) {
+    let e3 = jl_expect(s, q, ",\"value\":")
+    if !e3.0 {
+        return (false, "", "", tmp, p)
+    }
+    let v = jl_parse_jnum(s, e3.1)
+    if !v.0 {
+        return (false, "", "", tmp, p)
+    }
+    let e4 = jl_expect(s, v.2, "}")
+    if !e4.0 {
+        return (false, "", "", tmp, p)
+    }
+    return (true, "", to_string(v.1), tmp, e4.1)
+}
+
+fn jl_emit_bin(s: str, q: i32, tmp: i32, p: i32) -> (bool, str, str, i32, i32) {
+    let e5 = jl_expect(s, q, ",\"op\":")
+    if !e5.0 {
+        return (false, "", "", tmp, p)
+    }
+    let o = jl_parse_jstr(s, e5.1)
+    if !o.0 {
+        return (false, "", "", tmp, p)
+    }
+    let mn = jl_op_mnemonic(o.1)
+    if mn == "" {
+        return (false, "", "", tmp, p)
+    }
+    let e6 = jl_expect(s, o.2, ",\"left\":")
+    if !e6.0 {
+        return (false, "", "", tmp, p)
+    }
+    let l = jl_emit_arith(s, e6.1, tmp)
+    if !l.0 {
+        return (false, "", "", tmp, p)
+    }
+    let e7 = jl_expect(s, l.4, ",\"right\":")
+    if !e7.0 {
+        return (false, "", "", tmp, p)
+    }
+    let r = jl_emit_arith(s, e7.1, l.3)
+    if !r.0 {
+        return (false, "", "", tmp, p)
+    }
+    let e8 = jl_expect(s, r.4, "}")
+    if !e8.0 {
+        return (false, "", "", tmp, p)
+    }
+    let fl = jl_format_bin(l.2, r.2, mn, r.3)
+    let mut ir = l.1
+    ir = concat(ir, r.1)
+    ir = concat(ir, fl.0)
+    return (true, ir, fl.1, r.3 + 1, e8.1)
+}

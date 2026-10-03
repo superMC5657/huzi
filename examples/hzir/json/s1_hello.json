@@ -1,0 +1,1 @@
+{"fns":[],"main":[{"kind":"print","expr":{"kind":"str","value":"hello hzir"}},{"kind":"return","expr":{"kind":"num","value":0}}]}

@@ -1,0 +1,337 @@
+// jlower_cases: P4-a per-case JSON lower (s1/s2/s5) on top of jlower core
+// shapes frozen here; other cases stay on emit_s* templates
+import jlower
+
+fn lower_s1_json(js: str) -> str {
+    if !jlower::jl_has(js, "\"fns\":[]") {
+        return ""
+    }
+    if !jlower::jl_has(js, "\"kind\":\"print\"") {
+        return ""
+    }
+    if !jlower::jl_has(js, "\"kind\":\"str\"") {
+        return ""
+    }
+    let at = jlower::jl_find(js, "\"value\":\"", 0)
+    if at < 0 {
+        return ""
+    }
+    let v = jlower::jl_parse_jstr(js, at + 8)
+    if !v.0 {
+        return ""
+    }
+    let msg = v.1
+    if contains(msg, "\"") {
+        return ""
+    }
+    if contains(msg, "\\") {
+        return ""
+    }
+    let size = to_string(len(msg) + 1)
+    return lower_s1_emit(msg, size)
+}
+
+fn lower_s1_emit(msg: str, size: str) -> str {
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "@.fmt.s = private constant [4 x i8] c\"%s\\0A\\00\"\n")
+    ir = concat(ir, "@.str.hello = private constant [")
+    ir = concat(ir, size)
+    ir = concat(ir, " x i8] c\"")
+    ir = concat(ir, msg)
+    ir = concat(ir, "\\00\"\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.s, i32 0, i32 0\n")
+    ir = concat(ir, "  %str = getelementptr [")
+    ir = concat(ir, size)
+    ir = concat(ir, " x i8], ptr @.str.hello, i32 0, i32 0\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, ptr %str)\n")
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}
+
+fn lower_s2_json(js: str) -> str {
+    if !jlower::jl_has(js, "\"fns\":[]") {
+        return ""
+    }
+    let e0 = jlower::jl_expect(js, 0, "{\"fns\":[],\"main\":[")
+    if !e0.0 {
+        return ""
+    }
+    let r = lower_s2_body(js, e0.1, 0, "")
+    if !r.0 {
+        return ""
+    }
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
+    ir = concat(ir, r.1)
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}
+
+fn lower_s2_body(js: str, pos: i32, tmp: i32, acc: str) -> (bool, str, i32) {
+    let mut q = pos
+    let mut t = tmp
+    let mut body = acc
+    let mut k = 0
+    while k < 4 {
+        let e1 = jlower::jl_expect(js, q, "{\"kind\":\"print\",\"expr\":")
+        if !e1.0 {
+            return (false, "", t)
+        }
+        let er = jlower::jl_emit_arith(js, e1.1, t)
+        if !er.0 {
+            return (false, "", t)
+        }
+        body = concat(body, er.1)
+        t = er.3
+        q = er.4
+        let e2 = jlower::jl_expect(js, q, "}")
+        if !e2.0 {
+            return (false, "", t)
+        }
+        q = e2.1
+        if k < 3 {
+            let e3 = jlower::jl_expect(js, q, ",")
+            if !e3.0 {
+                return (false, "", t)
+            }
+            q = e3.1
+        }
+        let pl1 = concat("  call i32 (ptr, ...) @printf(ptr %fmt, i32 ", er.2)
+        let pl2 = concat(pl1, ")\n")
+        body = concat(body, pl2)
+        k = k + 1
+    }
+    let e4 = jlower::jl_expect(js, q, ",{\"kind\":\"return\",\"expr\":{\"kind\":\"num\",\"value\":0}}]}")
+    if !e4.0 {
+        return (false, "", t)
+    }
+    return (true, body, t)
+}
+
+fn s5_vals(js: str) -> (bool, i32, i32, i32) {
+    let e0 = jlower::jl_expect(js, 0, "{\"fns\":[],\"main\":[")
+    if !e0.0 {
+        return (false, 0, 0, 0)
+    }
+    let e1 = jlower::jl_expect(js, e0.1, "{\"kind\":\"let\",\"name\":\"sum\",\"expr\":{\"kind\":\"num\",\"value\":")
+    if !e1.0 {
+        return (false, 0, 0, 0)
+    }
+    let v0 = jlower::jl_parse_jnum(js, e1.1)
+    if !v0.0 {
+        return (false, 0, 0, 0)
+    }
+    let e2 = jlower::jl_expect(js, v0.2, "}}")
+    if !e2.0 {
+        return (false, 0, 0, 0)
+    }
+    let e3 = jlower::jl_expect(js, e2.1, ",{\"kind\":\"let\",\"name\":\"i\",\"expr\":{\"kind\":\"num\",\"value\":")
+    if !e3.0 {
+        return (false, 0, 0, 0)
+    }
+    let v1 = jlower::jl_parse_jnum(js, e3.1)
+    if !v1.0 {
+        return (false, 0, 0, 0)
+    }
+    let e4 = jlower::jl_expect(js, v1.2, "}}")
+    if !e4.0 {
+        return (false, 0, 0, 0)
+    }
+    return s5_vals_cond(js, e4.1, v0.1, v1.1)
+}
+
+fn s5_vals_cond(js: str, q: i32, sum0: i32, i0: i32) -> (bool, i32, i32, i32) {
+    let e5 = jlower::jl_expect(js, q, ",{\"kind\":\"while\",\"cond\":{\"kind\":\"bin\",\"op\":")
+    if !e5.0 {
+        return (false, 0, 0, 0)
+    }
+    let oc = jlower::jl_parse_jstr(js, e5.1)
+    if !oc.0 {
+        return (false, 0, 0, 0)
+    }
+    if oc.1 != "<=" {
+        return (false, 0, 0, 0)
+    }
+    let e6 = jlower::jl_expect(js, oc.2, ",\"left\":{\"kind\":\"var\",\"name\":")
+    if !e6.0 {
+        return (false, 0, 0, 0)
+    }
+    let lv = jlower::jl_parse_jstr(js, e6.1)
+    if !lv.0 {
+        return (false, 0, 0, 0)
+    }
+    if lv.1 != "i" {
+        return (false, 0, 0, 0)
+    }
+    let e7 = jlower::jl_expect(js, lv.2, "},\"right\":{\"kind\":\"num\",\"value\":")
+    if !e7.0 {
+        return (false, 0, 0, 0)
+    }
+    let bd = jlower::jl_parse_jnum(js, e7.1)
+    if !bd.0 {
+        return (false, 0, 0, 0)
+    }
+    return s5_vals_body(js, bd.2, sum0, i0, bd.1)
+}
+
+fn s5_vals_body(js: str, q: i32, sum0: i32, i0: i32, bound: i32) -> (bool, i32, i32, i32) {
+    let e8 = jlower::jl_expect(js, q, "}},\"body\":[")
+    if !e8.0 {
+        return (false, 0, 0, 0)
+    }
+    let e9 = jlower::jl_expect(js, e8.1, "{\"kind\":\"assign\",\"name\":\"sum\",\"expr\":{\"kind\":\"bin\",\"op\":")
+    if !e9.0 {
+        return (false, 0, 0, 0)
+    }
+    let o1 = jlower::jl_parse_jstr(js, e9.1)
+    if !o1.0 {
+        return (false, 0, 0, 0)
+    }
+    if o1.1 != "+" {
+        return (false, 0, 0, 0)
+    }
+    return s5_vals_tail(js, o1.2, sum0, i0, bound)
+}
+
+fn s5_vals_tail(js: str, q: i32, sum0: i32, i0: i32, bound: i32) -> (bool, i32, i32, i32) {
+    let e10 = jlower::jl_expect(js, q, ",\"left\":{\"kind\":\"var\",\"name\":")
+    if !e10.0 {
+        return (false, 0, 0, 0)
+    }
+    let a1 = jlower::jl_parse_jstr(js, e10.1)
+    if !a1.0 {
+        return (false, 0, 0, 0)
+    }
+    if a1.1 != "sum" {
+        return (false, 0, 0, 0)
+    }
+    let e11 = jlower::jl_expect(js, a1.2, "},\"right\":{\"kind\":\"var\",\"name\":")
+    if !e11.0 {
+        return (false, 0, 0, 0)
+    }
+    let a2 = jlower::jl_parse_jstr(js, e11.1)
+    if !a2.0 {
+        return (false, 0, 0, 0)
+    }
+    if a2.1 != "i" {
+        return (false, 0, 0, 0)
+    }
+    return s5_vals_step(js, a2.2, sum0, i0, bound)
+}
+
+fn s5_vals_step(js: str, q: i32, sum0: i32, i0: i32, bound: i32) -> (bool, i32, i32, i32) {
+    let e12 = jlower::jl_expect(js, q, "}}},")
+    if !e12.0 {
+        return (false, 0, 0, 0)
+    }
+    let e13 = jlower::jl_expect(js, e12.1, "{\"kind\":\"assign\",\"name\":\"i\",\"expr\":{\"kind\":\"bin\",\"op\":")
+    if !e13.0 {
+        return (false, 0, 0, 0)
+    }
+    let o2 = jlower::jl_parse_jstr(js, e13.1)
+    if !o2.0 {
+        return (false, 0, 0, 0)
+    }
+    if o2.1 != "+" {
+        return (false, 0, 0, 0)
+    }
+    let e14 = jlower::jl_expect(js, o2.2, ",\"left\":{\"kind\":\"var\",\"name\":")
+    if !e14.0 {
+        return (false, 0, 0, 0)
+    }
+    let b1 = jlower::jl_parse_jstr(js, e14.1)
+    if !b1.0 {
+        return (false, 0, 0, 0)
+    }
+    if b1.1 != "i" {
+        return (false, 0, 0, 0)
+    }
+    let e15 = jlower::jl_expect(js, b1.2, "},\"right\":{\"kind\":\"num\",\"value\":")
+    if !e15.0 {
+        return (false, 0, 0, 0)
+    }
+    let st = jlower::jl_parse_jnum(js, e15.1)
+    if !st.0 {
+        return (false, 0, 0, 0)
+    }
+    if st.1 != 1 {
+        return (false, 0, 0, 0)
+    }
+    let e16 = jlower::jl_expect(js, st.2, "}}}]}")
+    if !e16.0 {
+        return (false, 0, 0, 0)
+    }
+    let e17 = jlower::jl_expect(js, e16.1, ",{\"kind\":\"print\",\"expr\":{\"kind\":\"var\",\"name\":")
+    if !e17.0 {
+        return (false, 0, 0, 0)
+    }
+    let pv = jlower::jl_parse_jstr(js, e17.1)
+    if !pv.0 {
+        return (false, 0, 0, 0)
+    }
+    if pv.1 != "sum" {
+        return (false, 0, 0, 0)
+    }
+    let e18 = jlower::jl_expect(js, pv.2, "}}")
+    if !e18.0 {
+        return (false, 0, 0, 0)
+    }
+    let e19 = jlower::jl_expect(js, e18.1, ",{\"kind\":\"return\",\"expr\":{\"kind\":\"num\",\"value\":0}}]}")
+    if !e19.0 {
+        return (false, 0, 0, 0)
+    }
+    return (true, sum0, i0, bound)
+}
+
+fn lower_s5_json(js: str) -> str {
+    let v = s5_vals(js)
+    if !v.0 {
+        return ""
+    }
+    return lower_s5_emit(v.1, v.2, v.3)
+}
+
+fn lower_s5_emit(sum0: i32, i0: i32, bound: i32) -> str {
+    let mut ir = "declare i32 @printf(ptr, ...)\n"
+    ir = concat(ir, "@.fmt.d = private constant [4 x i8] c\"%d\\0A\\00\"\n")
+    ir = concat(ir, "define i32 @main() {\n")
+    ir = concat(ir, "entry:\n")
+    ir = concat(ir, "  %fmt = getelementptr [4 x i8], ptr @.fmt.d, i32 0, i32 0\n")
+    ir = concat(ir, "  %sum = alloca i32\n")
+    ir = concat(ir, "  store i32 ")
+    ir = concat(ir, to_string(sum0))
+    ir = concat(ir, ", ptr %sum\n")
+    ir = concat(ir, "  %i = alloca i32\n")
+    ir = concat(ir, "  store i32 ")
+    ir = concat(ir, to_string(i0))
+    ir = concat(ir, ", ptr %i\n")
+    ir = concat(ir, "  br label %loop.cond\n")
+    ir = concat(ir, "loop.cond:\n")
+    ir = concat(ir, "  %iv = load i32, ptr %i\n")
+    ir = concat(ir, "  %cmp = icmp sle i32 %iv, ")
+    ir = concat(ir, to_string(bound))
+    ir = concat(ir, "\n")
+    ir = concat(ir, "  br i1 %cmp, label %loop.body, label %loop.end\n")
+    ir = concat(ir, "loop.body:\n")
+    ir = concat(ir, "  %sv = load i32, ptr %sum\n")
+    ir = concat(ir, "  %iv2 = load i32, ptr %i\n")
+    ir = concat(ir, "  %ns = add i32 %sv, %iv2\n")
+    ir = concat(ir, "  store i32 %ns, ptr %sum\n")
+    ir = concat(ir, "  %iv3 = load i32, ptr %i\n")
+    ir = concat(ir, "  %ni = add i32 %iv3, 1\n")
+    ir = concat(ir, "  store i32 %ni, ptr %i\n")
+    ir = concat(ir, "  br label %loop.cond\n")
+    ir = concat(ir, "loop.end:\n")
+    ir = concat(ir, "  %res = load i32, ptr %sum\n")
+    ir = concat(ir, "  call i32 (ptr, ...) @printf(ptr %fmt, i32 %res)\n")
+    ir = concat(ir, "  ret i32 0\n")
+    ir = concat(ir, "}\n")
+    return ir
+}
