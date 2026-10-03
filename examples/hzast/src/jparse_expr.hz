@@ -1,0 +1,230 @@
+# jparse_expr —— Canonical JSON Expr 逆解析（仅 Expr7，对标 json.hz expr_to_json）。
+# 超集 kind/op 返回 false，由上层 panic 非零退出；不扩变体数量。
+import ast
+import jparse_base
+
+fn j_parse_expr_num_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "value") {
+        return (false, ast::expr_num(0))
+    }
+    let nr = jparse_base::j_parse_int(s, pos)
+    if !nr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_num(nr.1))
+}
+
+fn j_parse_expr_bool_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "value") {
+        return (false, ast::expr_num(0))
+    }
+    let br = jparse_base::j_parse_bool_val(s, pos)
+    if !br.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_bool(br.1))
+}
+
+fn j_parse_expr_str_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "value") {
+        return (false, ast::expr_num(0))
+    }
+    let sr = jparse_base::j_parse_string(s, pos)
+    if !sr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_str(sr.1))
+}
+
+fn j_parse_expr_var_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, ast::expr_num(0))
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_var(nr.1))
+}
+
+fn j_parse_expr_bin_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "op") {
+        return (false, ast::expr_num(0))
+    }
+    let opr = jparse_base::j_parse_string(s, pos)
+    if !opr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_is_bin_op(opr.1) {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "left") {
+        return (false, ast::expr_num(0))
+    }
+    let lr = j_parse_expr(s, pos)
+    if !lr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "right") {
+        return (false, ast::expr_num(0))
+    }
+    let rr = j_parse_expr(s, pos)
+    if !rr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_bin(opr.1, lr.1, rr.1))
+}
+
+fn j_parse_expr_un_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "op") {
+        return (false, ast::expr_num(0))
+    }
+    let opr = jparse_base::j_parse_string(s, pos)
+    if !opr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_is_un_op(opr.1) {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "operand") {
+        return (false, ast::expr_num(0))
+    }
+    let or = j_parse_expr(s, pos)
+    if !or.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_un(opr.1, or.1))
+}
+
+fn j_parse_expr_call_rest(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, ast::expr_num(0))
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "args") {
+        return (false, ast::expr_num(0))
+    }
+    let ar = j_parse_expr_array(s, pos)
+    if !ar.0 {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, ast::expr_num(0))
+    }
+    return (true, ast::expr_call(nr.1, ar.1))
+}
+
+fn j_parse_expr_array(s: str, pos: vec<i32>) -> (bool, vec<Expr>) {
+    if !jparse_base::j_expect(s, pos, "[") {
+        return (false, vec<Expr>())
+    }
+    let mut out = vec<Expr>()
+    if jparse_base::j_expect(s, pos, "]") {
+        return (true, out)
+    }
+    let e0 = j_parse_expr(s, pos)
+    if !e0.0 {
+        return (false, vec<Expr>())
+    }
+    push(out, e0.1)
+    while jparse_base::j_expect(s, pos, ",") {
+        let e = j_parse_expr(s, pos)
+        if !e.0 {
+            return (false, vec<Expr>())
+        }
+        push(out, e.1)
+    }
+    if !jparse_base::j_expect(s, pos, "]") {
+        return (false, vec<Expr>())
+    }
+    return (true, out)
+}
+
+fn j_parse_expr(s: str, pos: vec<i32>) -> (bool, Expr) {
+    if !jparse_base::j_expect(s, pos, "{") {
+        return (false, ast::expr_num(0))
+    }
+    if !jparse_base::j_expect_key(s, pos, "kind") {
+        return (false, ast::expr_num(0))
+    }
+    let kr = jparse_base::j_parse_string(s, pos)
+    if !kr.0 {
+        return (false, ast::expr_num(0))
+    }
+    if kr.1 == "num" {
+        return j_parse_expr_num_rest(s, pos)
+    }
+    if kr.1 == "bool" {
+        return j_parse_expr_bool_rest(s, pos)
+    }
+    if kr.1 == "str" {
+        return j_parse_expr_str_rest(s, pos)
+    }
+    if kr.1 == "var" {
+        return j_parse_expr_var_rest(s, pos)
+    }
+    if kr.1 == "bin" {
+        return j_parse_expr_bin_rest(s, pos)
+    }
+    if kr.1 == "un" {
+        return j_parse_expr_un_rest(s, pos)
+    }
+    if kr.1 == "call" {
+        return j_parse_expr_call_rest(s, pos)
+    }
+    return (false, ast::expr_num(0))
+}

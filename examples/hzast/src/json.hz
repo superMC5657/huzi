@@ -2,7 +2,6 @@ import ast
 
 # M1-C JSON 子集 v1：canonical 紧凑 JSON（见 ../RFC.md）。
 # 转义仅 5 种（"/\/n/r/t），与 std.jsonq::escape_json_str 同口径；Box 透明、Span 丢弃。
-
 fn json_escape(s: str) -> str {
     let n = len(s)
     let mut res = ""

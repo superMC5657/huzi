@@ -1,0 +1,225 @@
+# jparse_base —— JSON 文本游标原语（供 jparse_expr / jparse_prog 复用）。
+# 与 hzast json.hz 同 5 种转义逆操作；只做 P1 子集逆解析，超集返回 false 由上层 panic。
+# 游标为 vec<i32> 单元素（pos[0]），与 hzparse cursor 同模式，跨调用共享堆缓冲。
+fn j_is_ws(ch: str) -> bool {
+    if ch == " " {
+        return true
+    }
+    if ch == "\t" {
+        return true
+    }
+    if ch == "\n" {
+        return true
+    }
+    if ch == "\r" {
+        return true
+    }
+    return false
+}
+
+fn j_skip(s: str, pos: vec<i32>) -> i32 {
+    let n = len(s)
+    let mut i = pos[0]
+    while i < n {
+        let ch = substring(s, i, i + 1)
+        if j_is_ws(ch) {
+            i = i + 1
+        } else {
+            break
+        }
+    }
+    pos[0] = i
+    return i
+}
+
+fn j_expect(s: str, pos: vec<i32>, ch: str) -> bool {
+    j_skip(s, pos)
+    let n = len(s)
+    if pos[0] >= n {
+        return false
+    }
+    if substring(s, pos[0], pos[0] + 1) != ch {
+        return false
+    }
+    pos[0] = pos[0] + 1
+    return true
+}
+
+fn j_expect_lit(s: str, pos: vec<i32>, lit: str) -> bool {
+    j_skip(s, pos)
+    let n = len(s)
+    let m = len(lit)
+    if pos[0] + m > n {
+        return false
+    }
+    if substring(s, pos[0], pos[0] + m) != lit {
+        return false
+    }
+    pos[0] = pos[0] + m
+    return true
+}
+
+fn j_parse_string(s: str, pos: vec<i32>) -> (bool, str) {
+    j_skip(s, pos)
+    let n = len(s)
+    if pos[0] >= n {
+        return (false, "")
+    }
+    if substring(s, pos[0], pos[0] + 1) != "\"" {
+        return (false, "")
+    }
+    pos[0] = pos[0] + 1
+    let mut res = ""
+    while pos[0] < n {
+        let ch = substring(s, pos[0], pos[0] + 1)
+        if ch == "\"" {
+            pos[0] = pos[0] + 1
+            return (true, res)
+        } elif ch == "\\" {
+            if pos[0] + 1 >= n {
+                return (false, "")
+            }
+            let esc = substring(s, pos[0] + 1, pos[0] + 2)
+            if esc == "\"" {
+                res = concat(res, "\"")
+            } elif esc == "\\" {
+                res = concat(res, "\\")
+            } elif esc == "n" {
+                res = concat(res, "\n")
+            } elif esc == "r" {
+                res = concat(res, "\r")
+            } elif esc == "t" {
+                res = concat(res, "\t")
+            } else {
+                return (false, "")
+            }
+            pos[0] = pos[0] + 2
+        } else {
+            if ch == "\n" {
+                return (false, "")
+            }
+            if ch == "\r" {
+                return (false, "")
+            }
+            res = concat(res, ch)
+            pos[0] = pos[0] + 1
+        }
+    }
+    return (false, "")
+}
+
+fn j_parse_int(s: str, pos: vec<i32>) -> (bool, i32) {
+    j_skip(s, pos)
+    let n = len(s)
+    if pos[0] >= n {
+        return (false, 0)
+    }
+    let mut j = pos[0]
+    if s[j] == 45 {
+        j = j + 1
+        if j >= n {
+            return (false, 0)
+        }
+    }
+    let start = j
+    while j < n && s[j] >= 48 && s[j] <= 57 {
+        j = j + 1
+    }
+    if j == start {
+        return (false, 0)
+    }
+    if j < n && (s[j] == 46 || s[j] == 101 || s[j] == 69) {
+        return (false, 0)
+    }
+    let tok = substring(s, pos[0], j)
+    let pr = parse_int(tok)
+    if !pr.0 {
+        return (false, 0)
+    }
+    pos[0] = j
+    return (true, pr.1)
+}
+
+fn j_parse_bool_val(s: str, pos: vec<i32>) -> (bool, bool) {
+    j_skip(s, pos)
+    let n = len(s)
+    if pos[0] + 4 <= n && substring(s, pos[0], pos[0] + 4) == "true" {
+        pos[0] = pos[0] + 4
+        return (true, true)
+    }
+    if pos[0] + 5 <= n && substring(s, pos[0], pos[0] + 5) == "false" {
+        pos[0] = pos[0] + 5
+        return (true, false)
+    }
+    return (false, false)
+}
+
+fn j_expect_key(s: str, pos: vec<i32>, key: str) -> bool {
+    let kr = j_parse_string(s, pos)
+    if !kr.0 {
+        return false
+    }
+    if kr.1 != key {
+        return false
+    }
+    if !j_expect(s, pos, ":") {
+        return false
+    }
+    return true
+}
+
+fn j_is_bin_op(op: str) -> bool {
+    if op == "+" {
+        return true
+    }
+    if op == "-" {
+        return true
+    }
+    if op == "*" {
+        return true
+    }
+    if op == "/" {
+        return true
+    }
+    if op == "%" {
+        return true
+    }
+    if op == "==" {
+        return true
+    }
+    if op == "!=" {
+        return true
+    }
+    if op == "<" {
+        return true
+    }
+    if op == "<=" {
+        return true
+    }
+    if op == ">" {
+        return true
+    }
+    if op == ">=" {
+        return true
+    }
+    if op == "&&" {
+        return true
+    }
+    if op == "||" {
+        return true
+    }
+    return false
+}
+
+fn j_is_un_op(op: str) -> bool {
+    if op == "-" {
+        return true
+    }
+    if op == "!" {
+        return true
+    }
+    if op == "*" {
+        return true
+    }
+    return false
+}

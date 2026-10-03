@@ -1,0 +1,345 @@
+# jparse_prog —— Canonical JSON Stmt/Fn/Program 逆解析（仅 Stmt7，对标 json.hz）。
+# 超集 kind 返回 false，由上层 panic 非零退出；Type0 无字段不校验；不扩变体数量。
+import ast
+import jparse_base
+import jparse_expr
+
+fn j_parse_str_array(s: str, pos: vec<i32>) -> (bool, vec<str>) {
+    if !jparse_base::j_expect(s, pos, "[") {
+        return (false, vec<str>())
+    }
+    let mut out = vec<str>()
+    if jparse_base::j_expect(s, pos, "]") {
+        return (true, out)
+    }
+    let e0 = jparse_base::j_parse_string(s, pos)
+    if !e0.0 {
+        return (false, vec<str>())
+    }
+    push(out, e0.1)
+    while jparse_base::j_expect(s, pos, ",") {
+        let e = jparse_base::j_parse_string(s, pos)
+        if !e.0 {
+            return (false, vec<str>())
+        }
+        push(out, e.1)
+    }
+    if !jparse_base::j_expect(s, pos, "]") {
+        return (false, vec<str>())
+    }
+    return (true, out)
+}
+
+fn j_parse_stmt_let_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+    let dummy = ast::stmt_expr(ast::expr_num(0))
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, dummy)
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "expr") {
+        return (false, dummy)
+    }
+    let er = jparse_expr::j_parse_expr(s, pos)
+    if !er.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    return (true, ast::stmt_let(nr.1, er.1))
+}
+
+fn j_parse_stmt_assign_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+    let dummy = ast::stmt_expr(ast::expr_num(0))
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, dummy)
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "expr") {
+        return (false, dummy)
+    }
+    let er = jparse_expr::j_parse_expr(s, pos)
+    if !er.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    return (true, ast::stmt_assign(nr.1, er.1))
+}
+
+fn j_parse_stmt_if_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+    let dummy = ast::stmt_expr(ast::expr_num(0))
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "cond") {
+        return (false, dummy)
+    }
+    let cr = jparse_expr::j_parse_expr(s, pos)
+    if !cr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "then") {
+        return (false, dummy)
+    }
+    let tr = j_parse_stmt_array(s, pos)
+    if !tr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "else") {
+        return (false, dummy)
+    }
+    let er = j_parse_stmt_array(s, pos)
+    if !er.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    return (true, ast::stmt_if(cr.1, tr.1, er.1))
+}
+
+fn j_parse_stmt_while_rest(s: str, pos: vec<i32>) -> (bool, Stmt) {
+    let dummy = ast::stmt_expr(ast::expr_num(0))
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "cond") {
+        return (false, dummy)
+    }
+    let cr = jparse_expr::j_parse_expr(s, pos)
+    if !cr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "body") {
+        return (false, dummy)
+    }
+    let br = j_parse_stmt_array(s, pos)
+    if !br.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    return (true, ast::stmt_while(cr.1, br.1))
+}
+
+fn j_parse_stmt_single_expr_rest(s: str, pos: vec<i32>, kind: str) -> (bool, Stmt) {
+    let dummy = ast::stmt_expr(ast::expr_num(0))
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "expr") {
+        return (false, dummy)
+    }
+    let er = jparse_expr::j_parse_expr(s, pos)
+    if !er.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    if kind == "return" {
+        return (true, ast::stmt_return(er.1))
+    }
+    if kind == "print" {
+        return (true, ast::stmt_print(er.1))
+    }
+    return (true, ast::stmt_expr(er.1))
+}
+
+fn j_parse_stmt_array(s: str, pos: vec<i32>) -> (bool, vec<Stmt>) {
+    if !jparse_base::j_expect(s, pos, "[") {
+        return (false, vec<Stmt>())
+    }
+    let mut out = vec<Stmt>()
+    if jparse_base::j_expect(s, pos, "]") {
+        return (true, out)
+    }
+    let e0 = j_parse_stmt(s, pos)
+    if !e0.0 {
+        return (false, vec<Stmt>())
+    }
+    push(out, e0.1)
+    while jparse_base::j_expect(s, pos, ",") {
+        let e = j_parse_stmt(s, pos)
+        if !e.0 {
+            return (false, vec<Stmt>())
+        }
+        push(out, e.1)
+    }
+    if !jparse_base::j_expect(s, pos, "]") {
+        return (false, vec<Stmt>())
+    }
+    return (true, out)
+}
+
+fn j_parse_stmt(s: str, pos: vec<i32>) -> (bool, Stmt) {
+    let dummy = ast::stmt_expr(ast::expr_num(0))
+    if !jparse_base::j_expect(s, pos, "{") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "kind") {
+        return (false, dummy)
+    }
+    let kr = jparse_base::j_parse_string(s, pos)
+    if !kr.0 {
+        return (false, dummy)
+    }
+    if kr.1 == "let" {
+        return j_parse_stmt_let_rest(s, pos)
+    }
+    if kr.1 == "assign" {
+        return j_parse_stmt_assign_rest(s, pos)
+    }
+    if kr.1 == "if" {
+        return j_parse_stmt_if_rest(s, pos)
+    }
+    if kr.1 == "while" {
+        return j_parse_stmt_while_rest(s, pos)
+    }
+    if kr.1 == "return" {
+        return j_parse_stmt_single_expr_rest(s, pos, "return")
+    }
+    if kr.1 == "print" {
+        return j_parse_stmt_single_expr_rest(s, pos, "print")
+    }
+    if kr.1 == "expr" {
+        return j_parse_stmt_single_expr_rest(s, pos, "expr")
+    }
+    return (false, dummy)
+}
+
+fn j_parse_fn(s: str, pos: vec<i32>) -> (bool, FnDef) {
+    let dummy = ast::fn_def("", vec<str>(), vec<Stmt>())
+    if !jparse_base::j_expect(s, pos, "{") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "name") {
+        return (false, dummy)
+    }
+    let nr = jparse_base::j_parse_string(s, pos)
+    if !nr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "params") {
+        return (false, dummy)
+    }
+    let pr = j_parse_str_array(s, pos)
+    if !pr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "body") {
+        return (false, dummy)
+    }
+    let br = j_parse_stmt_array(s, pos)
+    if !br.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    return (true, ast::fn_def(nr.1, pr.1, br.1))
+}
+
+fn j_parse_fn_array(s: str, pos: vec<i32>) -> (bool, vec<FnDef>) {
+    if !jparse_base::j_expect(s, pos, "[") {
+        return (false, vec<FnDef>())
+    }
+    let mut out = vec<FnDef>()
+    if jparse_base::j_expect(s, pos, "]") {
+        return (true, out)
+    }
+    let e0 = j_parse_fn(s, pos)
+    if !e0.0 {
+        return (false, vec<FnDef>())
+    }
+    push(out, e0.1)
+    while jparse_base::j_expect(s, pos, ",") {
+        let e = j_parse_fn(s, pos)
+        if !e.0 {
+            return (false, vec<FnDef>())
+        }
+        push(out, e.1)
+    }
+    if !jparse_base::j_expect(s, pos, "]") {
+        return (false, vec<FnDef>())
+    }
+    return (true, out)
+}
+
+fn j_parse_program(s: str, pos: vec<i32>) -> (bool, Program) {
+    let dummy = ast::program_new(vec<FnDef>(), vec<Stmt>())
+    if !jparse_base::j_expect(s, pos, "{") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "fns") {
+        return (false, dummy)
+    }
+    let fr = j_parse_fn_array(s, pos)
+    if !fr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, ",") {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect_key(s, pos, "main") {
+        return (false, dummy)
+    }
+    let mr = j_parse_stmt_array(s, pos)
+    if !mr.0 {
+        return (false, dummy)
+    }
+    if !jparse_base::j_expect(s, pos, "}") {
+        return (false, dummy)
+    }
+    return (true, ast::program_new(fr.1, mr.1))
+}
+
+fn j_parse_program_text(text: str) -> (bool, Program) {
+    let dummy = ast::program_new(vec<FnDef>(), vec<Stmt>())
+    let mut pos = vec(0)
+    let r = j_parse_program(text, pos)
+    if !r.0 {
+        return (false, dummy)
+    }
+    jparse_base::j_skip(text, pos)
+    if pos[0] != len(text) {
+        return (false, dummy)
+    }
+    return (true, r.1)
+}

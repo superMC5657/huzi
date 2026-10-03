@@ -3,7 +3,6 @@ import json
 
 # C2 向量：每个 ID 的 Huzi 侧手工构 AST（与 Rust ast_json::test_vector 等价，见 RFC）。
 # 未知 ID 返回 (false, "")，两侧均非零退出。
-
 fn vector_expr_json(id: str) -> (bool, str) {
     if id == "expr_num" {
         return (true, json::expr_to_json(ast::expr_num(42)))
